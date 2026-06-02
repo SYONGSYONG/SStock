@@ -26,7 +26,10 @@ export function PositionTable({ positions, quotes }: PositionTableProps) {
             const evalAmount = q?.price != null ? q.price * p.qty : null;
             return (
               <tr key={p.symbol}>
-                <td className="code">{p.symbol}</td>
+                <td>
+                  <span className="code">{p.symbol}</span>{" "}
+                  <span className="name">{p.name ?? ""}</span>
+                </td>
                 <td className="num">{fmt(p.qty)}</td>
                 <td className={`num ${direction(q?.change)}`}>{fmt(q?.price)}</td>
                 <td className="num">{fmt(evalAmount)}</td>

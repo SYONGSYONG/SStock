@@ -32,7 +32,10 @@ export function OrderLog({ orders }: OrderLogProps) {
           {orders.map((o) => (
             <tr key={o.id}>
               <td className="muted">{o.created_at?.slice(11, 19) ?? "-"}</td>
-              <td className="code">{o.symbol}</td>
+              <td>
+                <span className="code">{o.symbol}</span>{" "}
+                <span className="name">{o.name ?? ""}</span>
+              </td>
               <td className={o.side === "BUY" ? "up" : "down"}>
                 {o.side === "BUY" ? "매수" : "매도"}
               </td>

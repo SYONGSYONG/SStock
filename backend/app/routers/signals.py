@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.db.database import get_db
 from app.services import signal_service
+from app.stocks.master import get_name
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
@@ -17,4 +18,7 @@ def list_signals(
     limit: int = Query(default=100, ge=1, le=500),
     conn: sqlite3.Connection = Depends(get_db),
 ) -> dict:
-    return {"data": signal_service.list_signals(conn, limit)}
+    data = signal_service.list_signals(conn, limit)
+    for d in data:
+        d["name"] = get_name(d["symbol"])
+    return {"data": data}

@@ -45,6 +45,7 @@ export interface StrategyConfig {
 export interface Signal {
   id: number;
   symbol: string;
+  name?: string | null;
   strategy: string;
   side: "BUY" | "SELL";
   price: number | null;
@@ -61,6 +62,7 @@ export interface BotStatus {
 export interface Order {
   id: number;
   symbol: string;
+  name?: string | null;
   side: "BUY" | "SELL";
   qty: number;
   price: number | null;
@@ -72,6 +74,7 @@ export interface Order {
 
 export interface Position {
   symbol: string;
+  name?: string | null;
   qty: number;
 }
 

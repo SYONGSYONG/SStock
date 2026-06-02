@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.db.database import get_db
 from app.kis.orders import cancel_order
 from app.services import audit_service, order_service
+from app.stocks.master import get_name
 
 router = APIRouter(prefix="/api", tags=["orders"])
 
@@ -19,12 +20,18 @@ def list_orders(
     limit: int = Query(default=100, ge=1, le=500),
     conn: sqlite3.Connection = Depends(get_db),
 ) -> dict:
-    return {"data": order_service.list_orders(conn, limit)}
+    data = order_service.list_orders(conn, limit)
+    for d in data:
+        d["name"] = get_name(d["symbol"])
+    return {"data": data}
 
 
 @router.get("/positions")
 def positions(conn: sqlite3.Connection = Depends(get_db)) -> dict:
-    return {"data": order_service.compute_positions(conn)}
+    data = order_service.compute_positions(conn)
+    for d in data:
+        d["name"] = get_name(d["symbol"])
+    return {"data": data}
 
 
 @router.post("/orders/{order_id}/cancel")

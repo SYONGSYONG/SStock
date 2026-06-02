@@ -26,7 +26,10 @@ export function SignalLog({ signals }: SignalLogProps) {
           {signals.map((s) => (
             <tr key={s.id}>
               <td className="muted">{s.created_at?.slice(11, 19) ?? "-"}</td>
-              <td className="code">{s.symbol}</td>
+              <td>
+                <span className="code">{s.symbol}</span>{" "}
+                <span className="name">{s.name ?? ""}</span>
+              </td>
               <td>{strategyLabel(s.strategy)}</td>
               <td className={s.side === "BUY" ? "up" : "down"}>
                 {s.side === "BUY" ? "매수" : "매도"}

@@ -274,6 +274,10 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.quote-table .name {
+  color: var(--muted);
+  font-size: 12px;
+}
 .num.up {
   color: var(--up);
 }

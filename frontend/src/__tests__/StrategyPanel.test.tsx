@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
-import { StrategyPanel, describeStrategy } from "../components/StrategyPanel";
+import { StrategyPanel } from "../components/StrategyPanel";
+import { describeStrategy } from "../lib/strategy";
 import type { StrategyConfig } from "../types";
 
 describe("describeStrategy", () => {

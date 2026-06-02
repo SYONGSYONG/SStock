@@ -27,4 +27,10 @@ describe("SignalLog", () => {
     expect(screen.getByText("매수")).toBeInTheDocument();
     expect(screen.getByText("골든크로스")).toBeInTheDocument();
   });
+
+  test("전략은 원시 식별자가 아니라 한글 라벨로 표시", () => {
+    render(<SignalLog signals={sample} />);
+    expect(screen.getByText("이동평균 크로스")).toBeInTheDocument();
+    expect(screen.queryByText("ma_cross")).toBeNull();
+  });
 });

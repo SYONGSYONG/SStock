@@ -1,5 +1,6 @@
 import type { Signal } from "../types";
 import { fmt } from "../lib/format";
+import { strategyLabel } from "../lib/strategy";
 
 interface SignalLogProps {
   signals: Signal[];
@@ -25,7 +26,7 @@ export function SignalLog({ signals }: SignalLogProps) {
             <tr key={s.id}>
               <td className="muted">{s.created_at?.slice(11, 19) ?? "-"}</td>
               <td className="code">{s.symbol}</td>
-              <td>{s.strategy}</td>
+              <td>{strategyLabel(s.strategy)}</td>
               <td className={s.side === "BUY" ? "up" : "down"}>
                 {s.side === "BUY" ? "매수" : "매도"}
               </td>

@@ -14,7 +14,7 @@ def _live_settings() -> Settings:
         trading_mode="live",
         kis_app_key="k",
         kis_app_secret="s",
-        kis_account_no="50191231",
+        kis_account_no="00000000",
     )
 
 

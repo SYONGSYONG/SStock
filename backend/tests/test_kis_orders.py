@@ -15,7 +15,7 @@ def _settings(tmp_path) -> Settings:
         trading_mode="paper",
         kis_app_key="k",
         kis_app_secret="s",
-        kis_account_no="50191231",
+        kis_account_no="00000000",
         database_path=str(tmp_path / "sstock.db"),
     )
 

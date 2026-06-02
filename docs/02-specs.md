@@ -206,3 +206,20 @@ DATABASE_PATH=./data/sstock.db
 
 - KIS 실거래 API는 테스트에서 **항상 mock**. 실제 호출 금지.
 - 절대규칙 3: 테스트 통과 없이 기능 완료 선언 금지.
+
+---
+
+## 운영 스크립트 (루트 배치)
+
+| 스크립트 | 역할 |
+|---------|------|
+| `setup.bat` | 백엔드 venv + `pip install -e .[dev]`, 프론트 `npm install` (최초 1회) |
+| `start.bat` | `scripts/start-server.ps1` 위임 — 백엔드(uvicorn :8000)+프론트(vite :5173)를 숨김 실행, `logs/`에 기록, **포트 감지**로 OK/FAIL 보고 |
+| `stop.bat` | `scripts/stop-server.ps1` 위임 — **포트 + 저장소 폴더 기준**으로 종료(폴백 포트·고아 프로세스까지). `net session` 권한 경고 |
+| `start_backend.bat` / `start_frontend.bat` | 개별 가시 창 실행(라이브 로그 확인용) |
+
+설계 원칙(Reference `bat` 문서 기준):
+- 배치/PS1 메시지는 **영문**(CMD CP949 깨짐 방지), PS1은 **ASCII**(PowerShell 5.1 BOM 이슈 방지).
+- 종료는 포트만 보지 않고 **저장소 디렉터리에서 실행된 python/node**를 함께 정리 — Vite 폴백 포트(5174 등)와 자식 프로세스 누락 방지.
+- Vite는 `strictPort: true`로 **5173 고정**(폴백으로 인한 종료 누락 원천 차단).
+- 배치는 `%~dp0` 기반 자기 위치 인식(클론 경로 무관).

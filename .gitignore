@@ -39,6 +39,9 @@ Reference/API_DOC/*.txt
 **/.playwright-mcp/
 sstock-*.png
 
+# ===== 실행 로그 =====
+logs/
+
 # ===== OS / 에디터 =====
 .DS_Store
 Thumbs.db

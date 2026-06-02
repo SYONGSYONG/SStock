@@ -1,4 +1,15 @@
-import type { MarketStatus, Quote, Signal, StrategyConfig, StrategyName, WatchItem } from "../types";
+import type {
+  AuditLog,
+  BotStatus,
+  MarketStatus,
+  Order,
+  Position,
+  Quote,
+  Signal,
+  StrategyConfig,
+  StrategyName,
+  WatchItem,
+} from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -62,3 +73,19 @@ export const deleteStrategy = (id: number) =>
   api<{ id: number; removed: boolean }>(`/api/strategies/${id}`, { method: "DELETE" });
 
 export const getSignals = (limit = 50) => api<Signal[]>(`/api/signals?limit=${limit}`);
+
+export const getBotStatus = () => api<BotStatus>("/api/bot/status");
+
+export const startBot = (confirmLive = false) =>
+  api<BotStatus>("/api/bot/start", {
+    method: "POST",
+    body: JSON.stringify({ confirm_live: confirmLive }),
+  });
+
+export const stopBot = () => api<{ running: boolean }>("/api/bot/stop", { method: "POST" });
+
+export const getOrders = (limit = 50) => api<Order[]>(`/api/orders?limit=${limit}`);
+
+export const getPositions = () => api<Position[]>("/api/positions");
+
+export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);

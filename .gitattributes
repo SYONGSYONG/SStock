@@ -1,0 +1,15 @@
+# 텍스트 파일은 저장소에서 LF로 정규화 (Windows 작업본은 자동 변환)
+* text=auto eol=lf
+
+# Windows 배치/PowerShell은 CRLF 유지
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 바이너리(diff/정규화 제외)
+*.xlsx binary
+*.png binary
+*.ico binary
+*.jpg binary
+*.gif binary
+*.lock binary

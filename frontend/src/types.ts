@@ -46,3 +46,33 @@ export interface Signal {
   reason: string;
   created_at: string;
 }
+
+export interface BotStatus {
+  running: boolean;
+  market_running: boolean;
+  mode: TradingMode;
+}
+
+export interface Order {
+  id: number;
+  symbol: string;
+  side: "BUY" | "SELL";
+  qty: number;
+  price: number | null;
+  mode: string;
+  status: string;
+  kis_order_no: string | null;
+  created_at: string;
+}
+
+export interface Position {
+  symbol: string;
+  qty: number;
+}
+
+export interface AuditLog {
+  id: number;
+  category: string;
+  message: string;
+  created_at: string;
+}

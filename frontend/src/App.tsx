@@ -4,36 +4,58 @@ import {
   addStrategy,
   addWatch,
   deleteStrategy,
-  getHealth,
+  getAudit,
+  getBotStatus,
   getMarketStatus,
+  getOrders,
+  getPositions,
   getQuote,
   getSignals,
   getStrategies,
   listWatchlist,
   removeWatch,
   setStrategyEnabled,
+  startBot,
   startMarket,
+  stopBot,
   stopMarket,
 } from "./api/client";
 import { ModeBanner } from "./components/ModeBanner";
 import { WatchList } from "./components/WatchList";
 import { QuoteTable } from "./components/QuoteTable";
 import { MarketControl } from "./components/MarketControl";
+import { BotControl } from "./components/BotControl";
 import { StrategyPanel } from "./components/StrategyPanel";
 import { SignalLog } from "./components/SignalLog";
+import { PositionTable } from "./components/PositionTable";
+import { OrderLog } from "./components/OrderLog";
+import { AuditLogView } from "./components/AuditLogView";
 import { useLiveQuotes } from "./hooks/useLiveQuotes";
-import type { MarketStatus, Signal, StrategyConfig, TradingMode, WatchItem } from "./types";
+import type {
+  AuditLog,
+  BotStatus,
+  MarketStatus,
+  Order,
+  Position,
+  Signal,
+  StrategyConfig,
+  WatchItem,
+} from "./types";
 
-const SIGNAL_POLL_MS = 5000;
+const POLL_MS = 5000;
 
 export function App() {
-  const [mode, setMode] = useState<TradingMode>("paper");
   const [items, setItems] = useState<WatchItem[]>([]);
   const [market, setMarket] = useState<MarketStatus>({ running: false, symbols: [], dashboard_clients: 0 });
+  const [bot, setBot] = useState<BotStatus>({ running: false, market_running: false, mode: "paper" });
   const [strategies, setStrategies] = useState<StrategyConfig[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [audit, setAudit] = useState<AuditLog[]>([]);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
+  const [botError, setBotError] = useState<string | null>(null);
   const { quotes, connected, mergeSnapshot } = useLiveQuotes();
 
   const refreshWatch = useCallback(async () => {
@@ -48,17 +70,23 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    getHealth().then((h) => setMode(h.mode as TradingMode)).catch(() => {});
     refreshWatch().catch(() => {});
     refreshStrategies().catch(() => {});
     getMarketStatus().then(setMarket).catch(() => {});
   }, [refreshWatch, refreshStrategies]);
 
-  // 신호 로그 폴링
+  // 봇/신호/주문/포지션/로그 폴링
   useEffect(() => {
-    const tick = () => getSignals(50).then(setSignals).catch(() => {});
+    const tick = () => {
+      getBotStatus().then(setBot).catch(() => {});
+      getSignals(50).then(setSignals).catch(() => {});
+      getOrders(50).then(setOrders).catch(() => {});
+      getPositions().then(setPositions).catch(() => {});
+      getAudit(100).then(setAudit).catch(() => {});
+      getMarketStatus().then(setMarket).catch(() => {});
+    };
     tick();
-    const id = setInterval(tick, SIGNAL_POLL_MS);
+    const id = setInterval(tick, POLL_MS);
     return () => clearInterval(id);
   }, []);
 
@@ -97,15 +125,29 @@ export function App() {
     await refreshStrategies();
   };
 
-  const handleStart = async () => setMarket(await startMarket());
-  const handleStop = async () => {
+  const handleBotStart = async (confirmLive: boolean) => {
+    setBotError(null);
+    try {
+      setBot(await startBot(confirmLive));
+    } catch (e) {
+      setBotError(e instanceof ApiError ? e.message : "봇 시작 실패");
+    }
+  };
+
+  const handleBotStop = async () => {
+    const r = await stopBot();
+    setBot((b) => ({ ...b, running: r.running }));
+  };
+
+  const handleMarketStart = async () => setMarket(await startMarket());
+  const handleMarketStop = async () => {
     const r = await stopMarket();
     setMarket((m) => ({ ...m, running: r.running }));
   };
 
   return (
     <div className="app">
-      <ModeBanner mode={mode} marketRunning={market.running} connected={connected} />
+      <ModeBanner mode={bot.mode} botRunning={bot.running} connected={connected} />
       <main className="layout">
         <aside className="sidebar">
           <WatchList items={items} onAdd={handleAddWatch} onRemove={handleRemoveWatch} error={watchError} />
@@ -116,16 +158,26 @@ export function App() {
             onRemove={handleRemoveStrategy}
             error={strategyError}
           />
+          <BotControl
+            running={bot.running}
+            mode={bot.mode}
+            onStart={handleBotStart}
+            onStop={handleBotStop}
+            error={botError}
+          />
           <MarketControl
             running={market.running}
             clients={market.dashboard_clients}
-            onStart={handleStart}
-            onStop={handleStop}
+            onStart={handleMarketStart}
+            onStop={handleMarketStop}
           />
         </aside>
         <div className="content">
           <QuoteTable items={items} quotes={quotes} />
+          <PositionTable positions={positions} quotes={quotes} />
+          <OrderLog orders={orders} />
           <SignalLog signals={signals} />
+          <AuditLogView logs={audit} />
         </div>
       </main>
     </div>

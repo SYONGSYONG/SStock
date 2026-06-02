@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { WatchList } from "../components/WatchList";
-import type { StockSearchResult } from "../types";
+import type { StockSearchResult, WatchItem } from "../types";
 
 const RESULTS: StockSearchResult[] = [
   { symbol: "005930", name: "삼성전자" },
@@ -53,5 +53,41 @@ describe("WatchList 키보드 조작", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("WatchList 종목 클릭", () => {
+  const items: WatchItem[] = [{ id: 1, symbol: "005930", name: "삼성전자", created_at: "" }];
+
+  test("종목 행 클릭 시 onSelect(symbol) 호출", () => {
+    const onSelect = vi.fn();
+    render(
+      <WatchList
+        items={items}
+        onAdd={() => {}}
+        onRemove={() => {}}
+        onSelect={onSelect}
+        search={vi.fn(async () => [])}
+      />,
+    );
+    fireEvent.click(screen.getByTitle("차트 보기"));
+    expect(onSelect).toHaveBeenCalledWith("005930");
+  });
+
+  test("삭제 버튼은 onSelect를 호출하지 않음", () => {
+    const onSelect = vi.fn();
+    const onRemove = vi.fn();
+    render(
+      <WatchList
+        items={items}
+        onAdd={() => {}}
+        onRemove={onRemove}
+        onSelect={onSelect}
+        search={vi.fn(async () => [])}
+      />,
+    );
+    fireEvent.click(screen.getByText("삭제"));
+    expect(onRemove).toHaveBeenCalledWith("005930");
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

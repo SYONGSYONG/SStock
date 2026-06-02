@@ -397,6 +397,110 @@ body {
   gap: 8px;
 }
 
+/* 관심종목 행: 코드+이름 클릭 → 차트 모달 */
+.watch-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.watch-open:hover .code {
+  text-decoration: underline;
+}
+.watch-open .name {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 차트 모달 */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 22, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.modal.chart-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  width: min(960px, 100%);
+  height: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.chart-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.chart-modal-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.chart-modal-head h2 .code {
+  font-size: 16px;
+}
+.chart-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.chart-toggle button {
+  border: none;
+  background: var(--surface);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.chart-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.modal-close {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+}
+.chart-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.chart-canvas {
+  position: absolute;
+  inset: 0;
+}
+.chart-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+}
+
 .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -590,4 +694,39 @@ body {
 .rec-card .add-btn:hover {
   background: #1d4ed8;
   color: #fff;
+}
+
+/* ── 추천 카드: 현재가 + 클릭(차트) ── */
+.rec-card.clickable {
+  cursor: pointer;
+  transition: box-shadow 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+.rec-card.clickable:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+.rec-card.clickable:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+.rec-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 10px;
+}
+.rec-price .now {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rec-price .up,
+.rec-price .down {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rec-meta .chart-hint {
+  font-size: 11px;
+  color: #94a3b8;
 }

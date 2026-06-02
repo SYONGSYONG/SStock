@@ -3,6 +3,8 @@ import type {
   AuditLog,
   BotStatus,
   Budget,
+  ChartData,
+  ChartInterval,
   MarketStatus,
   Order,
   Position,
@@ -97,6 +99,9 @@ export const getOrders = (limit = 50) => api<Order[]>(`/api/orders?limit=${limit
 export const getPositions = () => api<Position[]>("/api/positions");
 
 export const getAccountBalance = () => api<AccountBalance>("/api/account/balance");
+
+export const getChart = (symbol: string, interval: ChartInterval = "daily") =>
+  api<ChartData>(`/api/charts/${symbol}?interval=${interval}`);
 
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
 

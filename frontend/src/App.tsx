@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import {
   ApiError,
   addStrategy,
@@ -6,6 +6,7 @@ import {
   deleteBudget,
   deleteStrategy,
   getAccountBalance,
+  getChart,
   getAudit,
   getBotStatus,
   getBudgets,
@@ -39,6 +40,11 @@ import { OrderLog } from "./components/OrderLog";
 import { AuditLogView } from "./components/AuditLogView";
 import { BudgetPanel } from "./components/BudgetPanel";
 import { AccountPanel } from "./components/AccountPanel";
+
+// 차트 라이브러리(lightweight-charts)는 무거우므로 모달을 열 때만 지연 로딩
+const ChartModal = lazy(() =>
+  import("./components/ChartModal").then((m) => ({ default: m.ChartModal })),
+);
 import { RecommendPage } from "./components/RecommendPage";
 import { useLiveQuotes } from "./hooks/useLiveQuotes";
 import type {
@@ -67,6 +73,7 @@ export function App() {
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [account, setAccount] = useState<AccountBalance | null>(null);
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
@@ -200,6 +207,7 @@ export function App() {
           fetchThemes={getThemes}
           fetchRecommend={getRecommend}
           onAdd={handleAddWatch}
+          onSelect={setChartSymbol}
         />
       ) : (
       <main className="layout">
@@ -208,6 +216,7 @@ export function App() {
             items={items}
             onAdd={handleAddWatch}
             onRemove={handleRemoveWatch}
+            onSelect={setChartSymbol}
             search={searchStocks}
             error={watchError}
           />
@@ -249,6 +258,16 @@ export function App() {
           <AuditLogView logs={audit} />
         </div>
       </main>
+      )}
+      {chartSymbol && (
+        <Suspense fallback={null}>
+          <ChartModal
+            symbol={chartSymbol}
+            name={items.find((it) => it.symbol === chartSymbol)?.name}
+            fetchChart={getChart}
+            onClose={() => setChartSymbol(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

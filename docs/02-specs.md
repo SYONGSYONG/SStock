@@ -83,6 +83,16 @@
 - 필드 매핑(`output2`): `dnca_tot_amt`(예수금)·`prvs_rcdl_excc_amt`(가수도정산≈주문가능현금)·`pchs_amt_smtl_amt`(매입합계)·`evlu_amt_smtl_amt`(평가합계)·`evlu_pfls_smtl_amt`(평가손익)·`tot_evlu_amt`(총평가)·`nass_amt`(순자산).
 - **graceful**: KIS 일시 오류(예: 토큰 만료 `EGW00121`, 모의서버 500) 시 500 대신 `available=false` + 모든 값 `null`로 응답 → 대시보드가 깨지지 않는다(시세 조회와 동일 정책).
 
+### 대시보드 차트 API
+
+| 엔드포인트 | 설명 | 출처 |
+|-----------|------|------|
+| `GET /api/charts/{symbol}?interval=daily\|minute` | 일봉(최근 ~100영업일)/분봉(당일) 캔들 | 기간별시세 `FHKST03010100` / 당일분봉 `FHKST03010200` |
+
+- 응답: `{ "data": { "symbol", "interval", "candles": [ { "time", "open", "high", "low", "close", "volume" } ] } }` (시간 오름차순).
+- 일봉 `time`=`"YYYY-MM-DD"`, 분봉 `time`=UNIX 초(KST 벽시계→UTC 환산). KIS 오류 시 빈 캔들 graceful.
+- 상세 설계: `docs/07-chart.md`.
+
 ---
 
 ## 인증 흐름

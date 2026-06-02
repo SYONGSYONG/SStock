@@ -24,10 +24,16 @@ function setup() {
   const fetchThemes = vi.fn(async () => THEMES);
   const fetchRecommend = vi.fn(async () => RESULT);
   const onAdd = vi.fn();
+  const onSelect = vi.fn();
   render(
-    <RecommendPage fetchThemes={fetchThemes} fetchRecommend={fetchRecommend} onAdd={onAdd} />,
+    <RecommendPage
+      fetchThemes={fetchThemes}
+      fetchRecommend={fetchRecommend}
+      onAdd={onAdd}
+      onSelect={onSelect}
+    />,
   );
-  return { fetchThemes, fetchRecommend, onAdd };
+  return { fetchThemes, fetchRecommend, onAdd, onSelect };
 }
 
 describe("RecommendPage", () => {
@@ -66,5 +72,30 @@ describe("RecommendPage", () => {
     setup();
     await screen.findByText("반도체");
     expect(screen.getByText(/참고용/)).toBeInTheDocument();
+  });
+
+  test("추천 카드에 현재가와 등락률(부호)을 표시한다", async () => {
+    setup();
+    fireEvent.click(await screen.findByText("반도체"));
+    await screen.findByText("SK하이닉스");
+    expect(screen.getByText("180,000")).toBeInTheDocument();
+    expect(screen.getByText("+3.20%")).toBeInTheDocument();
+  });
+
+  test("카드를 클릭하면 onSelect(차트)를 호출한다", async () => {
+    const { onSelect } = setup();
+    fireEvent.click(await screen.findByText("반도체"));
+    await screen.findByText("SK하이닉스");
+    fireEvent.click(screen.getByRole("button", { name: /SK하이닉스 차트 보기/ }));
+    expect(onSelect).toHaveBeenCalledWith("000660");
+  });
+
+  test("관심종목 추가 버튼은 차트(onSelect)를 열지 않는다", async () => {
+    const { onAdd, onSelect } = setup();
+    fireEvent.click(await screen.findByText("반도체"));
+    await screen.findByText("SK하이닉스");
+    fireEvent.click(screen.getByRole("button", { name: /관심종목 추가/ }));
+    expect(onAdd).toHaveBeenCalledWith("000660", "SK하이닉스");
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

@@ -85,6 +85,23 @@ export interface AuditLog {
   created_at: string;
 }
 
+export type ChartInterval = "daily" | "minute";
+
+export interface Candle {
+  time: string | number; // 일봉: "YYYY-MM-DD", 분봉: UNIX 초
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface ChartData {
+  symbol: string;
+  interval: ChartInterval;
+  candles: Candle[];
+}
+
 export interface AccountBalance {
   mode: TradingMode;
   available: boolean; // KIS 조회 성공 여부(false면 모든 값 null)

@@ -167,3 +167,45 @@
 2. 복합 점수: **모멘텀 40 / 펀더멘털 35 / 수급 25** (설정값, 기본 고정).
 3. 1차 압축 **N=30**, 추천 개수 **K=10** (설정값, 기본 고정).
 4. 코스피+코스닥 **통합 추천** (시장 구분 없이 한 풀에서 랭킹, 결과에 시장 라벨 표기).
+
+---
+
+## 10. 보강 — 현재가 표시 + 종목 차트 (feat/recommend-page)
+
+> 추천 카드에서 **현재가·등락률**을 바로 보고, 종목 클릭 시 **일봉 차트**를 띄운다.
+> 차트는 `lightweight-charts`(이미 설치됨)로 그린다. Phase 6 #1(일/분봉 차트)과 연계.
+
+### 10.1 현재가·등락률 (카드)
+
+- 추천 카드에 **현재가(`price`)** 표시 추가. 등락률(`change_rate`)은 **한국 관례 색상**
+  (상승=빨강, 하락=파랑, 0/없음=회색). 값이 없으면(`None`) `-`.
+- 데이터는 추천 응답에 이미 포함된 `price`/`change_rate` 재사용(추가 호출 없음).
+
+### 10.2 종목 차트 (모달) — 기존 차트 인프라 재사용
+
+차트 백엔드·`ChartModal`은 **이미 구현돼 대시보드에 연결**돼 있다(`docs/07-chart.md`).
+추천 페이지는 이를 **재사용**한다(중복 구현 없음).
+
+- 카드를 클릭하면 기존 `ChartModal`을 연다(일봉/분봉 토글·캔들+거래량·국내 색상·ESC/배경 닫기).
+- **백엔드(기존)**: `GET /api/charts/{symbol}?interval=daily|minute`
+  - 일봉: KIS `inquire-daily-itemchartprice`(FHKST03010100), 분봉: `inquire-time-itemchartprice`(FHKST03010200).
+  - 응답 `{"data": {symbol, interval, candles:[{time, open, high, low, close, volume}, ...]}}` (시간 오름차순).
+  - KIS 일시 실패 시 빈 `candles`(degrade).
+- **연동(추천 페이지)**: `RecommendPage`에 `onSelect(symbol)` 추가 → `App`의 `setChartSymbol`로
+  기존 모달을 띄운다. 카드의 "관심종목 추가" 버튼은 `stopPropagation`으로 차트 클릭과 분리.
+
+### 10.3 파일 (이번 작업 = 연동 위주)
+
+| 파일 | 상태 | 역할 |
+|------|------|------|
+| `backend/app/kis/charts.py`, `routers/charts.py` | **기존** | KIS 일/분봉 조회 + 라우터 |
+| `frontend/src/components/ChartModal.tsx` | **기존** | lightweight-charts 캔들 모달 |
+| `frontend/src/components/RecommendPage.tsx` | 수정 | 현재가·등락률 표시 + 카드 클릭→`onSelect` |
+| `frontend/src/App.tsx` | 수정 | `RecommendPage`에 `onSelect={setChartSymbol}` |
+| `frontend/src/styles.css` | 수정 | 카드 현재가·clickable 스타일 |
+
+### 10.4 테스트
+
+- **프론트**: 카드 현재가·등락률(부호) 표시, 카드 클릭→`onSelect` 호출, "관심종목 추가"는
+  `onSelect` 미호출(stopPropagation). → `RecommendPage.test.tsx` 신규 3건.
+- 차트 데이터/모달 자체는 기존 `test_charts.py`·`ChartModal.test.tsx`가 커버.

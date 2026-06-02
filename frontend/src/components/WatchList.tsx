@@ -5,11 +5,12 @@ interface WatchListProps {
   items: WatchItem[];
   onAdd: (symbol: string, name?: string) => void;
   onRemove: (symbol: string) => void;
+  onSelect?: (symbol: string) => void; // 행 클릭 → 차트 모달
   search: (q: string) => Promise<StockSearchResult[]>;
   error?: string | null;
 }
 
-export function WatchList({ items, onAdd, onRemove, search, error }: WatchListProps) {
+export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: WatchListProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -122,8 +123,15 @@ export function WatchList({ items, onAdd, onRemove, search, error }: WatchListPr
       <ul className="watch-list">
         {items.map((it) => (
           <li key={it.symbol}>
-            <span className="code">{it.symbol}</span>
-            <span className="name">{it.name ?? "-"}</span>
+            <button
+              type="button"
+              className="watch-open"
+              onClick={() => onSelect?.(it.symbol)}
+              title="차트 보기"
+            >
+              <span className="code">{it.symbol}</span>
+              <span className="name">{it.name ?? "-"}</span>
+            </button>
             <button className="link-danger" onClick={() => onRemove(it.symbol)}>
               삭제
             </button>

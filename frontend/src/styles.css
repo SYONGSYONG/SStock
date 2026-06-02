@@ -247,6 +247,18 @@ body {
   font-size: 12px;
 }
 
+/* 표 패널: 약 5행 높이로 제한 + 내부 스크롤(헤더 고정) */
+.table-scroll {
+  max-height: 232px; /* 헤더 + 약 5행 */
+  overflow-y: auto;
+}
+.table-scroll .quote-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
 .quote-table {
   width: 100%;
   border-collapse: collapse;

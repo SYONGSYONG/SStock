@@ -10,6 +10,7 @@ export function QuoteTable({ items, quotes }: QuoteTableProps) {
   return (
     <section className="panel">
       <h2>실시간 시세</h2>
+      <div className="table-scroll">
       <table className="quote-table">
         <thead>
           <tr>
@@ -46,6 +47,7 @@ export function QuoteTable({ items, quotes }: QuoteTableProps) {
           )}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

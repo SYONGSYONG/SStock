@@ -10,6 +10,7 @@ export function SignalLog({ signals }: SignalLogProps) {
   return (
     <section className="panel">
       <h2>매매 신호</h2>
+      <div className="table-scroll">
       <table className="quote-table">
         <thead>
           <tr>
@@ -43,6 +44,7 @@ export function SignalLog({ signals }: SignalLogProps) {
           )}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

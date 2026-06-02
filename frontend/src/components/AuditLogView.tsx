@@ -17,6 +17,7 @@ export function AuditLogView({ logs }: AuditLogViewProps) {
   return (
     <section className="panel">
       <h2>시스템 로그</h2>
+      <div className="table-scroll">
       <table className="quote-table">
         <thead>
           <tr>
@@ -44,6 +45,7 @@ export function AuditLogView({ logs }: AuditLogViewProps) {
           )}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

@@ -5,6 +5,11 @@ export interface WatchItem {
   created_at: string;
 }
 
+export interface StockSearchResult {
+  symbol: string;
+  name: string;
+}
+
 export interface Quote {
   symbol: string;
   price: number | null;

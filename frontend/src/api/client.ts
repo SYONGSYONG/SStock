@@ -6,6 +6,7 @@ import type {
   Position,
   Quote,
   Signal,
+  StockSearchResult,
   StrategyConfig,
   StrategyName,
   WatchItem,
@@ -45,6 +46,9 @@ export const addWatch = (symbol: string, name?: string) =>
 
 export const removeWatch = (symbol: string) =>
   api<{ symbol: string; removed: boolean }>(`/api/watchlist/${symbol}`, { method: "DELETE" });
+
+export const searchStocks = (q: string, limit = 20) =>
+  api<StockSearchResult[]>(`/api/stocks/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
 export const getQuote = (symbol: string) => api<Quote>(`/api/quotes/${symbol}`);
 

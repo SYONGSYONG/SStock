@@ -14,6 +14,7 @@ import {
   getStrategies,
   listWatchlist,
   removeWatch,
+  searchStocks,
   setStrategyEnabled,
   startBot,
   startMarket,
@@ -150,7 +151,13 @@ export function App() {
       <ModeBanner mode={bot.mode} botRunning={bot.running} connected={connected} />
       <main className="layout">
         <aside className="sidebar">
-          <WatchList items={items} onAdd={handleAddWatch} onRemove={handleRemoveWatch} error={watchError} />
+          <WatchList
+            items={items}
+            onAdd={handleAddWatch}
+            onRemove={handleRemoveWatch}
+            search={searchStocks}
+            error={watchError}
+          />
           <StrategyPanel
             configs={strategies}
             onAdd={handleAddStrategy}

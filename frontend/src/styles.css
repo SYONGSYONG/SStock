@@ -76,17 +76,62 @@ body {
   font-size: 15px;
 }
 
+.search-box {
+  position: relative;
+  margin-bottom: 10px;
+}
+.search-box input {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.search-results {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.search-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.search-results li:hover {
+  background: #eef2f7;
+}
+
 .watch-form {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
   margin-bottom: 10px;
 }
-.watch-form input {
+.watch-form input,
+.watch-form select {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 13px;
+  min-width: 0; /* grid 트랙이 콘텐츠보다 줄어들 수 있게(오버플로 방지) */
+}
+.watch-form button {
+  white-space: nowrap;
 }
 .watch-form button,
 .btn-start,

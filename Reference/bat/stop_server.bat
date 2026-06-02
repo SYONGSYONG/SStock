@@ -1,0 +1,45 @@
+@echo off
+setlocal EnableExtensions
+
+rem ----------------------------------------------------------------
+rem Stop Framework5.0 Manager backend + frontend dev servers.
+rem
+rem Admin rights:
+rem   Stop-Process needs admin rights to kill node.exe processes
+rem   that were started from another elevated session (or by another
+rem   user). When run as a regular user we warn and continue — it
+rem   often still works in single-user dev environments.
+rem ----------------------------------------------------------------
+
+set "BASE=%~dp0"
+if "%BASE:~-1%"=="\" set "BASE=%BASE:~0,-1%"
+set "PS1=%BASE%\scripts\stop-server.ps1"
+
+echo Stopping Framework5.0 Manager...
+echo.
+
+rem -- admin rights probe (warn only; do not abort) --
+net session >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Running without administrator rights.
+    echo        If a node.exe process refuses to die, re-run this script
+    echo        from an elevated command prompt (Run as administrator).
+    echo.
+)
+
+if not exist "%PS1%" (
+    echo [ERROR] PowerShell helper not found: %PS1%
+    exit /b 1
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
+set "PS_CODE=%errorlevel%"
+
+echo.
+if not "%PS_CODE%"=="0" (
+    echo [ERROR] stop-server.ps1 returned exit code %PS_CODE%.
+    exit /b %PS_CODE%
+)
+
+echo Done.
+exit /b 0

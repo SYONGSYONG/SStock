@@ -18,6 +18,7 @@ from app.routers import (
     orders,
     quotes,
     signals,
+    stocks,
     strategies,
     watchlist,
     ws,
@@ -28,6 +29,16 @@ from app.routers import (
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     init_db(settings.database_path)
+    # 종목명이 비어 있는 기존 관심종목을 마스터에서 채운다
+    from app.db.database import connect
+    from app.services.watchlist_service import backfill_names
+    from app.stocks.master import get_name
+
+    conn = connect(settings.database_path)
+    try:
+        backfill_names(conn, get_name)
+    finally:
+        conn.close()
     yield
 
 
@@ -46,6 +57,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(watchlist.router)
+    app.include_router(stocks.router)
     app.include_router(quotes.router)
     app.include_router(market.router)
     app.include_router(strategies.router)

@@ -35,6 +35,10 @@ dist/
 # ===== 임시 / 추출 산출물 =====
 Reference/API_DOC/*.txt
 
+# ===== Playwright / 테스트 스크린샷 =====
+**/.playwright-mcp/
+sstock-*.png
+
 # ===== OS / 에디터 =====
 .DS_Store
 Thumbs.db

@@ -9,19 +9,20 @@ from app.config import Settings
 from app.kis.orders import cancel_order, get_balance, place_order
 
 
-def _settings() -> Settings:
+def _settings(tmp_path) -> Settings:
     return Settings(
         _env_file=None,
         trading_mode="paper",
         kis_app_key="k",
         kis_app_secret="s",
         kis_account_no="50191231",
+        database_path=str(tmp_path / "sstock.db"),
     )
 
 
 @respx.mock
-async def test_매수주문_성공():
-    s = _settings()
+async def test_매수주문_성공(tmp_path):
+    s = _settings(tmp_path)
     respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
         return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
     )
@@ -39,8 +40,8 @@ async def test_매수주문_성공():
 
 
 @respx.mock
-async def test_주문취소():
-    s = _settings()
+async def test_주문취소(tmp_path):
+    s = _settings(tmp_path)
     respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
         return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
     )
@@ -56,8 +57,8 @@ async def test_주문취소():
 
 
 @respx.mock
-async def test_잔고조회_파싱():
-    s = _settings()
+async def test_잔고조회_파싱(tmp_path):
+    s = _settings(tmp_path)
     respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
         return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
     )

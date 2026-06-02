@@ -29,3 +29,19 @@ def remove_symbol(conn: sqlite3.Connection, symbol: str) -> bool:
     cur = conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol,))
     conn.commit()
     return cur.rowcount > 0
+
+
+def backfill_names(conn: sqlite3.Connection, resolver) -> int:
+    """종목명이 비어 있는 관심종목을 resolver(symbol)->name 으로 채운다."""
+    rows = conn.execute(
+        "SELECT id, symbol FROM watchlist WHERE name IS NULL OR name = ''"
+    ).fetchall()
+    filled = 0
+    for row in rows:
+        name = resolver(row["symbol"])
+        if name:
+            conn.execute("UPDATE watchlist SET name = ? WHERE id = ?", (name, row["id"]))
+            filled += 1
+    if filled:
+        conn.commit()
+    return filled

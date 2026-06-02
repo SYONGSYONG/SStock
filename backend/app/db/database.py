@@ -79,8 +79,13 @@ def init_db(database_path: str) -> None:
 
 
 def connect(database_path: str) -> sqlite3.Connection:
-    """행을 dict처럼 접근할 수 있는 SQLite 연결을 반환한다."""
-    conn = sqlite3.connect(database_path)
+    """행을 dict처럼 접근할 수 있는 SQLite 연결을 반환한다.
+
+    check_same_thread=False: FastAPI는 sync 엔드포인트를 스레드풀에서 실행하며
+    의존성 생성 스레드와 실행 스레드가 다를 수 있다. 요청마다 새 연결을 열고
+    공유하지 않으므로 안전하다.
+    """
+    conn = sqlite3.connect(database_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON;")
     return conn

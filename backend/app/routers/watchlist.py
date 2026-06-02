@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.db.database import get_db
 from app.schemas.watchlist import WatchCreate
 from app.services import watchlist_service
+from app.stocks.master import get_name
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
@@ -20,8 +21,10 @@ def list_watchlist(conn: sqlite3.Connection = Depends(get_db)) -> dict:
 
 @router.post("", status_code=201)
 def add_watchlist(item: WatchCreate, conn: sqlite3.Connection = Depends(get_db)) -> dict:
+    # 종목명 미입력 시 마스터에서 자동 조회
+    name = item.name or get_name(item.symbol)
     try:
-        created = watchlist_service.add_symbol(conn, item.symbol, item.name)
+        created = watchlist_service.add_symbol(conn, item.symbol, name)
     except sqlite3.IntegrityError as exc:
         raise HTTPException(
             status_code=409,

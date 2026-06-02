@@ -19,6 +19,22 @@ const DEFAULT_PARAMS: Record<StrategyName, Record<string, number>> = {
   rsi: { period: 14, low: 30, high: 70 },
 };
 
+const STRATEGY_LABEL: Record<string, string> = {
+  ma_cross: "이동평균 크로스",
+  rsi: "RSI",
+};
+
+/** 전략 설정을 사람이 읽기 쉬운 문구로 변환한다. */
+export function describeStrategy(strategy: string, params: Record<string, number>): string {
+  if (strategy === "ma_cross") {
+    return `이동평균 크로스 · 단기 ${params.short ?? "-"} / 장기 ${params.long ?? "-"}`;
+  }
+  if (strategy === "rsi") {
+    return `RSI · 기간 ${params.period ?? "-"} · 과매도 ${params.low ?? "-"} / 과매수 ${params.high ?? "-"}`;
+  }
+  return STRATEGY_LABEL[strategy] ?? strategy;
+}
+
 export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
   const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
@@ -58,9 +74,7 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
         {configs.map((c) => (
           <li key={c.id}>
             <span className="code">{c.symbol}</span>
-            <span className="name">
-              {c.strategy} {JSON.stringify(c.params)}
-            </span>
+            <span className="name">{describeStrategy(c.strategy, c.params)}</span>
             <label className="toggle">
               <input
                 type="checkbox"

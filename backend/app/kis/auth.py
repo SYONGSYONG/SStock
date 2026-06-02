@@ -14,6 +14,7 @@ import httpx
 from app.config import Settings, get_settings
 
 _TOKEN_PATH = "/oauth2/tokenP"
+_APPROVAL_PATH = "/oauth2/Approval"
 _EXPIRY_MARGIN_SEC = 60
 
 
@@ -70,3 +71,26 @@ class KisAuth:
         """캐시된 토큰을 폐기한다(폐기 API 호출 후 등)."""
         self._token = None
         self._expires_at = 0.0
+
+    async def get_approval_key(self, client: httpx.AsyncClient | None = None) -> str:
+        """웹소켓 접속키(approval_key)를 발급한다.
+
+        주의: 요청 body 필드명이 `secretkey`다 (`appsecret` 아님).
+        """
+        owns_client = client is None
+        if client is None:
+            client = httpx.AsyncClient(base_url=self._settings.rest_base, timeout=10.0)
+        try:
+            resp = await client.post(
+                _APPROVAL_PATH,
+                json={
+                    "grant_type": "client_credentials",
+                    "appkey": self._settings.kis_app_key,
+                    "secretkey": self._settings.kis_app_secret,
+                },
+            )
+            resp.raise_for_status()
+            return resp.json()["approval_key"]
+        finally:
+            if owns_client:
+                await client.aclose()

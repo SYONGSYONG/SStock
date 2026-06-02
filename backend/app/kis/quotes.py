@@ -7,24 +7,10 @@ from typing import Any
 from app.config import Settings, get_settings
 from app.kis.client import KisClient
 from app.kis.constants import QUOTE_TR_IDS
+from app.kis.numbers import to_float as _to_float
+from app.kis.numbers import to_int as _to_int
 
 _PRICE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
-
-
-def _to_int(value: Any) -> int | None:
-    try:
-        text = str(value).strip()
-        return int(float(text)) if text else None
-    except (TypeError, ValueError):
-        return None
-
-
-def _to_float(value: Any) -> float | None:
-    try:
-        text = str(value).strip()
-        return float(text) if text else None
-    except (TypeError, ValueError):
-        return None
 
 
 async def get_current_price(

@@ -177,3 +177,32 @@ body {
   color: var(--muted);
   font-size: 13px;
 }
+
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.watch-form select {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}

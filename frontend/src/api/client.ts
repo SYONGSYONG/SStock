@@ -1,4 +1,4 @@
-import type { MarketStatus, Quote, WatchItem } from "../types";
+import type { MarketStatus, Quote, Signal, StrategyConfig, StrategyName, WatchItem } from "../types";
 
 export class ApiError extends Error {
   constructor(
@@ -42,3 +42,23 @@ export const getMarketStatus = () => api<MarketStatus>("/api/market/status");
 export const startMarket = () => api<MarketStatus>("/api/market/start", { method: "POST" });
 
 export const stopMarket = () => api<{ running: boolean }>("/api/market/stop", { method: "POST" });
+
+export const getStrategies = () => api<StrategyConfig[]>("/api/strategies");
+
+export const addStrategy = (body: {
+  symbol: string;
+  strategy: StrategyName;
+  params: Record<string, number>;
+  enabled: boolean;
+}) => api<StrategyConfig>("/api/strategies", { method: "POST", body: JSON.stringify(body) });
+
+export const setStrategyEnabled = (id: number, enabled: boolean) =>
+  api<{ id: number; enabled: boolean }>(`/api/strategies/${id}/enabled`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+
+export const deleteStrategy = (id: number) =>
+  api<{ id: number; removed: boolean }>(`/api/strategies/${id}`, { method: "DELETE" });
+
+export const getSignals = (limit = 50) => api<Signal[]>(`/api/signals?limit=${limit}`);

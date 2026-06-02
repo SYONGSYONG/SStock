@@ -24,3 +24,25 @@ export interface MarketStatus {
 }
 
 export type TradingMode = "paper" | "live";
+
+export type StrategyName = "ma_cross" | "rsi";
+
+export interface StrategyConfig {
+  id: number;
+  symbol: string;
+  strategy: StrategyName;
+  params: Record<string, number>;
+  enabled: boolean;
+  max_qty: number | null;
+  max_amount: number | null;
+}
+
+export interface Signal {
+  id: number;
+  symbol: string;
+  strategy: string;
+  side: "BUY" | "SELL";
+  price: number | null;
+  reason: string;
+  created_at: string;
+}

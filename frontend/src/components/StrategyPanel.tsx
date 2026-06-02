@@ -70,22 +70,25 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
         </button>
       </form>
       {error && <p className="error">{error}</p>}
-      <ul className="watch-list">
+      <ul className="strategy-list">
         {configs.map((c) => (
-          <li key={c.id}>
-            <span className="code">{c.symbol}</span>
-            <span className="name">{describeStrategy(c.strategy, c.params)}</span>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={c.enabled}
-                onChange={(e) => onToggle(c.id, e.target.checked)}
-              />
-              {c.enabled ? "ON" : "OFF"}
-            </label>
-            <button className="link-danger" onClick={() => onRemove(c.id)}>
-              삭제
-            </button>
+          <li key={c.id} className="strategy-item">
+            <div className="strategy-head">
+              <span className="code">{c.symbol}</span>
+              <span className="spacer" />
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={c.enabled}
+                  onChange={(e) => onToggle(c.id, e.target.checked)}
+                />
+                {c.enabled ? "ON" : "OFF"}
+              </label>
+              <button className="link-danger" onClick={() => onRemove(c.id)}>
+                삭제
+              </button>
+            </div>
+            <div className="strategy-desc">{describeStrategy(c.strategy, c.params)}</div>
           </li>
         ))}
         {configs.length === 0 && <li className="empty">등록된 전략이 없습니다</li>}

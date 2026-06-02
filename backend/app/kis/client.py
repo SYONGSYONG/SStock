@@ -47,3 +47,22 @@ class KisClient:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def post(
+        self,
+        path: str,
+        tr_id: str,
+        body: dict[str, Any],
+        client: httpx.AsyncClient | None = None,
+    ) -> dict[str, Any]:
+        owns_client = client is None
+        if client is None:
+            client = httpx.AsyncClient(base_url=self._settings.rest_base, timeout=10.0)
+        try:
+            headers = await self._headers(tr_id, client)
+            resp = await client.post(path, headers=headers, json=body)
+            resp.raise_for_status()
+            return resp.json()
+        finally:
+            if owns_client:
+                await client.aclose()

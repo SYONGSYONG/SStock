@@ -10,7 +10,18 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db.database import init_db
-from app.routers import health, market, quotes, signals, strategies, watchlist, ws
+from app.routers import (
+    audit,
+    bot,
+    health,
+    market,
+    orders,
+    quotes,
+    signals,
+    strategies,
+    watchlist,
+    ws,
+)
 
 
 @asynccontextmanager
@@ -39,6 +50,9 @@ def create_app() -> FastAPI:
     app.include_router(market.router)
     app.include_router(strategies.router)
     app.include_router(signals.router)
+    app.include_router(orders.router)
+    app.include_router(bot.router)
+    app.include_router(audit.router)
     app.include_router(ws.router)
     return app
 

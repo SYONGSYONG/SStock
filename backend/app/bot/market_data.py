@@ -42,6 +42,10 @@ class MarketDataService:
 
     async def _on_tick(self, tick: dict[str, Any]) -> None:
         await hub.broadcast({"type": "tick", "data": tick})
+        # 자동매매 봇에도 체결을 전달(봇이 OFF면 무시됨)
+        from app.bot.trading_bot import trading_bot
+
+        await trading_bot.on_tick(tick)
 
     async def stop(self) -> None:
         if self._client is not None:

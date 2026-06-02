@@ -115,6 +115,9 @@ body {
 .search-results li:hover {
   background: #eef2f7;
 }
+.search-results li.active {
+  background: #e0e7ff;
+}
 
 .watch-form {
   display: grid;

@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.db.database import init_db
 from app.routers import (
+    account,
     audit,
     bot,
     budgets,
@@ -18,6 +19,7 @@ from app.routers import (
     market,
     orders,
     quotes,
+    recommend,
     signals,
     stocks,
     strategies,
@@ -57,9 +59,11 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router)
+    app.include_router(account.router)
     app.include_router(watchlist.router)
     app.include_router(stocks.router)
     app.include_router(quotes.router)
+    app.include_router(recommend.router)
     app.include_router(market.router)
     app.include_router(strategies.router)
     app.include_router(signals.router)

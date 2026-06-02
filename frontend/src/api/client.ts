@@ -1,4 +1,5 @@
 import type {
+  AccountBalance,
   AuditLog,
   BotStatus,
   Budget,
@@ -6,10 +7,12 @@ import type {
   Order,
   Position,
   Quote,
+  RecommendResult,
   Signal,
   StockSearchResult,
   StrategyConfig,
   StrategyName,
+  ThemeInfo,
   WatchItem,
 } from "../types";
 
@@ -93,6 +96,8 @@ export const getOrders = (limit = 50) => api<Order[]>(`/api/orders?limit=${limit
 
 export const getPositions = () => api<Position[]>("/api/positions");
 
+export const getAccountBalance = () => api<AccountBalance>("/api/account/balance");
+
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
 
 export const getBudgets = () => api<Budget[]>("/api/budgets");
@@ -105,3 +110,8 @@ export const setBudget = (symbol: string, principal: number) =>
 
 export const deleteBudget = (symbol: string) =>
   api<{ symbol: string; removed: boolean }>(`/api/budgets/${symbol}`, { method: "DELETE" });
+
+export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");
+
+export const getRecommend = (theme: string, limit = 10) =>
+  api<RecommendResult>(`/api/recommend/${theme}?limit=${limit}`);

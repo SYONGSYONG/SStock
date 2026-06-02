@@ -125,3 +125,46 @@ async def get_balance(
             }
         )
     return result
+
+
+def _first_summary(output2: Any) -> dict[str, Any]:
+    """inquire-balance output2(계좌 요약)는 1원소 배열 또는 dict로 온다."""
+    if isinstance(output2, list):
+        return output2[0] if output2 else {}
+    if isinstance(output2, dict):
+        return output2
+    return {}
+
+
+async def get_account_summary(
+    settings: Settings | None = None,
+    kis_client: KisClient | None = None,
+) -> dict[str, Any]:
+    """주식잔고조회 output2 → 계좌 잔고 요약(예수금/주문가능/총평가/평가손익/순자산)."""
+    settings = settings or get_settings()
+    client = kis_client or KisClient(settings)
+    tr_id = resolve_tr_id("inquire_balance", settings.trading_mode)
+    params = {
+        "CANO": settings.kis_account_no,
+        "ACNT_PRDT_CD": settings.kis_account_product,
+        "AFHR_FLPR_YN": "N",
+        "OFL_YN": "",
+        "INQR_DVSN": "02",
+        "UNPR_DVSN": "01",
+        "FUND_STTL_ICLD_YN": "N",
+        "FNCG_AMT_AUTO_RDPT_YN": "N",
+        "PRCS_DVSN": "00",
+        "CTX_AREA_FK100": "",
+        "CTX_AREA_NK100": "",
+    }
+    data = await client.get(_BALANCE_PATH, tr_id, params)
+    s = _first_summary(data.get("output2"))
+    return {
+        "deposit": to_int(s.get("dnca_tot_amt")),  # 예수금총금액
+        "orderable_cash": to_int(s.get("prvs_rcdl_excc_amt")),  # 가수도정산금액(≈주문가능현금)
+        "purchase_amount": to_int(s.get("pchs_amt_smtl_amt")),  # 매입금액합계
+        "eval_amount": to_int(s.get("evlu_amt_smtl_amt")),  # 평가금액합계
+        "eval_pnl": to_int(s.get("evlu_pfls_smtl_amt")),  # 평가손익합계
+        "total_eval": to_int(s.get("tot_evlu_amt")),  # 총평가금액
+        "net_asset": to_int(s.get("nass_amt")),  # 순자산금액
+    }

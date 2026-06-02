@@ -32,4 +32,42 @@ describe("BudgetPanel", () => {
     render(<BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} />);
     expect(screen.getByText(/설정된 칸막이가 없습니다/)).toBeInTheDocument();
   });
+
+  test("설정가능금액 = 주문가능현금 − 가용액 합계", () => {
+    // 주문가능현금 1,000,000 − 가용액 405,000 = 설정가능 595,000
+    render(
+      <BudgetPanel
+        budgets={budgets}
+        items={items}
+        onSet={() => {}}
+        onRemove={() => {}}
+        orderableCash={1000000}
+      />,
+    );
+    expect(screen.getByText(/주문가능현금/)).toBeInTheDocument();
+    expect(screen.getByText(/595,000/)).toBeInTheDocument();
+  });
+
+  test("주문가능현금 null이면 조회 불가 표기", () => {
+    render(
+      <BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} orderableCash={null} />,
+    );
+    expect(screen.getByText("주문가능현금 조회 불가")).toBeInTheDocument();
+  });
+
+  test("설정가능금액 초과 입력 시 경고만 표시(설정 버튼 활성)", () => {
+    render(
+      <BudgetPanel
+        budgets={[]}
+        items={[]}
+        onSet={() => {}}
+        onRemove={() => {}}
+        orderableCash={100000}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("칸막이 종목코드"), { target: { value: "000660" } });
+    fireEvent.change(screen.getByLabelText("원금"), { target: { value: "300000" } });
+    expect(screen.getByText(/설정가능금액.*초과/)).toBeInTheDocument();
+    expect(screen.getByText("설정")).not.toBeDisabled(); // 차단 안 함
+  });
 });

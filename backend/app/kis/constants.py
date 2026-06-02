@@ -34,6 +34,7 @@ QUOTE_TR_IDS: dict[str, str] = {
     "inquire_asking_price": "FHKST01010200",  # 호가/예상체결
     "inquire_time_itemchartprice": "FHKST03010200",  # 당일 분봉
     "inquire_daily_itemchartprice": "FHKST03010100",  # 기간별 시세(일/주/월/년)
+    "inquire_investor": "FHKST01010900",  # 주식현재가 투자자(개인/외국인/기관 순매수)
 }
 
 # 실시간(웹소켓) TR_ID — 체결통보만 모드별로 다름

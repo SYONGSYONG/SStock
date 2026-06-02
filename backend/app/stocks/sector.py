@@ -57,7 +57,6 @@ _KOSDAQ_SPECS: tuple[int, ...] = (
 class _Layout:
     market: str
     path: Path
-    trailer: int
     specs: tuple[int, ...]
     theme_idx: dict[str, int]  # slug → part2 필드 인덱스
     grp: int  # 증권그룹구분코드 (ST=주권)
@@ -75,7 +74,6 @@ _LAYOUTS: tuple[_Layout, ...] = (
     _Layout(
         market="KOSPI",
         path=_MASTER_DIR / "코스피" / "kospi_code.mst",
-        trailer=228,
         specs=_KOSPI_SPECS,
         theme_idx={
             "auto": 15, "semiconductor": 16, "bio": 17, "bank": 18,
@@ -88,7 +86,6 @@ _LAYOUTS: tuple[_Layout, ...] = (
     _Layout(
         market="KOSDAQ",
         path=_MASTER_DIR / "코스닥" / "kosdaq_code.mst",
-        trailer=222,
         specs=_KOSDAQ_SPECS,
         theme_idx={
             "auto": 10, "semiconductor": 11, "bio": 12, "bank": 13,
@@ -115,14 +112,19 @@ def _parse(layout: _Layout) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not layout.path.exists():
         return rows
+    # part2 길이 = field_specs 합. 개행을 제거해 마지막 줄(개행 없음)도 동일하게 처리.
+    trailer = sum(layout.specs)
     with io.open(layout.path, "r", encoding="cp949", errors="replace") as f:
-        for row in f:  # 개행 유지 — trailer 바이트 오프셋이 개행에 의존
-            head = row[0 : len(row) - layout.trailer]
+        for raw in f:
+            row = raw.rstrip("\r\n")
+            if len(row) <= trailer:
+                continue
+            head = row[0 : len(row) - trailer]
             code = head[0:9].rstrip()
             name = head[21:].strip()
             if not code or not name:
                 continue
-            v = _cut(row[-layout.trailer :], layout.specs)
+            v = _cut(row[-trailer:], layout.specs)
             themes = [
                 slug for slug, idx in layout.theme_idx.items() if v[idx].strip() == "Y"
             ]

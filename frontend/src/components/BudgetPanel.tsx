@@ -7,14 +7,28 @@ interface BudgetPanelProps {
   items: WatchItem[];
   onSet: (symbol: string, principal: number) => void;
   onRemove: (symbol: string) => void;
+  orderableCash?: number | null; // 계좌 주문가능현금(/api/account/balance)
   error?: string | null;
 }
 
-export function BudgetPanel({ budgets, items, onSet, onRemove, error }: BudgetPanelProps) {
+export function BudgetPanel({
+  budgets,
+  items,
+  onSet,
+  onRemove,
+  orderableCash,
+  error,
+}: BudgetPanelProps) {
   const [symbol, setSymbol] = useState("");
   const [principal, setPrincipal] = useState("");
 
   const nameOf = (s: string) => items.find((it) => it.symbol === s)?.name ?? "";
+
+  // 설정가능금액 = 주문가능현금 − Σ(각 칸막이 가용액)
+  const committed = budgets.reduce((sum, b) => sum + b.available, 0);
+  const settable = orderableCash == null ? null : orderableCash - committed;
+  const inputAmount = Number(principal) || 0;
+  const overSettable = settable != null && inputAmount > settable; // 표시+경고만(차단 안 함)
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +43,19 @@ export function BudgetPanel({ budgets, items, onSet, onRemove, error }: BudgetPa
     <section className="panel">
       <h2>자본 칸막이</h2>
       <p className="muted hint">종목별 투입 원금 한도 (한도 = 원금 + 실현손익)</p>
+      <p className="budget-cash">
+        {orderableCash == null ? (
+          <span className="muted">주문가능현금 조회 불가</span>
+        ) : (
+          <>
+            주문가능현금 {fmt(orderableCash)}원 · 설정가능{" "}
+            <b className={settable != null && settable < 0 ? "down" : "up"}>{fmt(settable)}</b>원
+            {settable != null && settable < 0 && (
+              <span className="down"> (칸막이 합계가 현금 초과)</span>
+            )}
+          </>
+        )}
+      </p>
       <form className="budget-form" onSubmit={submit}>
         <input
           aria-label="칸막이 종목코드"
@@ -48,6 +75,12 @@ export function BudgetPanel({ budgets, items, onSet, onRemove, error }: BudgetPa
           설정
         </button>
       </form>
+      {overSettable && (
+        <p className="budget-warn">
+          ⚠ 설정가능금액({fmt(settable)}원)을 초과합니다 — 설정은 가능하나 계좌 현금이 부족할 수
+          있습니다
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       <ul className="strategy-list">
         {budgets.map((b) => (

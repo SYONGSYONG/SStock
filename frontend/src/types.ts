@@ -85,6 +85,18 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface AccountBalance {
+  mode: TradingMode;
+  available: boolean; // KIS 조회 성공 여부(false면 모든 값 null)
+  deposit: number | null; // 예수금총금액
+  orderable_cash: number | null; // 주문가능현금(가수도정산금액)
+  purchase_amount: number | null; // 매입금액합계
+  eval_amount: number | null; // 평가금액합계
+  eval_pnl: number | null; // 평가손익합계
+  total_eval: number | null; // 총평가금액
+  net_asset: number | null; // 순자산금액
+}
+
 export interface Budget {
   symbol: string;
   principal: number;
@@ -92,4 +104,29 @@ export interface Budget {
   holding_cost: number;
   ceiling: number;
   available: number;
+}
+
+export interface ThemeInfo {
+  slug: string;
+  label: string;
+  count: number;
+}
+
+export interface RecommendItem {
+  symbol: string;
+  name: string;
+  market: string;
+  score: number;
+  momentum: number;
+  fundamental: number;
+  supply: number;
+  price: number | null;
+  change_rate: number | null;
+  roe: number | null;
+}
+
+export interface RecommendResult {
+  theme: string;
+  base_date: string | null;
+  items: RecommendItem[];
 }

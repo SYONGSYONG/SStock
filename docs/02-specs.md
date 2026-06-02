@@ -73,6 +73,16 @@
 
 > 매도가능수량조회·실현손익 등 일부 API는 **모의투자 미지원** — 모의 모드에서는 대체 로직(잔고조회 기반) 사용.
 
+### 대시보드 계좌 잔고 API
+
+| 엔드포인트 | 설명 | 출처 |
+|-----------|------|------|
+| `GET /api/account/balance` | 계좌 잔고 요약(예수금·주문가능현금·총평가·평가손익·순자산) | 주식잔고조회 `output2` |
+
+- 응답: `{ "data": { "mode", "available", "deposit", "orderable_cash", "purchase_amount", "eval_amount", "eval_pnl", "total_eval", "net_asset" } }`.
+- 필드 매핑(`output2`): `dnca_tot_amt`(예수금)·`prvs_rcdl_excc_amt`(가수도정산≈주문가능현금)·`pchs_amt_smtl_amt`(매입합계)·`evlu_amt_smtl_amt`(평가합계)·`evlu_pfls_smtl_amt`(평가손익)·`tot_evlu_amt`(총평가)·`nass_amt`(순자산).
+- **graceful**: KIS 일시 오류(예: 토큰 만료 `EGW00121`, 모의서버 500) 시 500 대신 `available=false` + 모든 값 `null`로 응답 → 대시보드가 깨지지 않는다(시세 조회와 동일 정책).
+
 ---
 
 ## 인증 흐름

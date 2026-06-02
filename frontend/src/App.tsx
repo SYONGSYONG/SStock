@@ -5,6 +5,7 @@ import {
   addWatch,
   deleteBudget,
   deleteStrategy,
+  getAccountBalance,
   getAudit,
   getBotStatus,
   getBudgets,
@@ -12,8 +13,10 @@ import {
   getOrders,
   getPositions,
   getQuote,
+  getRecommend,
   getSignals,
   getStrategies,
+  getThemes,
   listWatchlist,
   removeWatch,
   searchStocks,
@@ -35,8 +38,11 @@ import { PositionTable } from "./components/PositionTable";
 import { OrderLog } from "./components/OrderLog";
 import { AuditLogView } from "./components/AuditLogView";
 import { BudgetPanel } from "./components/BudgetPanel";
+import { AccountPanel } from "./components/AccountPanel";
+import { RecommendPage } from "./components/RecommendPage";
 import { useLiveQuotes } from "./hooks/useLiveQuotes";
 import type {
+  AccountBalance,
   AuditLog,
   BotStatus,
   Budget,
@@ -60,10 +66,12 @@ export function App() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [account, setAccount] = useState<AccountBalance | null>(null);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
   const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"dashboard" | "recommend">("dashboard");
   const { quotes, connected, mergeSnapshot } = useLiveQuotes();
 
   const refreshWatch = useCallback(async () => {
@@ -92,6 +100,7 @@ export function App() {
       getPositions().then(setPositions).catch(() => {});
       getAudit(100).then(setAudit).catch(() => {});
       getBudgets().then(setBudgets).catch(() => {});
+      getAccountBalance().then(setAccount).catch(() => {});
       getMarketStatus().then(setMarket).catch(() => {});
     };
     tick();
@@ -172,6 +181,27 @@ export function App() {
   return (
     <div className="app">
       <ModeBanner mode={bot.mode} botRunning={bot.running} connected={connected} />
+      <nav className="tabs" aria-label="화면 전환">
+        <button
+          className={tab === "dashboard" ? "tab active" : "tab"}
+          onClick={() => setTab("dashboard")}
+        >
+          대시보드
+        </button>
+        <button
+          className={tab === "recommend" ? "tab active" : "tab"}
+          onClick={() => setTab("recommend")}
+        >
+          분야별 추천
+        </button>
+      </nav>
+      {tab === "recommend" ? (
+        <RecommendPage
+          fetchThemes={getThemes}
+          fetchRecommend={getRecommend}
+          onAdd={handleAddWatch}
+        />
+      ) : (
       <main className="layout">
         <aside className="sidebar">
           <WatchList
@@ -193,6 +223,7 @@ export function App() {
             items={items}
             onSet={handleSetBudget}
             onRemove={handleRemoveBudget}
+            orderableCash={account?.orderable_cash ?? null}
             error={budgetError}
           />
           <BotControl
@@ -210,6 +241,7 @@ export function App() {
           />
         </aside>
         <div className="content">
+          <AccountPanel balance={account} />
           <QuoteTable items={items} quotes={quotes} />
           <PositionTable positions={positions} quotes={quotes} />
           <OrderLog orders={orders} />
@@ -217,6 +249,7 @@ export function App() {
           <AuditLogView logs={audit} />
         </div>
       </main>
+      )}
     </div>
   );
 }

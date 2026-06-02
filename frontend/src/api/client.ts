@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   BotStatus,
+  Budget,
   MarketStatus,
   Order,
   Position,
@@ -93,3 +94,14 @@ export const getOrders = (limit = 50) => api<Order[]>(`/api/orders?limit=${limit
 export const getPositions = () => api<Position[]>("/api/positions");
 
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
+
+export const getBudgets = () => api<Budget[]>("/api/budgets");
+
+export const setBudget = (symbol: string, principal: number) =>
+  api<Budget>("/api/budgets", {
+    method: "PUT",
+    body: JSON.stringify({ symbol, principal }),
+  });
+
+export const deleteBudget = (symbol: string) =>
+  api<{ symbol: string; removed: boolean }>(`/api/budgets/${symbol}`, { method: "DELETE" });

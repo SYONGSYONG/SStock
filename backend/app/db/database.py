@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS capital_envelope (
+  symbol     TEXT    PRIMARY KEY,   -- 종목코드 6자리
+  principal  INTEGER NOT NULL       -- 원금 한도(원). 칸막이 한도 = principal + 실현손익
+);
+
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
 CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders(symbol);
 CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_logs(category);

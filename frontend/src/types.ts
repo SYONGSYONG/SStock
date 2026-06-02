@@ -81,3 +81,12 @@ export interface AuditLog {
   message: string;
   created_at: string;
 }
+
+export interface Budget {
+  symbol: string;
+  principal: number;
+  realized_pnl: number;
+  holding_cost: number;
+  ceiling: number;
+  available: number;
+}

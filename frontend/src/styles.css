@@ -208,6 +208,37 @@ body {
   color: var(--muted);
   line-height: 1.35;
 }
+
+.hint {
+  margin: -4px 0 10px;
+  font-size: 11.5px;
+}
+.budget-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.budget-form input {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.budget-form button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #fff;
+  background: var(--accent);
+}
+.budget-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .link-danger {
   background: none;
   border: none;

@@ -13,6 +13,7 @@ from app.db.database import init_db
 from app.routers import (
     audit,
     bot,
+    budgets,
     health,
     market,
     orders,
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(market.router)
     app.include_router(strategies.router)
     app.include_router(signals.router)
+    app.include_router(budgets.router)
     app.include_router(orders.router)
     app.include_router(bot.router)
     app.include_router(audit.router)

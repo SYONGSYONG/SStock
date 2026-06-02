@@ -71,6 +71,21 @@ def check_order(conn: sqlite3.Connection, settings: Settings, intent: OrderInten
             "SYMBOL_AMOUNT_LIMIT", f"종목 금액 한도 초과: {order_amount} > {intent.max_amount}"
         )
 
+    # 종목별 자본 칸막이(envelope): 매수 시 보유원가 + 주문금액 <= 원금 + 실현손익
+    if intent.side == "BUY":
+        from app.services import budget_service
+
+        principal = budget_service.get_principal(conn, intent.symbol)
+        if principal is not None:
+            state = budget_service.compute_symbol_state(conn, intent.symbol)
+            ceiling = principal + state["realized_pnl"]
+            if state["holding_cost"] + order_amount > ceiling:
+                raise RiskError(
+                    "ENVELOPE_EXCEEDED",
+                    f"종목 자본 칸막이 초과: 한도 {int(ceiling)}원, "
+                    f"보유원가 {int(state['holding_cost'])}원 + 주문 {order_amount}원",
+                )
+
     # 일일 주문 횟수
     if _today_order_count(conn, mode) >= settings.daily_max_orders:
         raise RiskError(

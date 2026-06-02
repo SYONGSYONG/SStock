@@ -3,9 +3,11 @@ import {
   ApiError,
   addStrategy,
   addWatch,
+  deleteBudget,
   deleteStrategy,
   getAudit,
   getBotStatus,
+  getBudgets,
   getMarketStatus,
   getOrders,
   getPositions,
@@ -15,6 +17,7 @@ import {
   listWatchlist,
   removeWatch,
   searchStocks,
+  setBudget,
   setStrategyEnabled,
   startBot,
   startMarket,
@@ -31,10 +34,12 @@ import { SignalLog } from "./components/SignalLog";
 import { PositionTable } from "./components/PositionTable";
 import { OrderLog } from "./components/OrderLog";
 import { AuditLogView } from "./components/AuditLogView";
+import { BudgetPanel } from "./components/BudgetPanel";
 import { useLiveQuotes } from "./hooks/useLiveQuotes";
 import type {
   AuditLog,
   BotStatus,
+  Budget,
   MarketStatus,
   Order,
   Position,
@@ -54,9 +59,11 @@ export function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const { quotes, connected, mergeSnapshot } = useLiveQuotes();
 
   const refreshWatch = useCallback(async () => {
@@ -84,6 +91,7 @@ export function App() {
       getOrders(50).then(setOrders).catch(() => {});
       getPositions().then(setPositions).catch(() => {});
       getAudit(100).then(setAudit).catch(() => {});
+      getBudgets().then(setBudgets).catch(() => {});
       getMarketStatus().then(setMarket).catch(() => {});
     };
     tick();
@@ -146,6 +154,21 @@ export function App() {
     setMarket((m) => ({ ...m, running: r.running }));
   };
 
+  const handleSetBudget = async (symbol: string, principal: number) => {
+    setBudgetError(null);
+    try {
+      await setBudget(symbol, principal);
+      setBudgets(await getBudgets());
+    } catch (e) {
+      setBudgetError(e instanceof ApiError ? e.message : "칸막이 설정 실패");
+    }
+  };
+
+  const handleRemoveBudget = async (symbol: string) => {
+    await deleteBudget(symbol).catch(() => {});
+    setBudgets(await getBudgets());
+  };
+
   return (
     <div className="app">
       <ModeBanner mode={bot.mode} botRunning={bot.running} connected={connected} />
@@ -164,6 +187,13 @@ export function App() {
             onToggle={handleToggleStrategy}
             onRemove={handleRemoveStrategy}
             error={strategyError}
+          />
+          <BudgetPanel
+            budgets={budgets}
+            items={items}
+            onSet={handleSetBudget}
+            onRemove={handleRemoveBudget}
+            error={budgetError}
           />
           <BotControl
             running={bot.running}

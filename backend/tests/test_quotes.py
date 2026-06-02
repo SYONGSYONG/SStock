@@ -55,6 +55,23 @@ async def test_현재가_조회_파싱():
 
 
 @respx.mock
+async def test_KIS_5xx여도_500전파안함_빈시세():
+    settings = _settings()
+    respx.post(f"{settings.rest_base}/oauth2/tokenP").mock(
+        return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
+    )
+    respx.get(
+        f"{settings.rest_base}/uapi/domestic-stock/v1/quotations/inquire-price"
+    ).mock(return_value=httpx.Response(500, json={"msg1": "일시적 오류"}))
+
+    data = await get_current_price("005935", settings)
+
+    # 예외 없이 빈 시세 반환
+    assert data["symbol"] == "005935"
+    assert data["price"] is None
+
+
+@respx.mock
 async def test_현재가_빈값_None_처리():
     settings = _settings()
     respx.post(f"{settings.rest_base}/oauth2/tokenP").mock(

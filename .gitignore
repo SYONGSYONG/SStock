@@ -1,0 +1,42 @@
+# ===== 시크릿 / 민감정보 (절대 커밋 금지) =====
+Key/
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.secret
+# KIS 공식 샘플의 시크릿 설정 파일 (편집 시 실제 키가 들어갈 수 있어 방어적 제외)
+kis_devlp.yaml
+**/KIS/config/
+
+# ===== 데이터베이스 =====
+**/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Node / Frontend =====
+node_modules/
+dist/
+.vite/
+
+# ===== 임시 / 추출 산출물 =====
+Reference/API_DOC/*.txt
+
+# ===== OS / 에디터 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,208 @@
+# 02-specs.md — 기술 명세
+
+## 기술 스택 (확정)
+
+| 레이어 | 기술 | 비고 |
+|--------|------|------|
+| 백엔드 | Python 3.12+ / FastAPI | 비동기 API + 봇 엔진 |
+| 비동기 런타임 | asyncio | 봇 엔진을 백그라운드 태스크로 구동 |
+| HTTP 클라이언트 | httpx (async) | KIS REST 호출 |
+| 웹소켓 | websockets | KIS 실시간 시세 구독 |
+| 데이터 처리 | pandas | 지표 계산(이동평균·RSI) |
+| 검증 | Pydantic v2 | 설정·요청·응답 스키마 검증 |
+| 데이터베이스 | SQLite (aiosqlite 또는 sqlite3) | 파일 기반, WAL 모드 |
+| 설정 | pydantic-settings + `.env` | 환경변수 로드 |
+| 프론트엔드 | React 19 + TypeScript (Vite) | 실시간 대시보드 |
+| 차트 | lightweight-charts 또는 recharts | 시세·지표 시각화 |
+| 백엔드 테스트 | pytest + pytest-asyncio + respx | API·전략 단위/통합 테스트 |
+| 프론트 테스트 | Vitest + React Testing Library | 컴포넌트 테스트 |
+
+> 의존성은 절대규칙 2(돌발 의존성 금지)에 따라 추가 전 사용자 승인을 받는다.
+
+---
+
+## KIS API 도메인
+
+| 구분 | 모의투자 (기본) | 실전 |
+|------|----------------|------|
+| REST | `https://openapivts.koreainvestment.com:29443` | `https://openapi.koreainvestment.com:9443` |
+| WebSocket | `ws://ops.koreainvestment.com:31000` | `ws://ops.koreainvestment.com:21000` |
+
+> `TRADING_MODE`에 따라 도메인과 TR_ID 접두사(모의 `V…` / 실전 `T…`)를 전환한다.
+
+---
+
+## 사용 KIS API 목록 (MVP)
+
+명세 출처: `Reference/API_DOC/`. 각 API는 `tr_id`로 식별된다.
+
+### 인증 (OAuth)
+
+| 기능 | URL | Method | 비고 |
+|------|-----|--------|------|
+| 접근토큰 발급 | `/oauth2/tokenP` | POST | access_token(24h, 6h 내 재호출 시 기존값) |
+| 접근토큰 폐기 | `/oauth2/revokeP` | POST | |
+| 웹소켓 접속키 | `/oauth2/Approval` | POST | approval_key 발급 |
+
+### 시세 (REST)
+
+| 기능 | URL | TR_ID |
+|------|-----|-------|
+| 주식현재가 시세 | `/uapi/domestic-stock/v1/quotations/inquire-price` | FHKST01010100 |
+| 호가/예상체결 | `/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn` | FHKST01010200 |
+| 당일 분봉 | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | FHKST03010200 |
+| 기간별 시세(일/주/월/년) | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` | FHKST03010100 |
+
+### 실시간 (WebSocket)
+
+| 기능 | TR_ID (실전/모의) |
+|------|------------------|
+| 실시간 체결가 | H0STCNT0 / H0STCNT0 |
+| 실시간 호가 | H0STASP0 / H0STASP0 |
+| 실시간 체결통보 | H0STCNI0 / H0STCNI9 |
+
+### 주문/계좌 (REST)
+
+| 기능 | URL | TR_ID (실전 → 모의) |
+|------|-----|---------------------|
+| 주식주문(현금) | `/uapi/domestic-stock/v1/trading/order-cash` | 매수 TTTC0012U→VTTC0012U, 매도 TTTC0011U→VTTC0011U |
+| 주문 정정/취소 | `/uapi/domestic-stock/v1/trading/order-rvsecncl` | TTTC0013U→VTTC0013U |
+| 매수가능조회 | `/uapi/domestic-stock/v1/trading/inquire-psbl-order` | TTTC8908R→VTTC8908R |
+| 주식잔고조회 | `/uapi/domestic-stock/v1/trading/inquire-balance` | TTTC8434R→VTTC8434R |
+| 일별주문체결조회 | `/uapi/domestic-stock/v1/trading/inquire-daily-ccld` | TTTC0081R→VTTC0081R |
+
+> 매도가능수량조회·실현손익 등 일부 API는 **모의투자 미지원** — 모의 모드에서는 대체 로직(잔고조회 기반) 사용.
+
+---
+
+## 인증 흐름
+
+```
+1. appkey + appsecret → POST /oauth2/tokenP → access_token (24h)
+   - 토큰은 메모리/파일 캐시, 만료 전 갱신. 6h 내 재요청 시 기존 토큰 반환됨에 유의
+2. REST 요청 헤더:
+   authorization: Bearer <access_token>
+   appkey, appsecret, tr_id, custtype=P
+3. WebSocket:
+   POST /oauth2/Approval → approval_key
+   웹소켓 핸드셰이크 시 approval_key 사용
+```
+
+---
+
+## 데이터베이스 스키마 (초안)
+
+> WAL 모드 활성화. 상세는 구현 단계에서 마이그레이션으로 확정.
+
+```sql
+-- 관심종목
+CREATE TABLE watchlist (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol      TEXT NOT NULL UNIQUE,      -- 종목코드 6자리
+  name        TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 전략 설정 (종목별)
+CREATE TABLE strategy_config (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol      TEXT NOT NULL,
+  strategy    TEXT NOT NULL,             -- 'ma_cross' | 'rsi'
+  params      TEXT NOT NULL,             -- JSON (기간, 기준선 등)
+  enabled     INTEGER NOT NULL DEFAULT 0,
+  max_qty     INTEGER,                   -- 종목당 최대 수량
+  max_amount  INTEGER,                   -- 종목당 최대 금액
+  UNIQUE(symbol, strategy)
+);
+
+-- 신호 로그 (집행과 분리)
+CREATE TABLE signals (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol      TEXT NOT NULL,
+  strategy    TEXT NOT NULL,
+  side        TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
+  price       REAL,
+  reason      TEXT,                      -- 신호 근거(지표값)
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 주문/체결
+CREATE TABLE orders (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  signal_id   INTEGER REFERENCES signals(id),
+  symbol      TEXT NOT NULL,
+  side        TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
+  qty         INTEGER NOT NULL,
+  price       REAL,
+  mode        TEXT NOT NULL CHECK(mode IN ('paper','live')),
+  kis_order_no TEXT,                     -- KIS 주문번호
+  status      TEXT NOT NULL,             -- requested|filled|cancelled|rejected
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 시스템/감사 로그 (변경 불가)
+CREATE TABLE audit_logs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  category    TEXT NOT NULL,             -- BOT|ORDER|SIGNAL|MODE|ERROR
+  message     TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+---
+
+## 환경 변수 목록
+
+```env
+# .env.example
+
+# 실행 환경
+APP_ENV=development
+
+# 거래 모드 — paper(기본) | live. live는 명시적 전환만.
+TRADING_MODE=paper
+
+# KIS 인증 (절대 git 커밋 금지)
+KIS_APP_KEY=
+KIS_APP_SECRET=
+KIS_ACCOUNT_NO=          # 종합계좌번호 8자리
+KIS_ACCOUNT_PRODUCT=01   # 계좌상품코드 2자리
+
+# 서버
+HOST=127.0.0.1
+PORT=8000
+
+# 안전 가드
+DAILY_MAX_ORDERS=20      # 일일 최대 주문 횟수
+DAILY_MAX_AMOUNT=1000000 # 일일 최대 주문 금액(원)
+
+# 데이터베이스
+DATABASE_PATH=./data/sstock.db
+```
+
+---
+
+## 안전 가드 구현 명세
+
+| 가드 | 동작 | 위치 |
+|------|------|------|
+| 모드 분리 | `TRADING_MODE`로 도메인·TR_ID 전환. live는 부팅 시 경고 + 대시보드 확인 필요 | config |
+| 봇 정지 기본값 | 부팅 시 봇 OFF. 시작 토글 전 신규 주문 차단 | 봇 엔진 |
+| 일일 한도 | 주문 전 당일 주문 횟수·금액 합산 검사, 초과 시 거부 | 주문 서비스 |
+| 중복 주문 방지 | 신호 ID당 1주문. 처리된 신호 재집행 차단 | 주문 서비스 |
+| 시크릿 미노출 | 에러·로그에 key/secret/token 마스킹 | 로깅 |
+
+---
+
+## 테스트 전략
+
+| 대상 | 도구 | 핵심 케이스 |
+|------|------|-----------|
+| 전략 엔진 | pytest + pandas | 이동평균 크로스·RSI 신호 생성 정확성, 경계값 |
+| KIS 클라이언트 | pytest + respx (HTTP mock) | 토큰 발급·갱신, 헤더 구성, 모드별 TR_ID/도메인 |
+| 안전 가드 | pytest | 일일 한도 초과 거부, 봇 정지 시 주문 차단, 중복 신호 차단 |
+| 주문 흐름 | pytest-asyncio | 신호→검증→주문→체결 반영 (KIS mock) |
+| 프론트 | Vitest + RTL | 모드 배너, 포지션/로그 테이블, 봇 토글 |
+
+- KIS 실거래 API는 테스트에서 **항상 mock**. 실제 호출 금지.
+- 절대규칙 3: 테스트 통과 없이 기능 완료 선언 금지.

@@ -1,21 +1,47 @@
 import type { TradingMode } from "../types";
 
 interface ModeBannerProps {
-  mode: TradingMode;
-  botRunning: boolean;
+  viewMode: TradingMode;
+  onSwitchMode: (mode: TradingMode) => void;
+  paperBotRunning: boolean;
+  liveBotRunning: boolean;
   connected: boolean;
 }
 
-export function ModeBanner({ mode, botRunning, connected }: ModeBannerProps) {
-  const isLive = mode === "live";
+export function ModeBanner({
+  viewMode,
+  onSwitchMode,
+  paperBotRunning,
+  liveBotRunning,
+  connected,
+}: ModeBannerProps) {
+  const isLive = viewMode === "live";
+
   return (
     <header className={`mode-banner ${isLive ? "live" : "paper"}`}>
-      <strong className="mode-label">
-        {isLive ? "⚠ LIVE · 실전투자" : "PAPER · 모의투자"}
-      </strong>
+      {isLive && (
+        <span className="live-warning">⚠ 실전투자 — 실제 주문이 체결됩니다</span>
+      )}
+      <div className="mode-toggle">
+        <button
+          className={`toggle-btn ${viewMode === "paper" ? "active" : ""}`}
+          onClick={() => onSwitchMode("paper")}
+        >
+          모의
+        </button>
+        <button
+          className={`toggle-btn ${viewMode === "live" ? "active" : ""}`}
+          onClick={() => onSwitchMode("live")}
+        >
+          실전
+        </button>
+      </div>
       <span className="spacer" />
-      <span className={`pill ${botRunning ? "on" : "off"}`}>
-        봇 {botRunning ? "● ON" : "○ OFF"}
+      <span className={`pill ${paperBotRunning ? "on" : "off"}`}>
+        모의 봇 {paperBotRunning ? "●" : "○"}
+      </span>
+      <span className={`pill ${liveBotRunning ? "on" : "off"}`}>
+        실전 봇 {liveBotRunning ? "●" : "○"}
       </span>
       <span className={`pill ${connected ? "on" : "off"}`}>
         실시간 {connected ? "연결됨" : "끊김"}

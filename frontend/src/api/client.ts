@@ -18,6 +18,7 @@ import type {
   StrategyConfig,
   StrategyName,
   ThemeInfo,
+  TradingMode,
   WatchItem,
 } from "../types";
 
@@ -43,38 +44,57 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data as T;
 }
 
+/** 쿼리 파라미터에 mode를 추가합니다. */
+function withMode(url: string, mode: TradingMode): string {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}mode=${mode}`;
+}
+
 export const getHealth = () => api<{ status: string; mode: string }>("/health");
 
-export const listWatchlist = () => api<WatchItem[]>("/api/watchlist");
+export const listWatchlist = (mode: TradingMode) =>
+  api<WatchItem[]>(withMode("/api/watchlist", mode));
 
-export const addWatch = (symbol: string, name?: string) =>
-  api<WatchItem>("/api/watchlist", {
+export const addWatch = (symbol: string, mode: TradingMode, name?: string) =>
+  api<WatchItem>(withMode("/api/watchlist", mode), {
     method: "POST",
     body: JSON.stringify({ symbol, name: name ?? null }),
   });
 
-export const removeWatch = (symbol: string) =>
-  api<{ symbol: string; removed: boolean }>(`/api/watchlist/${symbol}`, { method: "DELETE" });
+export const removeWatch = (symbol: string, mode: TradingMode) =>
+  api<{ symbol: string; removed: boolean }>(withMode(`/api/watchlist/${symbol}`, mode), {
+    method: "DELETE",
+  });
 
 export const searchStocks = (q: string, limit = 20) =>
   api<StockSearchResult[]>(`/api/stocks/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 
 export const getQuote = (symbol: string) => api<Quote>(`/api/quotes/${symbol}`);
 
-export const getMarketStatus = () => api<MarketStatus>("/api/market/status");
+export const getMarketStatus = (mode: TradingMode) =>
+  api<MarketStatus>(withMode("/api/market/status", mode));
 
-export const startMarket = () => api<MarketStatus>("/api/market/start", { method: "POST" });
+export const startMarket = (mode: TradingMode) =>
+  api<MarketStatus>(withMode("/api/market/start", mode), { method: "POST" });
 
-export const stopMarket = () => api<{ running: boolean }>("/api/market/stop", { method: "POST" });
+export const stopMarket = (mode: TradingMode) =>
+  api<{ running: boolean }>(withMode("/api/market/stop", mode), { method: "POST" });
 
-export const getStrategies = () => api<StrategyConfig[]>("/api/strategies");
+export const getStrategies = (mode: TradingMode) =>
+  api<StrategyConfig[]>(withMode("/api/strategies", mode));
 
-export const addStrategy = (body: {
-  symbol: string;
-  strategy: StrategyName;
-  params: Record<string, number>;
-  enabled: boolean;
-}) => api<StrategyConfig>("/api/strategies", { method: "POST", body: JSON.stringify(body) });
+export const addStrategy = (
+  body: {
+    symbol: string;
+    strategy: StrategyName;
+    params: Record<string, number>;
+    enabled: boolean;
+  },
+  mode: TradingMode,
+) => api<StrategyConfig>(withMode("/api/strategies", mode), {
+  method: "POST",
+  body: JSON.stringify(body),
+});
 
 export const setStrategyEnabled = (id: number, enabled: boolean) =>
   api<{ id: number; enabled: boolean }>(`/api/strategies/${id}/enabled`, {
@@ -87,21 +107,26 @@ export const deleteStrategy = (id: number) =>
 
 export const getSignals = (limit = 50) => api<Signal[]>(`/api/signals?limit=${limit}`);
 
-export const getBotStatus = () => api<BotStatus>("/api/bot/status");
+export const getBotStatus = (mode: TradingMode) =>
+  api<BotStatus>(withMode("/api/bot/status", mode));
 
-export const startBot = (confirmLive = false) =>
-  api<BotStatus>("/api/bot/start", {
+export const startBot = (confirmLive = false, mode: TradingMode = "paper") =>
+  api<BotStatus>(withMode("/api/bot/start", mode), {
     method: "POST",
     body: JSON.stringify({ confirm_live: confirmLive }),
   });
 
-export const stopBot = () => api<{ running: boolean }>("/api/bot/stop", { method: "POST" });
+export const stopBot = (mode: TradingMode) =>
+  api<{ running: boolean }>(withMode("/api/bot/stop", mode), { method: "POST" });
 
-export const getOrders = (limit = 50) => api<Order[]>(`/api/orders?limit=${limit}`);
+export const getOrders = (limit = 50, mode: TradingMode) =>
+  api<Order[]>(withMode(`/api/orders?limit=${limit}`, mode));
 
-export const getPositions = () => api<Position[]>("/api/positions");
+export const getPositions = (mode: TradingMode) =>
+  api<Position[]>(withMode("/api/positions", mode));
 
-export const getAccountBalance = () => api<AccountBalance>("/api/account/balance");
+export const getAccountBalance = (mode: TradingMode) =>
+  api<AccountBalance>(withMode("/api/account/balance", mode));
 
 export const getChart = (
   symbol: string,
@@ -119,16 +144,19 @@ export const getCompanyOverview = (symbol: string) =>
 
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
 
-export const getBudgets = () => api<Budget[]>("/api/budgets");
+export const getBudgets = (mode: TradingMode) =>
+  api<Budget[]>(withMode("/api/budgets", mode));
 
-export const setBudget = (symbol: string, principal: number) =>
-  api<Budget>("/api/budgets", {
+export const setBudget = (symbol: string, principal: number, mode: TradingMode) =>
+  api<Budget>(withMode("/api/budgets", mode), {
     method: "PUT",
     body: JSON.stringify({ symbol, principal }),
   });
 
-export const deleteBudget = (symbol: string) =>
-  api<{ symbol: string; removed: boolean }>(`/api/budgets/${symbol}`, { method: "DELETE" });
+export const deleteBudget = (symbol: string, mode: TradingMode) =>
+  api<{ symbol: string; removed: boolean }>(withMode(`/api/budgets/${symbol}`, mode), {
+    method: "DELETE",
+  });
 
 export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");
 

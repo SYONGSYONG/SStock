@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Quote } from "../types";
+import type { Quote, TradingMode } from "../types";
 
 const RECONNECT_MIN_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
-export function useLiveQuotes() {
+export function useLiveQuotes(viewMode: TradingMode = "paper") {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const shouldReconnectRef = useRef(true);
+  const viewModeRef = useRef(viewMode);
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current != null) {
@@ -58,7 +59,8 @@ export function useLiveQuotes() {
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
-        if (msg.type === "tick" && msg.data?.symbol) {
+        // 보는 모드와 일치하는 메시지만 처리
+        if (msg.type === "tick" && msg.data?.symbol && msg.mode === viewModeRef.current) {
           setQuotes((prev) => ({ ...prev, [msg.data.symbol]: { ...prev[msg.data.symbol], ...msg.data } }));
         }
       } catch {
@@ -66,6 +68,12 @@ export function useLiveQuotes() {
       }
     };
   }, [clearReconnectTimer]);
+
+  // viewMode 변경 시 ref 업데이트 + quotes 비우기
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+    setQuotes({}); // 모드 전환 시 이전 모드의 시세 초기화
+  }, [viewMode]);
 
   useEffect(() => {
     shouldReconnectRef.current = true;

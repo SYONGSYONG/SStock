@@ -10,16 +10,27 @@ describe("BotControl", () => {
     expect(onStart).toHaveBeenCalledWith(false);
   });
 
-  test("실전투자는 2단계 확인 후 시작(confirmLive=true)", () => {
+  test("실전투자는 확인 후 시작(confirmLive=true) + 경고 문구", () => {
     const onStart = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<BotControl running={false} mode="live" onStart={onStart} onStop={() => {}} />);
-    // 1차 클릭: 확인 단계 진입(아직 시작 안 함)
+    // 경고 문구 표시
+    expect(screen.getByText(/실제 주문이 체결됩니다/)).toBeInTheDocument();
+    // 실전 시작 시 확인 모달 → 승인하면 confirmLive=true로 호출
     fireEvent.click(screen.getByText("봇 시작 (실전)"));
-    expect(onStart).not.toHaveBeenCalled();
-    expect(screen.getByText(/실제 주문이 집행됩니다/)).toBeInTheDocument();
-    // 2차 클릭: 확인
-    fireEvent.click(screen.getByText("실전 시작 확인"));
+    expect(confirmSpy).toHaveBeenCalled();
     expect(onStart).toHaveBeenCalledWith(true);
+    confirmSpy.mockRestore();
+  });
+
+  test("실전 시작 확인을 취소하면 시작하지 않는다", () => {
+    const onStart = vi.fn();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<BotControl running={false} mode="live" onStart={onStart} onStop={() => {}} />);
+    fireEvent.click(screen.getByText("봇 시작 (실전)"));
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   test("실행 중에는 정지 버튼", () => {

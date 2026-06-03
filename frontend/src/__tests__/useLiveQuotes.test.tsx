@@ -78,16 +78,59 @@ describe("useLiveQuotes", () => {
   });
 
   test("틱 메시지를 합친다", () => {
-    const { result } = renderHook(() => useLiveQuotes());
+    const { result } = renderHook(() => useLiveQuotes("paper"));
     act(() => {
       MockWebSocket.instances[0].emitOpen();
       MockWebSocket.instances[0].emitMessage({
         type: "tick",
+        mode: "paper",
         data: { symbol: "005930", price: 70000, change: 100 },
       });
     });
 
     expect(result.current.quotes["005930"].price).toBe(70000);
     expect(result.current.quotes["005930"].change).toBe(100);
+  });
+
+  test("다른 모드 메시지는 필터링한다", () => {
+    const { result } = renderHook(() => useLiveQuotes("paper"));
+    act(() => {
+      MockWebSocket.instances[0].emitOpen();
+      // live 모드 메시지 전송
+      MockWebSocket.instances[0].emitMessage({
+        type: "tick",
+        mode: "live",
+        data: { symbol: "005930", price: 70000, change: 100 },
+      });
+    });
+
+    // paper 모드이므로 live 메시지는 무시됨
+    expect(result.current.quotes["005930"]).toBeUndefined();
+  });
+
+  test("모드 전환 시 이전 모드의 시세를 초기화한다", () => {
+    type ViewMode = "paper" | "live";
+    const { result, rerender } = renderHook(
+      ({ viewMode }: { viewMode: ViewMode }) => useLiveQuotes(viewMode),
+      { initialProps: { viewMode: "paper" as ViewMode } },
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].emitOpen();
+      MockWebSocket.instances[0].emitMessage({
+        type: "tick",
+        mode: "paper",
+        data: { symbol: "005930", price: 70000 },
+      });
+    });
+
+    expect(result.current.quotes["005930"]).toBeDefined();
+
+    act(() => {
+      rerender({ viewMode: "live" as ViewMode });
+    });
+
+    // 모드 전환 후 이전 시세는 초기화됨
+    expect(result.current.quotes["005930"]).toBeUndefined();
   });
 });

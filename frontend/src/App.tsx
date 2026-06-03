@@ -59,15 +59,18 @@ import type {
   Position,
   Signal,
   StrategyConfig,
+  TradingMode,
   WatchItem,
 } from "./types";
 
 const POLL_MS = 5000;
 
 export function App() {
+  const [viewMode, setViewMode] = useState<TradingMode>("paper");
   const [items, setItems] = useState<WatchItem[]>([]);
   const [market, setMarket] = useState<MarketStatus>({ running: false, symbols: [], dashboard_clients: 0 });
-  const [bot, setBot] = useState<BotStatus>({ running: false, market_running: false, mode: "paper" });
+  const [botPaper, setBotPaper] = useState<BotStatus>({ running: false, market_running: false, mode: "paper" });
+  const [botLive, setBotLive] = useState<BotStatus>({ running: false, market_running: false, mode: "live" });
   const [strategies, setStrategies] = useState<StrategyConfig[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -81,24 +84,27 @@ export function App() {
   const [botError, setBotError] = useState<string | null>(null);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [tab, setTab] = useState<"dashboard" | "recommend">("dashboard");
-  const { quotes, connected, mergeSnapshot } = useLiveQuotes();
+  const { quotes, connected, mergeSnapshot } = useLiveQuotes(viewMode);
+
+  // 보는 모드에 해당하는 봇 상태 선택
+  const bot = viewMode === "paper" ? botPaper : botLive;
 
   const refreshWatch = useCallback(async () => {
-    const list = await listWatchlist();
+    const list = await listWatchlist(viewMode);
     setItems(list);
     const snapshots = await Promise.all(list.map((it) => getQuote(it.symbol).catch(() => null)));
     mergeSnapshot(snapshots.filter((q): q is NonNullable<typeof q> => q !== null));
-  }, [mergeSnapshot]);
+  }, [viewMode, mergeSnapshot]);
 
   const refreshStrategies = useCallback(async () => {
-    setStrategies(await getStrategies());
-  }, []);
+    setStrategies(await getStrategies(viewMode));
+  }, [viewMode]);
 
   useEffect(() => {
     refreshWatch().catch(() => {});
     refreshStrategies().catch(() => {});
-    getMarketStatus().then(setMarket).catch(() => {});
-  }, [refreshWatch, refreshStrategies]);
+    getMarketStatus(viewMode).then(setMarket).catch(() => {});
+  }, [viewMode, refreshWatch, refreshStrategies]);
 
   // 봇/신호/주문/포지션/로그 폴링.
   // 대시보드 탭이 실제로 보일 때만 폴링한다 — 추천 탭/백그라운드/차트 모달 중에는
@@ -109,14 +115,17 @@ export function App() {
 
     const tick = () => {
       if (document.hidden) return; // 탭이 백그라운드면 건너뜀
-      getBotStatus().then(setBot).catch(() => {});
+      // 양쪽 봇 상태를 모두 폴링(헤더에 표기)
+      getBotStatus("paper").then(setBotPaper).catch(() => {});
+      getBotStatus("live").then(setBotLive).catch(() => {});
+      // 나머지는 보는 모드로 폴링
       getSignals(50).then(setSignals).catch(() => {});
-      getOrders(50).then(setOrders).catch(() => {});
-      getPositions().then(setPositions).catch(() => {});
+      getOrders(50, viewMode).then(setOrders).catch(() => {});
+      getPositions(viewMode).then(setPositions).catch(() => {});
       getAudit(100).then(setAudit).catch(() => {});
-      getBudgets().then(setBudgets).catch(() => {});
-      getAccountBalance().then(setAccount).catch(() => {});
-      getMarketStatus().then(setMarket).catch(() => {});
+      getBudgets(viewMode).then(setBudgets).catch(() => {});
+      getAccountBalance(viewMode).then(setAccount).catch(() => {});
+      getMarketStatus(viewMode).then(setMarket).catch(() => {});
     };
     const onVisible = () => {
       if (!document.hidden) tick(); // 다시 보이면 즉시 1회 갱신
@@ -128,12 +137,12 @@ export function App() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [tab, chartOpen]);
+  }, [viewMode, tab, chartOpen]);
 
   const handleAddWatch = async (symbol: string, name?: string) => {
     setWatchError(null);
     try {
-      await addWatch(symbol, name);
+      await addWatch(symbol, viewMode, name);
       await refreshWatch();
     } catch (e) {
       setWatchError(e instanceof ApiError ? e.message : "추가 실패");
@@ -141,14 +150,14 @@ export function App() {
   };
 
   const handleRemoveWatch = async (symbol: string) => {
-    await removeWatch(symbol).catch(() => {});
+    await removeWatch(symbol, viewMode).catch(() => {});
     await refreshWatch();
   };
 
   const handleAddStrategy = async (body: Parameters<typeof addStrategy>[0]) => {
     setStrategyError(null);
     try {
-      await addStrategy(body);
+      await addStrategy(body, viewMode);
       await refreshStrategies();
     } catch (e) {
       setStrategyError(e instanceof ApiError ? e.message : "전략 추가 실패");
@@ -168,41 +177,56 @@ export function App() {
   const handleBotStart = async (confirmLive: boolean) => {
     setBotError(null);
     try {
-      setBot(await startBot(confirmLive));
+      const result = await startBot(confirmLive, viewMode);
+      if (viewMode === "paper") {
+        setBotPaper(result);
+      } else {
+        setBotLive(result);
+      }
     } catch (e) {
       setBotError(e instanceof ApiError ? e.message : "봇 시작 실패");
     }
   };
 
   const handleBotStop = async () => {
-    const r = await stopBot();
-    setBot((b) => ({ ...b, running: r.running }));
+    const r = await stopBot(viewMode);
+    if (viewMode === "paper") {
+      setBotPaper((b) => ({ ...b, running: r.running }));
+    } else {
+      setBotLive((b) => ({ ...b, running: r.running }));
+    }
   };
 
-  const handleMarketStart = async () => setMarket(await startMarket());
+  const handleMarketStart = async () => setMarket(await startMarket(viewMode));
   const handleMarketStop = async () => {
-    const r = await stopMarket();
+    const r = await stopMarket(viewMode);
     setMarket((m) => ({ ...m, running: r.running }));
   };
 
   const handleSetBudget = async (symbol: string, principal: number) => {
     setBudgetError(null);
     try {
-      await setBudget(symbol, principal);
-      setBudgets(await getBudgets());
+      await setBudget(symbol, principal, viewMode);
+      setBudgets(await getBudgets(viewMode));
     } catch (e) {
       setBudgetError(e instanceof ApiError ? e.message : "칸막이 설정 실패");
     }
   };
 
   const handleRemoveBudget = async (symbol: string) => {
-    await deleteBudget(symbol).catch(() => {});
-    setBudgets(await getBudgets());
+    await deleteBudget(symbol, viewMode).catch(() => {});
+    setBudgets(await getBudgets(viewMode));
   };
 
   return (
     <div className="app">
-      <ModeBanner mode={bot.mode} botRunning={bot.running} connected={connected} />
+      <ModeBanner
+        viewMode={viewMode}
+        onSwitchMode={setViewMode}
+        paperBotRunning={botPaper.running}
+        liveBotRunning={botLive.running}
+        connected={connected}
+      />
       <nav className="tabs" aria-label="화면 전환">
         <button
           className={tab === "dashboard" ? "tab active" : "tab"}

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -35,10 +36,20 @@ _snapshot_cache: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}
 _snapshot_lock = asyncio.Lock()
 _SNAPSHOT_TTL_SEC = 86400.0  # 하루
 
+# 가장 최근에 사용된 스냅샷의 거래일(YYYYMMDD). 시세 기준일 표기에 사용한다.
+_resolved_date: str | None = None
+
 
 def clear_snapshot_cache() -> None:
     """스냅샷 캐시를 비운다 (테스트용)."""
+    global _resolved_date
     _snapshot_cache.clear()
+    _resolved_date = None
+
+
+def get_resolved_date() -> str | None:
+    """가장 최근 스냅샷의 거래일(YYYYMMDD). 스냅샷 조회 전이면 None."""
+    return _resolved_date
 
 
 async def _fetch_market(
@@ -98,23 +109,23 @@ async def get_market_snapshot(
         httpx.HTTPError: KRX API 호출 실패
     """
     settings = settings or get_settings()
-    client = client or httpx.AsyncClient()
+    global _resolved_date
 
     # 단일비행: 동시 요청이 여러 개 들어오면 락을 획득한 첫 요청만 API를 타고,
     # 나머지는 그 결과를 기다린다.
     async with _snapshot_lock:
         now_kst = datetime.now()  # 한국시간 가정
         resolved_date = None
-        snapshot = {}
+        snapshot: dict[str, dict[str, Any]] = {}
 
-        # 캐시 확인 (이전 실행의 resolved_date 사용)
-        for cached_date in _snapshot_cache.keys():
-            ts, _ = _snapshot_cache[cached_date]
-            if datetime.now().timestamp() - ts < _SNAPSHOT_TTL_SEC:
-                resolved_date = cached_date
-                _, snapshot = _snapshot_cache[cached_date]
-                logger.debug("KRX 스냅샷 캐시 히트 (기준일: %s)", resolved_date)
-                return snapshot
+        # 캐시 확인 — 저장(아래)과 동일하게 time.monotonic() 단일 시계를 쓴다.
+        # (과거엔 저장은 monotonic, 검사는 datetime.timestamp()로 시계가 달라
+        #  요청 간 캐시가 항상 만료로 취급돼 매번 재조회되는 버그가 있었다.)
+        for cached_date, (ts, cached_snapshot) in _snapshot_cache.items():
+            if time.monotonic() - ts < _SNAPSHOT_TTL_SEC:
+                logger.debug("KRX 스냅샷 캐시 히트 (기준일: %s)", cached_date)
+                _resolved_date = cached_date
+                return cached_snapshot
 
         # 캐시 미스: 최대 7일 거슬러 올라가며 KOSPI 데이터 찾기
         logger.debug("KRX 스냅샷 캐시 미스, API 조회 시작")
@@ -159,9 +170,8 @@ async def get_market_snapshot(
                     }
 
                 # 캐시 저장
-                import time
-
                 _snapshot_cache[resolved_date] = (time.monotonic(), snapshot)
+                _resolved_date = resolved_date
                 logger.debug("KRX 스냅샷 캐시 저장 (%d 종목, 기준일: %s)", len(snapshot), resolved_date)
                 return snapshot
 

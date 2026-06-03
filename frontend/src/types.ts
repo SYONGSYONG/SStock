@@ -150,6 +150,7 @@ export interface RecommendItem {
 export interface RecommendResult {
   theme: string;
   base_date: string | null;
+  price_date?: string | null;
   items: RecommendItem[];
 }
 

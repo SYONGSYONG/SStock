@@ -82,6 +82,9 @@ async def recommend(
         price_fn=price_fn,
         flow_fn=flow_fn,
     )
+    if settings.recommend_data_source == "krx":
+        # KRX는 EOD라 시세 기준일(거래일)을 재무 기준일과 구분해 노출한다.
+        result = {**result, "price_date": krx.get_resolved_date()}
     return {"data": result}
 
 
@@ -117,6 +120,9 @@ async def recommend_stream(
                 price_fn=price_fn,
                 flow_fn=flow_fn,
             ):
+                if event == "result" and settings.recommend_data_source == "krx":
+                    # KRX 시세 기준일(거래일)을 result에 덧붙인다.
+                    payload = {**payload, "price_date": krx.get_resolved_date()}
                 yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'error': str(e), 'code': 'RECOMMEND_STREAM_ERROR'}, ensure_ascii=False)}\n\n"

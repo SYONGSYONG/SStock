@@ -27,6 +27,7 @@ export function RecommendPage({
   const [quotes, setQuotes] = useState<Record<string, RecommendQuote>>({});
   const [result, setResult] = useState<RecommendResult | null>(null);
   const [baseDate, setBaseDate] = useState<string | null>(null);
+  const [priceDate, setPriceDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +48,7 @@ export function RecommendPage({
     setQuotes({});
     setResult(null);
     setBaseDate(null);
+    setPriceDate(null);
     setLoading(true);
     setError(null);
 
@@ -65,6 +67,7 @@ export function RecommendPage({
         onResult: (r) => {
           if (!alive) return;
           setResult(r);
+          setPriceDate(r.price_date ?? null);
           setLoading(false);
         },
         onError: () => {
@@ -88,6 +91,7 @@ export function RecommendPage({
           if (!alive) return;
           setResult(data);
           setBaseDate(data.base_date);
+          setPriceDate(data.price_date ?? null);
           setLoading(false);
         })
         .catch((err) => {
@@ -129,7 +133,11 @@ export function RecommendPage({
 
       {result && !loading ? (
         <>
-          {baseDate && <p className="muted base-date">기준일: {baseDate}</p>}
+          {baseDate && (
+            <p className="muted base-date">
+              {priceDate ? `시세 ${priceDate} · 재무 ${baseDate}` : `기준일: ${baseDate}`}
+            </p>
+          )}
           <div className="rec-grid">
             {result.items.map((it, i) => (
               <RecommendCard

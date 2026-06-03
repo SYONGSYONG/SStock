@@ -233,6 +233,26 @@ async def test_snapshot_cache_hit(krx_settings, sample_kospi_data, sample_kosdaq
 
 
 @pytest.mark.asyncio
+async def test_snapshot_cache_avoids_refetch(krx_settings, sample_kospi_data, sample_kosdaq_data):
+    """캐시 히트 시 네트워크를 재호출하지 않는다 (요청 간 캐시 유효 — 클럭 버그 회귀 방지)."""
+    krx.clear_snapshot_cache()
+
+    with respx.mock(base_url="https://data-dbg.krx.co.kr") as respx_mock:
+        kospi_route = respx_mock.get("/svc/apis/sto/stk_bydd_trd").mock(
+            return_value=httpx.Response(200, json=sample_kospi_data)
+        )
+        respx_mock.get("/svc/apis/sto/ksq_bydd_trd").mock(
+            return_value=httpx.Response(200, json=sample_kosdaq_data)
+        )
+
+        await krx.get_market_snapshot(krx_settings)
+        await krx.get_market_snapshot(krx_settings)
+
+        # 두 번째 호출은 캐시에서 반환되어야 한다 → KOSPI 라우트는 첫 조회 1회만 호출
+        assert kospi_route.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_missing_fields_parsed_as_none(krx_settings):
     """필드 누락이나 비문자열은 None으로 변환."""
     krx.clear_snapshot_cache()
@@ -263,6 +283,29 @@ async def test_missing_fields_parsed_as_none(krx_settings):
         assert snapshot["999999"]["price"] is None
         assert snapshot["999999"]["change_rate"] is None
         assert snapshot["999999"]["volume"] is None
+
+
+@pytest.mark.asyncio
+async def test_resolved_date_exposed(krx_settings, sample_kospi_data, sample_kosdaq_data):
+    """스냅샷 조회 후 거래일(시세 기준일)이 노출되고, 캐시 클리어 시 초기화된다."""
+    krx.clear_snapshot_cache()
+    assert krx.get_resolved_date() is None
+
+    with respx.mock(base_url="https://data-dbg.krx.co.kr") as respx_mock:
+        respx_mock.get("/svc/apis/sto/stk_bydd_trd").mock(
+            return_value=httpx.Response(200, json=sample_kospi_data)
+        )
+        respx_mock.get("/svc/apis/sto/ksq_bydd_trd").mock(
+            return_value=httpx.Response(200, json=sample_kosdaq_data)
+        )
+
+        await krx.get_market_snapshot(krx_settings)
+
+    resolved = krx.get_resolved_date()
+    assert resolved is not None and len(resolved) == 8 and resolved.isdigit()
+
+    krx.clear_snapshot_cache()
+    assert krx.get_resolved_date() is None
 
 
 @pytest.mark.asyncio

@@ -112,6 +112,23 @@ describe("RecommendPage", () => {
     );
   });
 
+  test("시세 기준일과 재무 기준일을 구분해 표기한다", async () => {
+    const subscribeRecommend = vi.fn(
+      (theme: string, _limit: number, handlers: RecommendStreamHandlers) => {
+        (async () => {
+          handlers.onCandidates({ theme, base_date: "20260331", candidates: CANDIDATES });
+          await new Promise((r) => setTimeout(r, 0));
+          handlers.onResult({ ...RESULT, price_date: "20260602" });
+        })();
+        return vi.fn();
+      },
+    );
+    setup({ subscribeRecommend });
+    fireEvent.click(await screen.findByText("반도체"));
+
+    expect(await screen.findByText("시세 20260602 · 재무 20260331")).toBeInTheDocument();
+  });
+
   test("스켈레톤은 candidates 이벤트 후 바로 나타난다", async () => {
     const subscribeRecommend = createMockSubscribeRecommend({
       candidates: 0,

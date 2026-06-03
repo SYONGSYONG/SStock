@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.config import get_settings
 from app.db.database import get_db
 from app.kis.orders import AccountUnavailableError, cancel_order, get_balance
-from app.services import audit_service, order_service
+from app.services import audit_service, budget_service, order_service
 from app.stocks.master import get_name
 
 router = APIRouter(prefix="/api", tags=["orders"])
@@ -37,8 +37,13 @@ def list_orders(
 @router.get("/positions")
 async def positions(
     mode: str = Query(default="paper"),
+    conn: sqlite3.Connection = Depends(get_db),
 ) -> dict:
-    """포지션 조회(모드별)."""
+    """포지션 조회(모드별).
+
+    KIS 실제 잔고(직접 매수분 포함)에 봇 주문 이력 기반 보유수량을 합산해
+    종목마다 봇/직접 매수 구분(source, bot_qty, manual_qty)을 부여한다.
+    """
     if mode not in ("paper", "live"):
         raise HTTPException(status_code=400, detail={"error": "잘못된 모드", "code": "BAD_MODE"})
 
@@ -49,7 +54,29 @@ async def positions(
         data = []
     for d in data:
         d["name"] = get_name(d["symbol"])
+        _annotate_source(conn, d, mode)
     return {"data": data}
+
+
+def _annotate_source(conn: sqlite3.Connection, position: dict, mode: str) -> None:
+    """포지션에 봇/직접 매수 구분 필드를 추가한다.
+
+    봇 보유수량 = 해당 모드 주문 이력의 순매수 체결 수량(compute_symbol_state).
+    실제 잔고 수량을 넘지 않도록 클램프하고, 나머지를 직접 매수분으로 본다.
+    """
+    total_qty = int(position.get("qty") or 0)
+    bot_qty = int(budget_service.compute_symbol_state(conn, position["symbol"], mode=mode)["holding_qty"])
+    bot_qty = max(0, min(bot_qty, total_qty))
+    manual_qty = total_qty - bot_qty
+    if bot_qty > 0 and manual_qty > 0:
+        source = "mixed"
+    elif bot_qty > 0:
+        source = "bot"
+    else:
+        source = "manual"
+    position["bot_qty"] = bot_qty
+    position["manual_qty"] = manual_qty
+    position["source"] = source
 
 
 @router.post("/orders/{order_id}/cancel")

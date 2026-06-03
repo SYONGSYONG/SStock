@@ -72,6 +72,8 @@ export interface Order {
   created_at: string;
 }
 
+export type PositionSource = "bot" | "manual" | "mixed";
+
 export interface Position {
   symbol: string;
   name?: string | null;
@@ -81,6 +83,12 @@ export interface Position {
   eval_amount?: number | null;
   pl_amount?: number | null;
   pl_rate?: number | null;
+  /** 봇 주문 이력 기반 보유수량 */
+  bot_qty?: number;
+  /** 직접(수동) 매수 추정 수량 = 실제 보유 - 봇 보유 */
+  manual_qty?: number;
+  /** 매수 출처 구분: 봇 전용 / 직접 전용 / 혼합 */
+  source?: PositionSource;
 }
 
 export interface AuditLog {

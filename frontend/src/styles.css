@@ -761,6 +761,29 @@ body {
   color: #7f1d1d;
 }
 
+/* ── 보유 포지션 출처 배지(봇/직접/혼합) ── */
+.src-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  cursor: default;
+}
+.src-badge.src-bot {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.src-badge.src-manual {
+  background: #f1f5f9;
+  color: #475569;
+}
+.src-badge.src-mixed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 /* ── 탭 네비게이션 ── */
 .tabs {
   display: flex;

@@ -92,7 +92,11 @@ class TradingBot:
 
         conn = self._conn_factory()
         try:
-            configs = [c for c in strategy_service.list_enabled(conn) if c["symbol"] == symbol]
+            configs = [
+                c
+                for c in strategy_service.list_enabled(conn, mode=self._mode)
+                if c["symbol"] == symbol
+            ]
             for cfg in configs:
                 strategy = build_strategy(cfg["strategy"], cfg["params"])
                 signal = strategy.evaluate(symbol, hist)
@@ -219,7 +223,7 @@ class TradingBot:
         )
 
         try:
-            check_order(conn, self._settings, intent)
+            check_order(conn, self._settings, intent, mode=self._mode)
         except RiskError as exc:
             audit_service.log(conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}")
             order = order_service.save_order(

@@ -53,13 +53,21 @@ def _today_order_amount(conn: sqlite3.Connection, mode: str) -> int:
     return int(row["s"])
 
 
-def check_order(conn: sqlite3.Connection, settings: Settings, intent: OrderIntent) -> None:
-    """위반 시 RiskError를 던진다. 통과하면 None."""
+def check_order(
+    conn: sqlite3.Connection,
+    settings: Settings,
+    intent: OrderIntent,
+    mode: str = "paper",
+) -> None:
+    """위반 시 RiskError를 던진다. 통과하면 None.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    모드별로 일일 한도/칸막이를 격리해 검증한다.
+    """
     if intent.qty <= 0:
         raise RiskError("INVALID_QTY", "주문 수량은 1 이상이어야 합니다")
 
     order_amount = int((intent.price or 0) * intent.qty)
-    mode = settings.trading_mode
 
     # 종목별 한도
     if intent.max_qty is not None and intent.qty > intent.max_qty:
@@ -75,9 +83,9 @@ def check_order(conn: sqlite3.Connection, settings: Settings, intent: OrderInten
     if intent.side == "BUY":
         from app.services import budget_service
 
-        principal = budget_service.get_principal(conn, intent.symbol)
+        principal = budget_service.get_principal(conn, intent.symbol, mode=mode)
         if principal is not None:
-            state = budget_service.compute_symbol_state(conn, intent.symbol)
+            state = budget_service.compute_symbol_state(conn, intent.symbol, mode=mode)
             ceiling = principal + state["realized_pnl"]
             if state["holding_cost"] + order_amount > ceiling:
                 raise RiskError(
@@ -86,13 +94,13 @@ def check_order(conn: sqlite3.Connection, settings: Settings, intent: OrderInten
                     f"보유원가 {int(state['holding_cost'])}원 + 주문 {order_amount}원",
                 )
 
-    # 일일 주문 횟수
+    # 일일 주문 횟수 (모드별)
     if _today_order_count(conn, mode) >= settings.daily_max_orders:
         raise RiskError(
             "DAILY_ORDER_LIMIT", f"일일 주문 횟수 한도({settings.daily_max_orders}) 초과"
         )
 
-    # 일일 주문 금액
+    # 일일 주문 금액 (모드별)
     if _today_order_amount(conn, mode) + order_amount > settings.daily_max_amount:
         raise RiskError(
             "DAILY_AMOUNT_LIMIT", f"일일 주문 금액 한도({settings.daily_max_amount}) 초과"

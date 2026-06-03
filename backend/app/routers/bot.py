@@ -77,7 +77,8 @@ async def start(
     feed = registry.get_feed(mode)
 
     # 봇이 동작하려면 체결 스트림이 필요하므로 시세 수집도 함께 보장
-    symbols = [row["symbol"] for row in watchlist_service.list_symbols(conn)]
+    # 해당 모드의 관심종목만 조회하여 피드 시작
+    symbols = [row["symbol"] for row in watchlist_service.list_symbols(conn, mode=mode)]
     await feed.start(symbols)
     await bot.start()
 

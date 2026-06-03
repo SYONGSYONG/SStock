@@ -6,12 +6,18 @@ import sqlite3
 from typing import Any
 
 
-def compute_symbol_state(conn: sqlite3.Connection, symbol: str) -> dict[str, float]:
-    """주문 이력으로 실제 보유수량/보유원가/실현손익을 계산한다."""
+def compute_symbol_state(
+    conn: sqlite3.Connection, symbol: str, mode: str = "paper"
+) -> dict[str, float]:
+    """주문 이력으로 실제 보유수량/보유원가/실현손익을 계산한다.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    해당 모드의 주문만 집계한다.
+    """
     rows = conn.execute(
         "SELECT side, filled_qty, price FROM orders "
-        "WHERE symbol = ? AND status NOT IN ('rejected') ORDER BY id",
-        (symbol,),
+        "WHERE symbol = ? AND mode = ? AND status NOT IN ('rejected') ORDER BY id",
+        (symbol, mode),
     ).fetchall()
 
     holding_qty = 0
@@ -39,37 +45,53 @@ def compute_symbol_state(conn: sqlite3.Connection, symbol: str) -> dict[str, flo
     }
 
 
-def get_principal(conn: sqlite3.Connection, symbol: str) -> int | None:
+def get_principal(conn: sqlite3.Connection, symbol: str, mode: str = "paper") -> int | None:
+    """모드별 종목 원금 한도를 조회한다."""
     row = conn.execute(
-        "SELECT principal FROM capital_envelope WHERE symbol = ?", (symbol,)
+        "SELECT principal FROM capital_envelope WHERE symbol = ? AND mode = ?",
+        (symbol, mode),
     ).fetchone()
     return int(row["principal"]) if row else None
 
 
-def set_principal(conn: sqlite3.Connection, symbol: str, principal: int) -> dict[str, Any]:
+def set_principal(
+    conn: sqlite3.Connection, symbol: str, principal: int, mode: str = "paper"
+) -> dict[str, Any]:
+    """모드별 종목 원금 한도를 설정한다.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    """
     conn.execute(
-        "INSERT INTO capital_envelope (symbol, principal) VALUES (?, ?) "
-        "ON CONFLICT(symbol) DO UPDATE SET principal = excluded.principal",
-        (symbol, principal),
+        "INSERT INTO capital_envelope (symbol, principal, mode) VALUES (?, ?, ?) "
+        "ON CONFLICT(symbol, mode) DO UPDATE SET principal = excluded.principal",
+        (symbol, principal, mode),
     )
     conn.commit()
-    status = envelope_status(conn, symbol)
+    status = envelope_status(conn, symbol, mode=mode)
     assert status is not None
     return status
 
 
-def delete_principal(conn: sqlite3.Connection, symbol: str) -> bool:
-    cur = conn.execute("DELETE FROM capital_envelope WHERE symbol = ?", (symbol,))
+def delete_principal(conn: sqlite3.Connection, symbol: str, mode: str = "paper") -> bool:
+    """모드별 종목 원금 한도를 삭제한다."""
+    cur = conn.execute(
+        "DELETE FROM capital_envelope WHERE symbol = ? AND mode = ?", (symbol, mode)
+    )
     conn.commit()
     return cur.rowcount > 0
 
 
-def envelope_status(conn: sqlite3.Connection, symbol: str) -> dict[str, Any] | None:
-    """설정된 종목의 자금 한도 상태를 반환한다. 미설정이면 None."""
-    principal = get_principal(conn, symbol)
+def envelope_status(
+    conn: sqlite3.Connection, symbol: str, mode: str = "paper"
+) -> dict[str, Any] | None:
+    """모드별 종목의 자금 한도 상태를 반환한다. 미설정이면 None.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    """
+    principal = get_principal(conn, symbol, mode=mode)
     if principal is None:
         return None
-    state = compute_symbol_state(conn, symbol)
+    state = compute_symbol_state(conn, symbol, mode=mode)
     ceiling = principal + state["realized_pnl"]
     return {
         "symbol": symbol,
@@ -81,11 +103,15 @@ def envelope_status(conn: sqlite3.Connection, symbol: str) -> dict[str, Any] | N
     }
 
 
-def list_budgets(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT symbol FROM capital_envelope ORDER BY symbol").fetchall()
+def list_budgets(conn: sqlite3.Connection, mode: str = "paper") -> list[dict[str, Any]]:
+    """모드별 칸막이 목록을 반환한다."""
+    rows = conn.execute(
+        "SELECT symbol FROM capital_envelope WHERE mode = ? ORDER BY symbol",
+        (mode,),
+    ).fetchall()
     result = []
     for r in rows:
-        status = envelope_status(conn, r["symbol"])
+        status = envelope_status(conn, r["symbol"], mode=mode)
         if status is not None:
             result.append(status)
     return result

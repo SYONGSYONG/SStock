@@ -19,16 +19,22 @@ def _row_to_config(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def list_configs(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_configs(conn: sqlite3.Connection, mode: str = "paper") -> list[dict[str, Any]]:
+    """모드별 전략 설정 목록을 반환한다.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    """
     rows = conn.execute(
         "SELECT id, symbol, strategy, params, enabled, max_qty, max_amount "
-        "FROM strategy_config ORDER BY id"
+        "FROM strategy_config WHERE mode = ? ORDER BY id",
+        (mode,),
     ).fetchall()
     return [_row_to_config(r) for r in rows]
 
 
-def list_enabled(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    return [c for c in list_configs(conn) if c["enabled"]]
+def list_enabled(conn: sqlite3.Connection, mode: str = "paper") -> list[dict[str, Any]]:
+    """모드별 활성화된 전략만 반환한다."""
+    return [c for c in list_configs(conn, mode=mode) if c["enabled"]]
 
 
 def upsert_config(
@@ -39,25 +45,30 @@ def upsert_config(
     enabled: bool = False,
     max_qty: int | None = None,
     max_amount: int | None = None,
+    mode: str = "paper",
 ) -> dict[str, Any]:
-    """(symbol, strategy) 기준으로 설정을 생성하거나 갱신한다."""
+    """(symbol, strategy, mode) 기준으로 설정을 생성하거나 갱신한다.
+
+    mode: 거래 모드('paper' 또는 'live'). 기본값 'paper'.
+    중복 기준: (symbol, strategy, mode) 복합 UNIQUE.
+    """
     conn.execute(
         """
-        INSERT INTO strategy_config (symbol, strategy, params, enabled, max_qty, max_amount)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(symbol, strategy) DO UPDATE SET
+        INSERT INTO strategy_config (symbol, strategy, params, enabled, max_qty, max_amount, mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(symbol, strategy, mode) DO UPDATE SET
             params = excluded.params,
             enabled = excluded.enabled,
             max_qty = excluded.max_qty,
             max_amount = excluded.max_amount
         """,
-        (symbol, strategy, json.dumps(params), int(enabled), max_qty, max_amount),
+        (symbol, strategy, json.dumps(params), int(enabled), max_qty, max_amount, mode),
     )
     conn.commit()
     row = conn.execute(
         "SELECT id, symbol, strategy, params, enabled, max_qty, max_amount "
-        "FROM strategy_config WHERE symbol = ? AND strategy = ?",
-        (symbol, strategy),
+        "FROM strategy_config WHERE symbol = ? AND strategy = ? AND mode = ?",
+        (symbol, strategy, mode),
     ).fetchone()
     return _row_to_config(row)
 

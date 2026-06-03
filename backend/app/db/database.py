@@ -12,9 +12,11 @@ from pathlib import Path
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS watchlist (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  symbol      TEXT NOT NULL UNIQUE,
+  symbol      TEXT NOT NULL,
   name        TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(symbol, mode)
 );
 
 CREATE TABLE IF NOT EXISTS strategy_config (
@@ -25,7 +27,8 @@ CREATE TABLE IF NOT EXISTS strategy_config (
   enabled     INTEGER NOT NULL DEFAULT 0,
   max_qty     INTEGER,
   max_amount  INTEGER,
-  UNIQUE(symbol, strategy)
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+  UNIQUE(symbol, strategy, mode)
 );
 
 CREATE TABLE IF NOT EXISTS signals (
@@ -61,8 +64,10 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE TABLE IF NOT EXISTS capital_envelope (
-  symbol     TEXT    PRIMARY KEY,   -- 종목코드 6자리
-  principal  INTEGER NOT NULL       -- 원금 한도(원). 칸막이 한도 = principal + 실현손익
+  symbol     TEXT NOT NULL,
+  principal  INTEGER NOT NULL,
+  mode       TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+  PRIMARY KEY(symbol, mode)
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
@@ -100,6 +105,73 @@ def _ensure_order_columns(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_mode_columns(conn: sqlite3.Connection) -> None:
+    """기존 DB에 mode 컬럼이 없으면 추가한다.
+
+    mode 컬럼은 UNIQUE/PK 변경을 동반하므로 테이블 재생성 방식으로 마이그레이션한다.
+    기존 행은 'paper'로 설정한다(기존이 모의투자였으므로).
+    """
+
+    def has_mode(table: str) -> bool:
+        """테이블에 mode 컬럼이 있는지 확인."""
+        return any(
+            r[1] == "mode"
+            for r in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        )
+
+    # watchlist: mode 컬럼 추가 + UNIQUE(symbol, mode)
+    if not has_mode("watchlist"):
+        conn.executescript("""
+            CREATE TABLE watchlist_new (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              symbol      TEXT NOT NULL,
+              name        TEXT,
+              mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(symbol, mode)
+            );
+            INSERT INTO watchlist_new (id, symbol, name, mode, created_at)
+              SELECT id, symbol, name, 'paper', created_at FROM watchlist;
+            DROP TABLE watchlist;
+            ALTER TABLE watchlist_new RENAME TO watchlist;
+        """)
+
+    # strategy_config: mode 컬럼 추가 + UNIQUE(symbol, strategy, mode)
+    if not has_mode("strategy_config"):
+        conn.executescript("""
+            CREATE TABLE strategy_config_new (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              symbol      TEXT NOT NULL,
+              strategy    TEXT NOT NULL,
+              params      TEXT NOT NULL,
+              enabled     INTEGER NOT NULL DEFAULT 0,
+              max_qty     INTEGER,
+              max_amount  INTEGER,
+              mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+              UNIQUE(symbol, strategy, mode)
+            );
+            INSERT INTO strategy_config_new (id, symbol, strategy, params, enabled, max_qty, max_amount, mode)
+              SELECT id, symbol, strategy, params, enabled, max_qty, max_amount, 'paper' FROM strategy_config;
+            DROP TABLE strategy_config;
+            ALTER TABLE strategy_config_new RENAME TO strategy_config;
+        """)
+
+    # capital_envelope: mode 컬럼 추가 + PRIMARY KEY(symbol, mode)
+    if not has_mode("capital_envelope"):
+        conn.executescript("""
+            CREATE TABLE capital_envelope_new (
+              symbol     TEXT NOT NULL,
+              principal  INTEGER NOT NULL,
+              mode       TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+              PRIMARY KEY(symbol, mode)
+            );
+            INSERT INTO capital_envelope_new (symbol, principal, mode)
+              SELECT symbol, principal, 'paper' FROM capital_envelope;
+            DROP TABLE capital_envelope;
+            ALTER TABLE capital_envelope_new RENAME TO capital_envelope;
+        """)
+
+
 def init_db(database_path: str) -> None:
     """DB 파일과 테이블을 생성하고 WAL 모드를 활성화한다."""
     path = Path(database_path)
@@ -110,6 +182,7 @@ def init_db(database_path: str) -> None:
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.executescript(SCHEMA)
         _ensure_order_columns(conn)
+        _ensure_mode_columns(conn)
         conn.commit()
     finally:
         conn.close()

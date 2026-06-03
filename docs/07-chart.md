@@ -7,7 +7,7 @@
 ## 1. 목표 / 범위
 
 - 관심종목 행 클릭 → 해당 종목 캔들차트 모달.
-- 일봉(최근 ~100영업일)과 분봉(당일)을 토글로 전환.
+- 일봉(~100영업일)·주봉(~2년)·분봉(마지막 세션, 1/5/10/30분 단위)을 토글로 전환.
 - 정보 제공용. 자동매매와 무관(주문 트리거 아님).
 - MVP: 캔들 + 거래량. 보조지표(MA/RSI 오버레이)는 후속.
 
@@ -16,11 +16,19 @@
 | 종류 | URL | TR_ID | 핵심 응답(output2[]) |
 |------|-----|-------|----------------------|
 | 일봉 | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` | `FHKST03010100` | `stck_bsop_date·stck_oprc·stck_hgpr·stck_lwpr·stck_clpr·acml_vol` |
-| 분봉 | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | `FHKST03010200` | `stck_bsop_date·stck_cntg_hour·stck_oprc·stck_hgpr·stck_lwpr·stck_prpr·cntg_vol` |
+| 분봉 | `/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice` | `FHKST03010230` | `stck_bsop_date·stck_cntg_hour·stck_oprc·stck_hgpr·stck_lwpr·stck_prpr·cntg_vol` |
 
 - 일봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_DATE_1`(시작), `FID_INPUT_DATE_2`(종료, 1회 최대 100개), `FID_PERIOD_DIV_CODE=D`, `FID_ORG_ADJ_PRC=1`(원주가).
-- 분봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 조회 종료시각), `FID_PW_DATA_INCU_YN=Y`, `FID_ETC_CLS_CODE=""`.
-  - KIS 분봉은 **지정 시각 기준 직전 30분**만 반환한다. 정규장(09:00~15:30 KST) 밖에서 현재 시각으로 조회하면 장외 평탄 구간만 잡히므로, **정규장 밖이면 `FID_INPUT_HOUR_1`을 `153000`(장 마감)으로 고정**해 마지막 거래 세션의 실제 분봉을 가져온다.
+- 분봉은 **일별분봉(`FHKST03010230`, 1회 120건·과거 1년 보관, 모의 지원 확인됨)**으로 조회한다.
+  요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 조회 종료시각),
+  `FID_INPUT_DATE_1`(거래일 YYYYMMDD), `FID_PW_DATA_INCU_YN=Y`, `FID_FAKE_TICK_INCU_YN=""`.
+  - **세션 페이지네이션**: `153000`부터 역순으로 가장 이른 시각을 다음 `FID_INPUT_HOUR_1`로 넘기며
+    09:00까지 1분봉을 모은다(최대 6페이지). 오늘이 휴장이면 직전 거래일로 거슬러 탐색(최대 7일).
+  - **단위 집계(resample)**: 1분봉을 1/5/10/30분 버킷으로 묶어 N분봉을 만든다
+    (open=첫 봉·high=최고·low=최저·close=막 봉·volume=합). 1분봉 세션은 `{symbol}:m1`로 캐시하고
+    단위는 그 위에서 즉석 집계 → 단위 전환 시 추가 KIS 호출 없음.
+  - 라우터: `?interval=minute&unit=1|5|10|30`(잘못된 unit→400 `BAD_UNIT`). 응답에 `unit` 포함.
+  - (구 당일분봉 `FHKST03010200`은 1분·30건·당일만이라 더 이상 사용하지 않음.)
 - 일봉 종가는 `stck_clpr`, 분봉 종가는 `stck_prpr`. 거래량은 일봉 `acml_vol`(당일 누적=일거래량), 분봉 `cntg_vol`(분 체결량).
 - **유연한 파싱**: 시가/고가/저가가 누락된 경우 종가를 기준으로 캔들을 최대한 복구하여 표시한다.
 
@@ -51,6 +59,8 @@
 - 라이브러리: **lightweight-charts**(승인된 의존성). 캔들 시리즈 + 거래량 히스토그램.
 - 관심종목 `WatchList` 행을 클릭 가능(button)으로 만들고 `onSelect(symbol, name)` 호출.
 - `App`이 `chartTarget` 상태로 모달 표시. 모달 안에서 일봉/주봉/분봉 토글 버튼.
+- **분봉 단위 선택**: 분봉 탭이 활성일 때 `1·5·10·30분` 세그먼트(`.minute-units`)를 노출.
+  `getChart(symbol, "minute", { unit })`로 조회하고, 메모 키는 `minute:<unit>`로 단위별 분리.
 - **로딩 안정성**: 조회 실패(503 등) 시 사용자 개입 없이 **1회 자동 재시도**한다(`AUTO_RETRY_DELAY_MS=600`).
   재시도 사이에는 `loading`을 유지해 "데이터 없음" 빈상태가 깜빡이지 않게 한다. 자동 재시도까지
   실패하면 **[다시 시도]** 버튼(수동 재요청)을 노출한다. 자동 재시도는 `symbol`/`interval` 1건당 1회.
@@ -63,13 +73,15 @@
 ## 5. 테스트
 
 - 백엔드: 일봉/주봉/분봉 파싱(respx mock), 오류 구분(500·`rt_cd≠0`→`ChartUnavailableError`, `rt_cd=0`+빈데이터→`[]`),
-  라우터 종단(`interval` 분기·잘못된 interval 400·일시 오류 503), `KisClient`의 `EGW00201` 재시도(`test_client.py`).
+  분봉 **일별분봉 사용·세션 페이지네이션·직전 거래일 폴백·5분 집계**, 라우터 종단(`interval`/`unit` 분기·400 `BAD_INTERVAL`/`BAD_UNIT`·일시 오류 503), `KisClient`의 `EGW00201` 재시도(`test_client.py`).
 - 프론트: `lightweight-charts`는 jsdom canvas 미지원이라 **모듈 모킹**. ChartModal의 토글/닫기/빈상태 로직과 WatchList 클릭→`onSelect(symbol, name)` 호출을 검증.
 
 ## 6. 안전/성능
 
 - 차트는 읽기 전용. 모달 열 때 1회 조회(분봉/일봉 토글 시 각 1회, 단 캐시·탭 메모로 재호출 최소화). 폴링 없음.
-- 분봉은 직전 30분 윈도. 장 마감 후/주말에는 조회 시각을 장 마감(15:30)으로 고정해 마지막 세션 분봉을 보여준다. 빈 결과는 안내로 처리.
+- 분봉은 마지막 거래 세션(09:00~15:30, ~381개 1분봉)을 일별분봉으로 페이지네이션해 보여주고,
+  1/5/10/30분 단위로 집계한다. 장 마감 후/주말이면 직전 거래일을 사용한다. 빈 결과는 안내로 처리.
+  (참고: 15:30 종가/단일가 분봉은 floor 버킷 경계상 마지막 N분 봉에서 단독 버킷이 될 수 있음 — 정상.)
 - **KIS 호출 baseline**: 모든 KIS REST 호출은 앱 lifespan이 만든 **keep-alive 공유 httpx 클라이언트**
   (`app/kis/client.py`의 `_shared_client`)를 재사용한다. 요청마다 새 클라이언트를 만들 때 발생하던
   TCP+TLS 핸드셰이크를 제거해 콜드 호출 지연을 줄인다(테스트는 공유 클라이언트 미등록 → 요청별 생성으로 동작).

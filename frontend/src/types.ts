@@ -91,6 +91,7 @@ export interface AuditLog {
 }
 
 export type ChartInterval = "daily" | "weekly" | "minute";
+export type MinuteUnit = 1 | 5 | 10 | 30;
 
 export interface Candle {
   time: string | number; // 일봉: "YYYY-MM-DD", 분봉: UNIX 초

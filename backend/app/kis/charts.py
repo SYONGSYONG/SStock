@@ -24,7 +24,6 @@ class ChartUnavailableError(RuntimeError):
 
 
 _CHART_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
-_MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 _KST = timezone(timedelta(hours=9))
 _KST_OFFSET_SEC = 9 * 3600  # 분봉 타임스탬프를 차트축에 KST 벽시계로 노출하기 위한 보정
@@ -37,6 +36,14 @@ _WEEKLY_LOOKBACK_DAYS = 730  # 주봉: ~2년 ≈ 100주
 _MARKET_OPEN_MIN = 9 * 60
 _MARKET_CLOSE_MIN = 15 * 60 + 30
 _MARKET_CLOSE_HMS = "153000"
+_SESSION_START_HMS = "090000"
+
+# 분봉: 일별분봉(FHKST03010230, 1회 120건·과거 1년)으로 마지막 세션 1분봉을
+# 페이지네이션 조회한 뒤, 단위(1/5/10/30분)에 맞게 집계(resample)한다.
+_DAILY_MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
+_MINUTE_UNITS = (1, 5, 10, 30)
+_MINUTE_MAX_PAGES = 6  # 120건×6 = 720분 > 한 세션(390분) 여유
+_MINUTE_DATE_LOOKBACK = 7  # 주말·휴일이면 직전 거래일로 거슬러 탐색
 
 # 차트 캐시: 모달을 다시 열거나 탭을 전환할 때마다 KIS를 재호출하지 않도록
 # (symbol, interval)별로 캔들을 캐시한다. 일/주봉은 장중 마지막 봉만 갱신되고
@@ -223,60 +230,116 @@ async def get_weekly_chart(
     )
 
 
+def _resample_minutes(bars: list[dict[str, Any]], unit: int) -> list[dict[str, Any]]:
+    """1분봉을 unit분 단위로 집계한다(bars는 time=KST보정 UNIX초 오름차순).
+
+    버킷 경계는 벽시계 기준(time이 KST 벽시계를 UTC로 노출한 값이라 floor로 정렬됨).
+    open=첫 봉, high=최고, low=최저, close=막 봉, volume=합.
+    """
+    if unit <= 1 or not bars:
+        return bars
+    bucket_sec = unit * 60
+    out: list[dict[str, Any]] = []
+    cur: dict[str, Any] | None = None
+    for b in bars:
+        key = b["time"] - (b["time"] % bucket_sec)
+        if cur is None or cur["time"] != key:
+            cur = {
+                "time": key,
+                "open": b["open"],
+                "high": b["high"],
+                "low": b["low"],
+                "close": b["close"],
+                "volume": b["volume"],
+            }
+            out.append(cur)
+        else:
+            cur["high"] = max(cur["high"], b["high"])
+            cur["low"] = min(cur["low"], b["low"])
+            cur["close"] = b["close"]
+            cur["volume"] += b["volume"]
+    return out
+
+
 async def get_minute_chart(
     symbol: str,
+    unit: int = 1,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
+    """N분봉(1/5/10/30). 1분봉 세션을 캐시하고 단위에 맞게 집계한다."""
+    if unit not in _MINUTE_UNITS:
+        unit = 1
     ttl = _TTL_MINUTE_MARKET if _is_market_hours() else _TTL_CLOSED
-    return await _cached_fetch(
-        f"{symbol}:m", ttl, lambda: _fetch_minute_chart(symbol, settings, kis_client)
+    one_min = await _cached_fetch(
+        f"{symbol}:m1", ttl, lambda: _fetch_minute_session(symbol, settings, kis_client)
     )
+    return one_min if unit == 1 else _resample_minutes(one_min, unit)
 
 
-async def _fetch_minute_chart(
+async def _fetch_minute_session(
     symbol: str,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
+    """마지막 거래일의 1분봉 세션(09:00~15:30)을 조회한다. 오늘이 휴장이면
+    직전 거래일로 거슬러 올라가 데이터가 있는 첫 날을 사용한다."""
     settings = settings or get_settings()
     client = kis_client or KisClient(settings)
-    # KIS 분봉은 '지정 시각 기준 직전 30분'을 반환한다. 장 마감(15:30) 이후나 개장 전에
-    # 현재 시각으로 조회하면 장외 평탄 구간만 잡히므로, 정규장 밖이면 마감 시각으로 고정해
-    # 마지막 거래 세션의 실제 분봉을 가져온다.
-    now_kst = datetime.now(_KST)
-    minutes = now_kst.hour * 60 + now_kst.minute
-    if _MARKET_OPEN_MIN <= minutes <= _MARKET_CLOSE_MIN:
-        hour_1 = now_kst.strftime("%H%M%S")
-    else:
-        hour_1 = _MARKET_CLOSE_HMS
-    params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
-        "FID_INPUT_ISCD": symbol,
-        "FID_INPUT_HOUR_1": hour_1,
-        "FID_PW_DATA_INCU_YN": "Y",
-        "FID_ETC_CLS_CODE": "",
-    }
-    try:
-        data = await client.get(_MINUTE_PATH, QUOTE_TR_IDS["inquire_time_itemchartprice"], params)
-    except httpx.HTTPError as exc:
-        logger.warning("분봉 HTTP 호출 실패 %s: %s", symbol, exc)
-        raise ChartUnavailableError(f"분봉 조회 실패: {symbol}") from exc
+    today = datetime.now(_KST).date()
+    for back in range(_MINUTE_DATE_LOOKBACK + 1):
+        date_str = (today - timedelta(days=back)).strftime("%Y%m%d")
+        candles = await _fetch_minute_day(symbol, date_str, client)
+        if candles:
+            return candles
+    return []
 
-    if data.get("rt_cd") != "0":
-        logger.warning(
-            "분봉 조회 응답 오류 %s: %s(%s)",
-            symbol,
-            data.get("msg1"),
-            data.get("msg_cd"),
-        )
-        raise ChartUnavailableError(data.get("msg1") or f"분봉 조회 오류: {symbol}")
 
-    output2 = data.get("output2") or []
-    if not output2:
-        logger.info("분봉 데이터 없음 %s: %s", symbol, data.get("msg1"))
+async def _fetch_minute_day(
+    symbol: str, date_str: str, client: KisClient
+) -> list[dict[str, Any]]:
+    """특정 거래일의 1분봉을 15:30부터 역순으로 페이지네이션해 모은다.
 
-    candles = _parse_minute_rows(output2)
-    if output2 and not candles:
-        logger.warning("분봉 파싱 실패 %s", symbol)
-    return candles
+    일별분봉(FHKST03010230)은 1회 120건, `FID_INPUT_HOUR_1` 기준 직전 구간을 준다.
+    가장 이른 시각을 다음 `FID_INPUT_HOUR_1`로 넘기며 09:00까지 거슬러 모은다.
+    """
+    rows: list[dict[str, Any]] = []
+    seen_hours: set[str] = set()
+    hour_1 = _MARKET_CLOSE_HMS
+    for _ in range(_MINUTE_MAX_PAGES):
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_HOUR_1": hour_1,
+            "FID_INPUT_DATE_1": date_str,
+            "FID_PW_DATA_INCU_YN": "Y",
+            "FID_FAKE_TICK_INCU_YN": "",
+        }
+        try:
+            data = await client.get(
+                _DAILY_MINUTE_PATH, QUOTE_TR_IDS["inquire_time_dailychartprice"], params
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("분봉 HTTP 호출 실패 %s/%s: %s", symbol, date_str, exc)
+            raise ChartUnavailableError(f"분봉 조회 실패: {symbol}") from exc
+        if data.get("rt_cd") != "0":
+            logger.warning(
+                "분봉 응답 오류 %s/%s: %s(%s)",
+                symbol,
+                date_str,
+                data.get("msg1"),
+                data.get("msg_cd"),
+            )
+            raise ChartUnavailableError(data.get("msg1") or f"분봉 조회 오류: {symbol}")
+        page = data.get("output2") or []
+        if not page:
+            break
+        hours = [(r.get("stck_cntg_hour") or "").strip() for r in page]
+        hours = [h for h in hours if h]
+        rows.extend(r for r in page if (r.get("stck_cntg_hour") or "").strip() not in seen_hours)
+        seen_hours.update(hours)
+        min_hour = min(hours) if hours else ""
+        if not min_hour or min_hour <= _SESSION_START_HMS or len(page) < 120:
+            break
+        hour_1 = min_hour
+    return _parse_minute_rows(rows)

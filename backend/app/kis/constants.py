@@ -32,7 +32,8 @@ TR_IDS: dict[str, dict[str, str]] = {
 QUOTE_TR_IDS: dict[str, str] = {
     "inquire_price": "FHKST01010100",  # 주식현재가 시세
     "inquire_asking_price": "FHKST01010200",  # 호가/예상체결
-    "inquire_time_itemchartprice": "FHKST03010200",  # 당일 분봉
+    "inquire_time_itemchartprice": "FHKST03010200",  # 당일 분봉(1분·30건)
+    "inquire_time_dailychartprice": "FHKST03010230",  # 일별 분봉(1분·120건·과거 1년)
     "inquire_daily_itemchartprice": "FHKST03010100",  # 기간별 시세(일/주/월/년)
     "inquire_investor": "FHKST01010900",  # 주식현재가 투자자(개인/외국인/기관 순매수)
 }

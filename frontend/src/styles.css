@@ -475,6 +475,32 @@ body {
   background: var(--accent);
   color: #fff;
 }
+/* 분봉 단위 선택(1·5·10·30분) — 보조 세그먼트 */
+.minute-units {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.07);
+}
+.minute-units button {
+  border: none;
+  background: transparent;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.minute-units button:hover {
+  color: var(--accent);
+}
+.minute-units button.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
 .modal-close {
   margin-left: auto;
   border: none;

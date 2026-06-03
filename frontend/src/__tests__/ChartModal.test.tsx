@@ -45,7 +45,13 @@ describe("ChartModal", () => {
     expect(screen.getByRole("tab", { name: "주봉" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "분봉" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "daily",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
+    );
   });
 
   test("기업개요 탭을 누르면 회사 개요를 보여준다", async () => {
@@ -89,7 +95,13 @@ describe("ChartModal", () => {
       .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
     fireEvent.click(screen.getByRole("tab", { name: "주봉" }));
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "weekly", expect.any(AbortSignal)));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "weekly",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      ),
+    );
   });
 
   test("분봉 탭을 누르면 minute으로 재조회한다", async () => {
@@ -98,7 +110,29 @@ describe("ChartModal", () => {
       .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
     fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "minute", expect.any(AbortSignal)));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "minute",
+        expect.objectContaining({ signal: expect.any(AbortSignal), unit: 1 }),
+      ),
+    );
+  });
+
+  test("분봉 단위(5분)를 누르면 unit=5로 재조회한다", async () => {
+    const fetchChart = vi
+      .fn()
+      .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
+    render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
+    fireEvent.click(screen.getByRole("tab", { name: "5분" }));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "minute",
+        expect.objectContaining({ unit: 5 }),
+      ),
+    );
   });
 
   test("닫기 버튼 클릭 시 onClose를 호출한다", async () => {

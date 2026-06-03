@@ -103,8 +103,15 @@ export const getPositions = () => api<Position[]>("/api/positions");
 
 export const getAccountBalance = () => api<AccountBalance>("/api/account/balance");
 
-export const getChart = (symbol: string, interval: ChartInterval = "daily", signal?: AbortSignal) =>
-  api<ChartData>(`/api/charts/${symbol}?interval=${interval}`, { signal });
+export const getChart = (
+  symbol: string,
+  interval: ChartInterval = "daily",
+  opts?: { unit?: number; signal?: AbortSignal },
+) => {
+  const q = new URLSearchParams({ interval });
+  if (interval === "minute" && opts?.unit) q.set("unit", String(opts.unit));
+  return api<ChartData>(`/api/charts/${symbol}?${q.toString()}`, { signal: opts?.signal });
+};
 
 export const getCompanyOverview = (symbol: string) =>
   api<CompanyOverview>(`/api/company/${symbol}/overview`);

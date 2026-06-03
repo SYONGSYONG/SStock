@@ -5,14 +5,18 @@ import {
   createChart,
   type IChartApi,
 } from "lightweight-charts";
-import type { ChartData, ChartInterval, CompanyOverview } from "../types";
+import type { ChartData, ChartInterval, CompanyOverview, MinuteUnit } from "../types";
 
 type ChartTab = ChartInterval | "overview";
 
 interface ChartModalProps {
   symbol: string;
   name?: string | null;
-  fetchChart: (symbol: string, interval: ChartInterval, signal?: AbortSignal) => Promise<ChartData>;
+  fetchChart: (
+    symbol: string,
+    interval: ChartInterval,
+    opts?: { unit?: number; signal?: AbortSignal },
+  ) => Promise<ChartData>;
   fetchOverview?: (symbol: string) => Promise<CompanyOverview>;
   onClose: () => void;
 }
@@ -23,6 +27,8 @@ const DOWN = "#1f5fd1";
 const AUTO_RETRY_DELAY_MS = 700;
 const MAX_AUTO_RETRIES = 2;
 
+const MINUTE_UNITS: MinuteUnit[] = [1, 5, 10, 30];
+
 /** 종목 모달: 캔들차트(일봉/주봉/분봉) + 기업개요 탭. */
 export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }: ChartModalProps) {
   const [tab, setTab] = useState<ChartTab>("overview");
@@ -32,8 +38,10 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const autoRetriesRef = useRef(0);
-  // 이미 받은 캔들을 탭(interval)별로 메모 → 탭을 다시 눌러도 재조회하지 않는다.
-  const candlesCacheRef = useRef<Map<ChartInterval, ChartData["candles"]>>(new Map());
+  // 이미 받은 캔들을 (interval+분단위)별로 메모 → 다시 눌러도 재조회하지 않는다.
+  const candlesCacheRef = useRef<Map<string, ChartData["candles"]>>(new Map());
+  // 분봉 단위(1·5·10·30분)
+  const [minuteUnit, setMinuteUnit] = useState<MinuteUnit>(1);
 
   // 기업개요
   const [overview, setOverview] = useState<CompanyOverview | null>(null);
@@ -50,7 +58,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
 
   useEffect(() => {
     autoRetriesRef.current = 0;
-  }, [symbol, tab]);
+  }, [symbol, tab, minuteUnit]);
 
   // 종목이 바뀌면 메모를 비운다(이전 종목 캔들 재사용 방지).
   useEffect(() => {
@@ -60,8 +68,9 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
   // 차트 데이터 조회 (차트 탭일 때만)
   useEffect(() => {
     if (tab === "overview") return;
-    // 이미 받은 탭이면 메모에서 즉시 표시(네트워크 0).
-    const memo = candlesCacheRef.current.get(tab);
+    const memoKey = tab === "minute" ? `minute:${minuteUnit}` : tab;
+    // 이미 받은 조합이면 메모에서 즉시 표시(네트워크 0).
+    const memo = candlesCacheRef.current.get(memoKey);
     if (memo) {
       setCandles(memo);
       setError(null);
@@ -84,11 +93,14 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
       return true;
     };
 
-    fetchChart(symbol, tab, controller.signal)
+    fetchChart(symbol, tab, {
+      signal: controller.signal,
+      unit: tab === "minute" ? minuteUnit : undefined,
+    })
       .then((d) => {
         if (!alive) return;
         if (d.candles.length === 0 && scheduleRetry()) return;
-        if (d.candles.length > 0) candlesCacheRef.current.set(tab, d.candles);
+        if (d.candles.length > 0) candlesCacheRef.current.set(memoKey, d.candles);
         setCandles(d.candles);
         setLoading(false);
       })
@@ -104,7 +116,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
       if (retryTimer) clearTimeout(retryTimer);
       controller.abort();
     };
-  }, [symbol, tab, fetchChart, retryCount]);
+  }, [symbol, tab, minuteUnit, fetchChart, retryCount]);
 
   // 기업개요 조회 (기업개요 탭일 때만)
   useEffect(() => {
@@ -222,6 +234,21 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
             {tabButton("weekly", "주봉")}
             {tabButton("minute", "분봉")}
           </div>
+          {tab === "minute" && (
+            <div className="minute-units" role="tablist" aria-label="분봉 단위">
+              {MINUTE_UNITS.map((u) => (
+                <button
+                  key={u}
+                  role="tab"
+                  aria-selected={minuteUnit === u}
+                  className={minuteUnit === u ? "active" : ""}
+                  onClick={() => setMinuteUnit(u)}
+                >
+                  {u}분
+                </button>
+              ))}
+            </div>
+          )}
           <button className="modal-close" aria-label="닫기" onClick={onClose}>
             ✕
           </button>

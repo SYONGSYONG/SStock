@@ -169,64 +169,137 @@ async def test_daily_chart_uses_200day_lookback(tmp_path):
     assert 150 <= (d2 - d1).days <= 260
 
 
+def _patch_now(monkeypatch, *, year=2026, month=6, day=3, hour=10, minute=15) -> None:
+    """app.kis.charts의 datetime.now를 고정 KST 시각으로 대체한다(기본 2026-06-03 평일)."""
+
+    class _FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return datetime(year, month, day, hour, minute, 0, tzinfo=tz)
+
+    monkeypatch.setattr("app.kis.charts.datetime", _FixedDateTime)
+
+
+_DAILY_MINUTE_URL = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
+
+
+def _min_rows(date_str: str, end_hm: str, count: int) -> list[dict]:
+    """end_hm(HHMM)부터 1분씩 내려가며 count개의 1분봉 행을 만든다(분 단위)."""
+    h, m = int(end_hm[:2]), int(end_hm[2:])
+    rows = []
+    for i in range(count):
+        tm = h * 60 + m - i
+        hh, mm = divmod(tm, 60)
+        rows.append(
+            {
+                "stck_bsop_date": date_str,
+                "stck_cntg_hour": f"{hh:02d}{mm:02d}00",
+                "stck_oprc": "70000",
+                "stck_hgpr": "70100",
+                "stck_lwpr": "69900",
+                "stck_prpr": "70050",
+                "cntg_vol": "100",
+            }
+        )
+    return rows
+
+
 @respx.mock
-async def test_minute_chart_returns_unix_seconds(tmp_path):
+async def test_minute_chart_uses_dailychart_with_kst_offset(tmp_path, monkeypatch):
     s = _settings(tmp_path)
     _token_mock(s)
-    respx.get(f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice").mock(
+    route = respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
         return_value=httpx.Response(200, json=_MINUTE_BODY)
     )
+    _patch_now(monkeypatch)
 
-    candles = await get_minute_chart("005930", s)
+    candles = await get_minute_chart("005930", settings=s)
 
     assert len(candles) == 2
     assert candles[0]["time"] < candles[1]["time"]
-    assert isinstance(candles[0]["time"], int)
     assert candles[1]["close"] == 70050
-
-    # 분봉 타임스탬프는 KST 벽시계가 차트축(UTC 표시)에 그대로 보이도록 +9h 보정한다.
+    # 일별분봉(FHKST03010230) 사용 + 거래일 날짜 파라미터
+    assert route.calls.last.request.headers["tr_id"] == "FHKST03010230"
+    assert route.calls.last.request.url.params["FID_INPUT_DATE_1"] == "20260603"
+    # KST 벽시계가 차트축(UTC 표시)에 그대로 보이도록 +9h 보정
     kst = timezone(timedelta(hours=9))
     base = int(datetime(2026, 6, 3, 9, 0, 0, tzinfo=kst).astimezone(timezone.utc).timestamp())
     assert candles[0]["time"] == base + 9 * 3600
 
 
-def _patch_now(monkeypatch, *, hour: int, minute: int) -> None:
-    """app.kis.charts의 datetime.now를 고정 KST 시각으로 대체한다."""
+@respx.mock
+async def test_minute_chart_paginates_until_session_start(tmp_path, monkeypatch):
+    """한 세션을 채우기 위해 120건이면 다음 페이지를 이어 조회한다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    page1 = _min_rows("20260603", "1530", 120)  # 최소시각 133100 > 090000 → 다음 페이지
+    page2 = _min_rows("20260603", "1331", 40)  # 133100부터(1건 중복) 120건 미만 → 종료
+    route = respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
+        side_effect=[
+            httpx.Response(200, json={"rt_cd": "0", "output2": page1}),
+            httpx.Response(200, json={"rt_cd": "0", "output2": page2}),
+        ]
+    )
+    _patch_now(monkeypatch)
 
-    class _FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):  # type: ignore[override]
-            return datetime(2026, 6, 3, hour, minute, 0, tzinfo=tz)
+    candles = await get_minute_chart("005930", settings=s)
 
-    monkeypatch.setattr("app.kis.charts.datetime", _FixedDateTime)
+    assert route.call_count == 2  # 페이지네이션 발생
+    assert route.calls[0].request.url.params["FID_INPUT_HOUR_1"] == "153000"
+    assert route.calls[1].request.url.params["FID_INPUT_HOUR_1"] == "133100"
+    # 중복 시각(133100)은 제거되어 120 + 39
+    assert len(candles) == 159
 
 
 @respx.mock
-async def test_minute_chart_uses_now_during_market_hours(tmp_path, monkeypatch):
+async def test_minute_chart_resamples_to_5min(tmp_path, monkeypatch):
     s = _settings(tmp_path)
     _token_mock(s)
-    route = respx.get(
-        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
-    ).mock(return_value=httpx.Response(200, json=_MINUTE_BODY))
-    _patch_now(monkeypatch, hour=10, minute=15)
+    bars = [
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090000", "stck_oprc": "70000", "stck_hgpr": "70100", "stck_lwpr": "69900", "stck_prpr": "70050", "cntg_vol": "100"},
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090100", "stck_oprc": "70050", "stck_hgpr": "70200", "stck_lwpr": "70000", "stck_prpr": "70150", "cntg_vol": "200"},
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090200", "stck_oprc": "70150", "stck_hgpr": "70300", "stck_lwpr": "70100", "stck_prpr": "70250", "cntg_vol": "150"},
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090300", "stck_oprc": "70250", "stck_hgpr": "70150", "stck_lwpr": "70050", "stck_prpr": "70100", "cntg_vol": "120"},
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090400", "stck_oprc": "70100", "stck_hgpr": "70250", "stck_lwpr": "70080", "stck_prpr": "70200", "cntg_vol": "130"},
+        {"stck_bsop_date": "20260603", "stck_cntg_hour": "090500", "stck_oprc": "70200", "stck_hgpr": "70260", "stck_lwpr": "70180", "stck_prpr": "70220", "cntg_vol": "90"},
+    ]
+    respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
+        return_value=httpx.Response(200, json={"rt_cd": "0", "output2": bars})
+    )
+    _patch_now(monkeypatch)
 
-    await get_minute_chart("005930", s)
+    candles = await get_minute_chart("005930", 5, s)
 
-    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "101500"
+    assert len(candles) == 2  # 09:00~09:04 한 버킷 + 09:05 한 버킷
+    a = candles[0]
+    assert a["open"] == 70000  # 첫 봉
+    assert a["high"] == 70300  # 최고
+    assert a["low"] == 69900  # 최저
+    assert a["close"] == 70200  # 09:04 종가
+    assert a["volume"] == 700  # 100+200+150+120+130
+    assert candles[1]["open"] == 70200 and candles[1]["volume"] == 90
 
 
 @respx.mock
-async def test_minute_chart_clamps_to_close_after_hours(tmp_path, monkeypatch):
+async def test_minute_chart_falls_back_to_previous_trading_day(tmp_path, monkeypatch):
+    """오늘이 휴장(빈 응답)이면 직전 거래일로 거슬러 조회한다."""
     s = _settings(tmp_path)
     _token_mock(s)
-    route = respx.get(
-        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
-    ).mock(return_value=httpx.Response(200, json=_MINUTE_BODY))
-    _patch_now(monkeypatch, hour=16, minute=49)
 
-    await get_minute_chart("005930", s)
+    def _by_date(request):
+        d = request.url.params["FID_INPUT_DATE_1"]
+        if d == "20260603":  # 오늘=빈 결과(휴장 가정)
+            return httpx.Response(200, json={"rt_cd": "0", "output2": []})
+        return httpx.Response(200, json=_MINUTE_BODY)
 
-    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "153000"
+    route = respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(side_effect=_by_date)
+    _patch_now(monkeypatch)
+
+    candles = await get_minute_chart("005930", settings=s)
+
+    assert len(candles) == 2
+    used_dates = [c.request.url.params["FID_INPUT_DATE_1"] for c in route.calls]
+    assert "20260602" in used_dates  # 직전 거래일로 폴백
 
 
 @respx.mock
@@ -340,6 +413,32 @@ def test_chart_router_bad_interval():
         res = client.get("/api/charts/005930?interval=hourly")
     assert res.status_code == 400
     assert res.json()["code"] == "BAD_INTERVAL"
+
+
+@respx.mock
+def test_chart_router_minute_unit(tmp_path):
+    s = _settings(tmp_path)
+    app.dependency_overrides[get_settings] = lambda: s
+    try:
+        _token_mock(s)
+        respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
+            return_value=httpx.Response(200, json=_MINUTE_BODY)
+        )
+        with TestClient(app) as client:
+            res = client.get("/api/charts/005930?interval=minute&unit=5")
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["interval"] == "minute"
+        assert data["unit"] == 5
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_chart_router_bad_unit():
+    with TestClient(app) as client:
+        res = client.get("/api/charts/005930?interval=minute&unit=3")
+    assert res.status_code == 400
+    assert res.json()["code"] == "BAD_UNIT"
 
 
 @respx.mock

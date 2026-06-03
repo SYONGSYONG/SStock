@@ -1,6 +1,11 @@
 """SQLite 데이터베이스 초기화.
 
 WAL 모드 활성화 + 02-specs.md의 스키마 5개 테이블 생성.
+
+시각 컬럼(created_at)은 KST(한국시간)로 저장한다. SQLite `datetime('now')`는
+UTC를 반환하므로 `'+9 hours'`를 더해 KST 벽시계로 기록한다. 프론트는 이 문자열을
+가공 없이 잘라 표시하고, risk_guard의 일일 집계도 같은 KST 기준 `date('now','+9 hours')`를
+쓰므로 표시·집계 모두 한국시간으로 일치한다.
 """
 
 from __future__ import annotations
@@ -15,7 +20,7 @@ CREATE TABLE IF NOT EXISTS watchlist (
   symbol      TEXT NOT NULL,
   name        TEXT,
   mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours')),
   UNIQUE(symbol, mode)
 );
 
@@ -38,7 +43,7 @@ CREATE TABLE IF NOT EXISTS signals (
   side        TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
   price       REAL,
   reason      TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -53,14 +58,14 @@ CREATE TABLE IF NOT EXISTS orders (
   mode         TEXT NOT NULL CHECK(mode IN ('paper','live')),
   kis_order_no TEXT,
   status       TEXT NOT NULL,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at   TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   category    TEXT NOT NULL,
   message     TEXT NOT NULL,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
 CREATE TABLE IF NOT EXISTS capital_envelope (
@@ -127,7 +132,7 @@ def _ensure_mode_columns(conn: sqlite3.Connection) -> None:
               symbol      TEXT NOT NULL,
               name        TEXT,
               mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
-              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours')),
               UNIQUE(symbol, mode)
             );
             INSERT INTO watchlist_new (id, symbol, name, mode, created_at)

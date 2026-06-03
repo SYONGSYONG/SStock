@@ -38,7 +38,7 @@ class OrderIntent:
 def _today_order_count(conn: sqlite3.Connection, mode: str) -> int:
     row = conn.execute(
         "SELECT COUNT(*) AS c FROM orders "
-        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now')",
+        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now', '+9 hours')",
         (mode,),
     ).fetchone()
     return int(row["c"])
@@ -47,7 +47,7 @@ def _today_order_count(conn: sqlite3.Connection, mode: str) -> int:
 def _today_order_amount(conn: sqlite3.Connection, mode: str) -> int:
     row = conn.execute(
         "SELECT COALESCE(SUM(qty * COALESCE(price, 0)), 0) AS s FROM orders "
-        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now')",
+        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now', '+9 hours')",
         (mode,),
     ).fetchone()
     return int(row["s"])

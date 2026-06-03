@@ -131,6 +131,42 @@ function StrategyHelpBody({
 
 const toNumber = (raw: string): number => (raw === "" ? Number.NaN : Number(raw));
 
+const TEN_MILLION = 10_000_000;
+const ONE_MILLION = 1_000_000;
+
+/** 원금 입력 보조: 천만/백만 단위 ± 버튼(0 미만으로는 내려가지 않음). */
+function AmountSteppers({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const adjust = (delta: number) => {
+    const current = Number(value) || 0;
+    onChange(String(Math.max(0, current + delta)));
+  };
+  return (
+    <div className="amount-steppers">
+      <button type="button" className="step-plus" onClick={() => adjust(TEN_MILLION)}>
+        +천만
+      </button>
+      <button type="button" className="step-plus" onClick={() => adjust(ONE_MILLION)}>
+        +백만
+      </button>
+      <button type="button" className="step-minus" onClick={() => adjust(-ONE_MILLION)}>
+        −백만
+      </button>
+      <button type="button" className="step-minus" onClick={() => adjust(-TEN_MILLION)}>
+        −천만
+      </button>
+      <button type="button" className="step-reset" onClick={() => onChange("")}>
+        초기화
+      </button>
+    </div>
+  );
+}
+
 export function StrategyPanel({
   configs,
   budgets,
@@ -288,10 +324,11 @@ export function StrategyPanel({
           <input
             aria-label="자본 칸막이 원금"
             inputMode="numeric"
-            placeholder="예: 1000000"
-            value={principal}
+            placeholder="예: 1,000,000"
+            value={principal ? Number(principal).toLocaleString("ko-KR") : ""}
             onChange={(e) => setPrincipal(e.target.value.replace(/\D/g, ""))}
           />
+          <AmountSteppers value={principal} onChange={setPrincipal} />
           <span className="param-default">전략과 함께 등록됩니다</span>
         </label>
 
@@ -410,9 +447,10 @@ export function StrategyPanel({
               type="text"
               aria-label="칸막이 수정 원금"
               inputMode="numeric"
-              value={editPrincipal}
+              value={editPrincipal ? Number(editPrincipal).toLocaleString("ko-KR") : ""}
               onChange={(e) => setEditPrincipal(e.target.value.replace(/\D/g, ""))}
             />
+            <AmountSteppers value={editPrincipal} onChange={setEditPrincipal} />
             <span className="param-default">현재 {fmt(editingBudget.principal)}원</span>
           </label>
           <div className="edit-modal-actions">

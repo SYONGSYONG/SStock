@@ -123,7 +123,7 @@ export function WatchList({ items, strategySymbols, onAdd, onRemove, onSelect, s
         {items.map((it) => {
           const hasStrategy = strategySymbols.has(it.symbol);
           return (
-            <li key={it.symbol}>
+            <li key={it.symbol} className={hasStrategy ? "with-strategy" : ""}>
               <button
                 type="button"
                 className="watch-open"

@@ -211,6 +211,14 @@ body {
   flex: 1;
   color: var(--muted);
 }
+/* 전략 등록된 종목: 행 배경 강조(실시간 시세와 동일한 prominence) */
+.watch-list li.with-strategy {
+  background: #f0f9ff;
+  border-left: 3px solid #2563eb;
+  padding-left: 6px;
+  margin-left: -9px;
+  border-radius: 0 6px 6px 0;
+}
 .code {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -272,6 +280,49 @@ body {
   font-size: 10.5px;
   color: var(--muted);
 }
+/* 원금 입력 보조 ± 버튼(천만/백만 단위) */
+.amount-steppers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.amount-steppers button {
+  flex: 1 1 0;
+  min-width: 44px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+/* 한국 관습: 증가(+)=빨강, 감소(−)=파랑 */
+.amount-steppers .step-plus {
+  color: var(--up);
+  border-color: #f3c1c1;
+  background: #fff5f5;
+}
+.amount-steppers .step-plus:hover {
+  background: #fde2e2;
+}
+.amount-steppers .step-minus {
+  color: var(--down);
+  border-color: #c1cdf0;
+  background: #f5f8ff;
+}
+.amount-steppers .step-minus:hover {
+  background: #e2ebfd;
+}
+.amount-steppers .step-reset {
+  color: var(--muted);
+  background: #f1f5f9;
+}
+.amount-steppers .step-reset:hover {
+  background: #e2e8f0;
+}
+
 /* 칸막이 룰 안내: '전략과 함께 등록됩니다'(param-default)와 동일 크기 */
 .budget-rule {
   margin: 2px 0;

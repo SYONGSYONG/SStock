@@ -70,10 +70,31 @@ describe("StrategyPanel", () => {
 
     fireEvent.click(within(item).getByRole("button", { name: "칸막이 수정" }));
     const dialog = screen.getByRole("dialog");
-    expect((within(dialog).getByLabelText("칸막이 수정 원금") as HTMLInputElement).value).toBe("1000000");
+    // 입력은 천단위 콤마로 표시된다
+    expect((within(dialog).getByLabelText("칸막이 수정 원금") as HTMLInputElement).value).toBe("1,000,000");
     fireEvent.change(within(dialog).getByLabelText("칸막이 수정 원금"), { target: { value: "2000000" } });
     fireEvent.click(within(dialog).getByText("저장"));
     expect(onSetBudget).toHaveBeenCalledWith("005930", 2000000);
+  });
+
+  test("원금 ± 도움 버튼: +천만/−백만/초기화", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const input = screen.getByLabelText("자본 칸막이 원금") as HTMLInputElement;
+    // 자본 칸막이 원금 필드의 ± 버튼(첫 번째 그룹)
+    const field = input.closest(".param-field") as HTMLElement;
+    fireEvent.click(within(field).getByText("+천만"));
+    expect(input.value).toBe("10,000,000");
+    fireEvent.click(within(field).getByText("+백만"));
+    expect(input.value).toBe("11,000,000");
+    fireEvent.click(within(field).getByText("−백만"));
+    expect(input.value).toBe("10,000,000");
+    fireEvent.click(within(field).getByText("초기화"));
+    expect(input.value).toBe("");
+    // 0 미만으로는 내려가지 않는다(0에서 멈춤)
+    fireEvent.click(within(field).getByText("−천만"));
+    expect(input.value).toBe("0");
   });
 
   test("수정 버튼 → 모달에서 파라미터를 고쳐 저장하면 enabled 유지하며 onAdd 호출", () => {

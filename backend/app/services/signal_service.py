@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from app.db.database import kst_now_str
+
 
 def save_signal(
     conn: sqlite3.Connection,
@@ -15,8 +17,9 @@ def save_signal(
     reason: str,
 ) -> dict[str, Any]:
     cur = conn.execute(
-        "INSERT INTO signals (symbol, strategy, side, price, reason) VALUES (?, ?, ?, ?, ?)",
-        (symbol, strategy, side, price, reason),
+        "INSERT INTO signals (symbol, strategy, side, price, reason, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (symbol, strategy, side, price, reason, kst_now_str()),
     )
     conn.commit()
     row = conn.execute(

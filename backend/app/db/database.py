@@ -12,7 +12,20 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+_KST = timezone(timedelta(hours=9))
+
+
+def kst_now_str() -> str:
+    """현재 시각을 KST 벽시계 문자열("YYYY-MM-DD HH:MM:SS")로 반환한다.
+
+    SQLite datetime('now')와 동일한 포맷(공백 구분)이지만 UTC가 아닌 KST다.
+    삽입 시 이 값을 명시적으로 넣어, 기존 테이블에 박혀 있는 UTC DEFAULT에
+    의존하지 않고 created_at을 한국시간으로 기록한다.
+    """
+    return datetime.now(_KST).strftime("%Y-%m-%d %H:%M:%S")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS watchlist (

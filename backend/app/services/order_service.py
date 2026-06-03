@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from app.db.database import kst_now_str
+
 _FINAL_STATUSES = {"rejected", "cancelled"}
 
 
@@ -45,9 +47,10 @@ def save_order(
     cur = conn.execute(
         """
         INSERT INTO orders (
-            signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status
+            signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status,
+            created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             signal_id,
@@ -60,6 +63,7 @@ def save_order(
             mode,
             kis_order_no,
             status,
+            kst_now_str(),
         ),
     )
     conn.commit()

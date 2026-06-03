@@ -5,13 +5,16 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from app.db.database import kst_now_str
+
 # 카테고리: BOT | ORDER | SIGNAL | MODE | ERROR | RISK
 Category = str
 
 
 def log(conn: sqlite3.Connection, category: Category, message: str) -> dict[str, Any]:
     cur = conn.execute(
-        "INSERT INTO audit_logs (category, message) VALUES (?, ?)", (category, message)
+        "INSERT INTO audit_logs (category, message, created_at) VALUES (?, ?, ?)",
+        (category, message, kst_now_str()),
     )
     conn.commit()
     row = conn.execute(

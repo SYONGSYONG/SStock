@@ -28,14 +28,16 @@ async def get_current_price(
     symbol: str,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any]:
     """주식 현재가 시세를 조회한다 (FHKST01010100).
 
     KIS가 일시적으로 실패(예: 초당 거래건수 제한, 특정 종목 5xx)해도 예외를
     전파하지 않고 값이 비어 있는 시세를 반환한다(대시보드는 '-'로 표시).
+    mode: KIS 호출에 쓸 모드(레이트리밋용). 시세는 읽기 전용이라 모드 무관.
     """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    client = kis_client or KisClient(settings, mode=mode)
     try:
         data = await client.get(
             _PRICE_PATH,

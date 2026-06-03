@@ -81,6 +81,7 @@ def test_krx_시세_소스_토글(monkeypatch):
         settings = type("Settings", (), {
             "recommend_data_source": "krx",
             "krx_api_key": "test_key",
+            "recommend_kis_mode": "paper",
         })()
         mock_settings.return_value = settings
 
@@ -134,6 +135,7 @@ def test_krx_수급은_KIS_일별로_조회(monkeypatch):
         settings = type("Settings", (), {
             "recommend_data_source": "krx",
             "krx_api_key": "test_key",
+            "recommend_kis_mode": "paper",
         })()
         mock_settings.return_value = settings
 

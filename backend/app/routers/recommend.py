@@ -32,6 +32,10 @@ async def _resolve_fns(
     - source == "krx": KRX 스냅샷 기반 price_fn + KIS 일별 캐시 수급 flow_fn
     - source == "kis" (기본): KIS 현재가 + 수급 fn
     """
+    # 추천 KIS 호출(수급/시세)은 읽기 전용이라 모드 무관 → 실전 자격증명이 있으면
+    # 더 높은 레이트리밋(실전 ≈16/s)을 써서 콜드 로드를 가속한다.
+    kis_mode = settings.recommend_kis_mode
+
     if settings.recommend_data_source == "krx":
         # KRX 스냅샷 1회 조회 (lazy: price_fn 첫 호출 시)
         snapshot: dict[str, dict[str, Any]] | None = None
@@ -50,10 +54,19 @@ async def _resolve_fns(
             }
 
         # 수급은 KRX 미제공 → KIS로 조회하되 종목별 하루 캐시(EOD라 종목당 1회).
-        return krx_price_fn, get_investor_flow_daily
+        async def flow_fn(symbol: str) -> dict[str, Any]:
+            return await get_investor_flow_daily(symbol, mode=kis_mode)
+
+        return krx_price_fn, flow_fn
     else:
-        # KIS (기본값)
-        return get_current_price, get_investor_flow
+        # KIS (기본값) — 시세·수급 모두 KIS, 빠른 모드로.
+        async def kis_price_fn(symbol: str) -> dict[str, Any]:
+            return await get_current_price(symbol, mode=kis_mode)
+
+        async def kis_flow_fn(symbol: str) -> dict[str, Any]:
+            return await get_investor_flow(symbol, mode=kis_mode)
+
+        return kis_price_fn, kis_flow_fn
 
 
 @router.get("/themes")

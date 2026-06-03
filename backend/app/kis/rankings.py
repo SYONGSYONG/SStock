@@ -47,10 +47,14 @@ async def get_investor_flow(
     symbol: str,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any]:
-    """종목의 외국인·기관 순매수 수량(최신 영업일)을 조회한다."""
+    """종목의 외국인·기관 순매수 수량(최신 영업일)을 조회한다.
+
+    mode: KIS 호출에 쓸 모드(레이트리밋용). 수급은 읽기 전용 시세라 모드 무관 동일 데이터.
+    """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    client = kis_client or KisClient(settings, mode=mode)
     try:
         data = await client.get(
             _INVESTOR_PATH,
@@ -80,6 +84,7 @@ async def get_investor_flow_daily(
     symbol: str,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any]:
     """종목별 하루 캐시를 적용한 수급 조회.
 
@@ -96,7 +101,7 @@ async def get_investor_flow_daily(
         cached = _flow_cache.get(symbol)
         if cached is not None and time.monotonic() - cached[0] < _FLOW_TTL_SEC:
             return cached[1]
-        flow = await get_investor_flow(symbol, settings, kis_client)
+        flow = await get_investor_flow(symbol, settings, kis_client, mode=mode)
         # 유효한 수급만 캐시(오류로 인한 None은 캐시하지 않음)
         if flow.get("foreign_net") is not None or flow.get("inst_net") is not None:
             _flow_cache[symbol] = (time.monotonic(), flow)

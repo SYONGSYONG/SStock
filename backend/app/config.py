@@ -147,6 +147,16 @@ class Settings(BaseSettings):
         """해당 모드로 실제 KIS 호출이 가능한지(키·시크릿·계좌 존재)."""
         return self.kis_for(mode).is_complete
 
+    @property
+    def recommend_kis_mode(self) -> TradingMode:
+        """추천(읽기 전용 시세·수급) KIS 호출에 쓸 모드.
+
+        추천 데이터는 모드 무관(시세/수급은 동일)하므로, 더 높은 레이트리밋을 가진
+        실전(≈16/s)을 쓰면 콜드 로드가 크게 빨라진다. 실전 자격증명이 완비됐을 때만
+        live를 쓰고, 아니면 paper(≈2/s)로 폴백한다. 주문이 아니라 안전하다.
+        """
+        return "live" if self.has_kis_credentials("live") else "paper"
+
     def masked_app_key(self) -> str:
         """로그 노출용 마스킹된 앱키."""
         key = self.kis_app_key

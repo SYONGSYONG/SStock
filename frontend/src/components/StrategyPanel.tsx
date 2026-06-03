@@ -248,6 +248,7 @@ export function StrategyPanel({
           >
             <option value="ma_cross">이동평균 크로스</option>
             <option value="rsi">RSI</option>
+            <option value="rsi_ma">RSI + MA 필터</option>
           </select>
         </div>
 

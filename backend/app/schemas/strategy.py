@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 class StrategyConfigCreate(BaseModel):
     symbol: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
-    strategy: Literal["ma_cross", "rsi"]
+    strategy: Literal["ma_cross", "rsi", "rsi_ma"]
     params: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = False
     max_qty: int | None = Field(default=None, ge=1)

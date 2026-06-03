@@ -147,7 +147,7 @@ CREATE TABLE watchlist (
 CREATE TABLE strategy_config (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol      TEXT NOT NULL,
-  strategy    TEXT NOT NULL,             -- 'ma_cross' | 'rsi'
+  strategy    TEXT NOT NULL,             -- 'ma_cross' | 'rsi' | 'rsi_ma'
   params      TEXT NOT NULL,             -- JSON (기간, 기준선 등)
   enabled     INTEGER NOT NULL DEFAULT 0,
   max_qty     INTEGER,                   -- 종목당 최대 수량

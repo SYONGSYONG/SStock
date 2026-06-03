@@ -2,12 +2,14 @@
 export const STRATEGY_LABEL: Record<string, string> = {
   ma_cross: "이동평균 크로스",
   rsi: "RSI",
+  rsi_ma: "RSI + MA 필터",
 };
 
 /** 전략별 기본 파라미터 값(단일 진실 공급원). */
 export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
   ma_cross: { short: 5, long: 20 },
   rsi: { period: 14, low: 30, high: 70 },
+  rsi_ma: { rsi_period: 14, low: 30, high: 70, ma_period: 50 },
 };
 
 /** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
@@ -27,6 +29,12 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
     { key: "period", label: "기간", min: 2, max: 999 },
     { key: "low", label: "과매도", min: 1, max: 99 },
     { key: "high", label: "과매수", min: 1, max: 99 },
+  ],
+  rsi_ma: [
+    { key: "rsi_period", label: "RSI 기간", min: 2, max: 999 },
+    { key: "low", label: "과매도", min: 1, max: 99 },
+    { key: "high", label: "과매수", min: 1, max: 99 },
+    { key: "ma_period", label: "추세 MA", min: 2, max: 999 },
   ],
 };
 
@@ -53,6 +61,21 @@ export function validateParams(
     }
     if (period < 2) {
       return "기간은 2 이상이어야 합니다";
+    }
+    if (!(low > 0 && low < high && high < 100)) {
+      return "0 < 과매도 < 과매수 < 100 이어야 합니다";
+    }
+  }
+  if (strategy === "rsi_ma") {
+    const { rsi_period, low, high, ma_period } = params;
+    if (![rsi_period, low, high, ma_period].every(Number.isFinite)) {
+      return "RSI 기간·과매도·과매수·추세 MA 값을 입력하세요";
+    }
+    if (rsi_period < 2) {
+      return "RSI 기간은 2 이상이어야 합니다";
+    }
+    if (ma_period < 2) {
+      return "추세 MA는 2 이상이어야 합니다";
     }
     if (!(low > 0 && low < high && high < 100)) {
       return "0 < 과매도 < 과매수 < 100 이어야 합니다";
@@ -96,6 +119,17 @@ export const STRATEGY_HELP: Record<string, StrategyHelp> = {
     ],
     note: "이동평균 크로스와 동일하게 수신한 시세(틱) 단위로 계산합니다. 최소 (기간+2)개의 시세가 쌓여야 평가가 시작됩니다.",
   },
+  rsi_ma: {
+    title: "RSI + MA 필터",
+    summary:
+      "추세 필터(MA)로 매수 방향을 거른 뒤 RSI로 진입 타이밍을 잡는 전략입니다. ‘상승추세일 때만, 일시적으로 눌린 자리에서 산다’가 핵심으로, 단일 RSI가 하락추세에서 과매도 신호를 남발하는 약점을 MA로 막아 헛신호를 줄입니다.",
+    rules: [
+      "매수: 현재가가 추세선(MA) 위(상승추세)일 때 + RSI가 과매도선을 상향 돌파",
+      "하락추세(현재가 < MA)에서는 RSI 과매도여도 매수하지 않음(필터 차단)",
+      "매도: RSI가 과매수선을 하향 이탈할 때(추세 무관, 과열 시 청산)",
+    ],
+    note: "수신한 시세(틱) 단위로 계산합니다. 추세 MA는 느릴수록(50~100) 필터가 잘 동작합니다(너무 짧으면 눌림에 현재가가 MA 아래로 내려가 매수가 막힘). 최소 max(RSI기간+2, MA기간+1)개의 시세가 쌓여야 평가가 시작됩니다.",
+  },
 };
 
 export function getStrategyHelp(strategy: string): StrategyHelp | null {
@@ -123,6 +157,18 @@ export function explainParams(strategy: string, params: Record<string, number>):
       `과매수 ${high} = RSI가 이 값 위로 갔다가 꺾이면 매도`,
     ];
   }
+  if (strategy === "rsi_ma") {
+    const rp = params.rsi_period ?? "-";
+    const low = params.low ?? "-";
+    const high = params.high ?? "-";
+    const mp = params.ma_period ?? "-";
+    return [
+      `RSI 기간 ${rp} = 최근 ${rp}개 시세로 강도 계산`,
+      `추세 MA ${mp} = 최근 ${mp}개 평균선(MA${mp}). 현재가가 이 위면 상승추세로 보고 매수 허용`,
+      `과매도 ${low} = 상승추세에서 RSI가 이 값을 상향 돌파하면 매수`,
+      `과매수 ${high} = RSI가 이 값을 하향 이탈하면 매도`,
+    ];
+  }
   return [];
 }
 
@@ -133,6 +179,9 @@ export function describeStrategy(strategy: string, params: Record<string, number
   }
   if (strategy === "rsi") {
     return `RSI · 기간 ${params.period ?? "-"} · 과매도 ${params.low ?? "-"} / 과매수 ${params.high ?? "-"}`;
+  }
+  if (strategy === "rsi_ma") {
+    return `RSI + MA · RSI ${params.rsi_period ?? "-"} · 과매도 ${params.low ?? "-"} / 과매수 ${params.high ?? "-"} · MA ${params.ma_period ?? "-"}`;
   }
   return strategyLabel(strategy);
 }

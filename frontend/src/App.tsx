@@ -292,19 +292,21 @@ export function App() {
               budgetError={budgetError}
             />
           </section>
-          <BotControl
-            running={bot.running}
-            mode={bot.mode}
-            onStart={handleBotStart}
-            onStop={handleBotStop}
-            error={botError}
-          />
-          <MarketControl
-            running={market.running}
-            clients={market.dashboard_clients}
-            onStart={handleMarketStart}
-            onStop={handleMarketStop}
-          />
+          <div className="control-row">
+            <BotControl
+              running={bot.running}
+              mode={bot.mode}
+              onStart={handleBotStart}
+              onStop={handleBotStop}
+              error={botError}
+            />
+            <MarketControl
+              running={market.running}
+              clients={market.dashboard_clients}
+              onStart={handleMarketStart}
+              onStop={handleMarketStop}
+            />
+          </div>
         </aside>
         <div className="content">
           <AccountPanel balance={account} />

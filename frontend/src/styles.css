@@ -98,6 +98,16 @@ body {
   flex-direction: column;
   gap: 18px;
 }
+/* 자동매매 봇 / 시세 수집을 한 행에 나란히 */
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.control-row > .panel {
+  min-width: 0;
+}
 
 .panel {
   background: var(--surface);

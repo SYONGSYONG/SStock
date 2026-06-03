@@ -16,6 +16,7 @@ vi.mock("lightweight-charts", () => {
   };
   return {
     createChart: vi.fn(() => chart),
+    createSeriesMarkers: vi.fn(),
     CandlestickSeries: "Candlestick",
     HistogramSeries: "Histogram",
   };

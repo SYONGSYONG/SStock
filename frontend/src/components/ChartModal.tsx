@@ -3,9 +3,11 @@ import {
   CandlestickSeries,
   HistogramSeries,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
 } from "lightweight-charts";
 import type { ChartData, ChartInterval, CompanyOverview, MinuteUnit } from "../types";
+import { buildExtremaMarkers } from "../lib/chartMarkers";
 
 type ChartTab = ChartInterval | "overview";
 
@@ -182,6 +184,12 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
         close: c.close,
       })),
     );
+
+    // 최고가·최저가 마커 부착
+    const extremaMarkers = buildExtremaMarkers(candles, UP, DOWN);
+    if (extremaMarkers.length > 0) {
+      createSeriesMarkers(candleSeries, extremaMarkers);
+    }
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },

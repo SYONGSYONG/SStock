@@ -138,17 +138,23 @@ const toNumber = (raw: string): number => (raw === "" ? Number.NaN : Number(raw)
 const TEN_MILLION = 10_000_000;
 const ONE_MILLION = 1_000_000;
 
-/** 원금 입력 보조: 천만/백만 단위 ± 버튼(0 미만으로는 내려가지 않음). */
+/** 원금 입력 보조: 천만/백만 단위 ± 버튼.
+ *  0 미만으로는 내려가지 않고, 증가(+) 시 max(설정가능금액)를 넘으면 max로 고정한다. */
 function AmountSteppers({
   value,
   onChange,
+  max,
 }: {
   value: string;
   onChange: (next: string) => void;
+  max?: number | null;
 }) {
   const adjust = (delta: number) => {
     const current = Number(value) || 0;
-    onChange(String(Math.max(0, current + delta)));
+    let next = current + delta;
+    // 증가할 때만 상한 적용(감소는 그대로 줄이고 0에서 멈춤)
+    if (delta > 0 && max != null && next > max) next = max;
+    onChange(String(Math.max(0, next)));
   };
   return (
     <div className="amount-steppers">
@@ -350,7 +356,7 @@ export function StrategyPanel({
             value={principal ? Number(principal).toLocaleString("ko-KR") : ""}
             onChange={(e) => setPrincipal(e.target.value.replace(/\D/g, ""))}
           />
-          <AmountSteppers value={principal} onChange={setPrincipal} />
+          <AmountSteppers value={principal} onChange={setPrincipal} max={settable} />
           <span className="param-default">전략과 함께 등록됩니다</span>
         </label>
 

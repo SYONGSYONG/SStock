@@ -114,6 +114,17 @@ describe("StrategyPanel", () => {
     expect(input.value).toBe("0");
   });
 
+  test("+버튼이 설정가능금액(최대)을 넘으면 최대로 고정", () => {
+    // 주문가능현금 8,000,000, 칸막이 없음 → 설정가능 8,000,000
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} orderableCash={8000000} />,
+    );
+    const input = screen.getByLabelText("자본 칸막이 원금") as HTMLInputElement;
+    const field = input.closest(".param-field") as HTMLElement;
+    fireEvent.click(within(field).getByText("+천만")); // 10,000,000 → 상한 8,000,000으로 고정
+    expect(input.value).toBe("8,000,000");
+  });
+
   test("수정 버튼 → 모달에서 파라미터를 고쳐 저장하면 enabled 유지하며 onAdd 호출", () => {
     const onAdd = vi.fn();
     const configs: StrategyConfig[] = [

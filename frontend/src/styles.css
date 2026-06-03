@@ -404,7 +404,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.strategy-head .toggle,
+.strategy-head .switch,
 .strategy-head .link-action,
 .strategy-head .link-danger {
   flex-shrink: 0;
@@ -554,13 +554,58 @@ body {
   color: var(--down);
 }
 
-.toggle {
+/* 전략 활성/비활성 토글 스위치 (체크박스를 시각적으로 스위치화) */
+.switch {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
+  gap: 6px;
   cursor: pointer;
+}
+.switch input {
+  /* 접근성 유지하며 시각적으로만 숨김(포커스·클릭 가능) */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+}
+.switch-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 0.15s;
+}
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 0.15s;
+}
+.switch input:checked + .switch-track {
+  background: #16a34a;
+}
+.switch input:checked + .switch-track .switch-knob {
+  transform: translateX(16px);
+}
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+.switch-label {
+  min-width: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.switch input:checked ~ .switch-label {
+  color: #16a34a;
 }
 
 .watch-form select {

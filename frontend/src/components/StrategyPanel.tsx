@@ -299,13 +299,16 @@ export function StrategyPanel({
               <span className="code">{c.symbol}</span>
               <span className="name">{c.name ?? ""}</span>
               <span className="spacer" />
-              <label className="toggle">
+              <label className="switch" title={c.enabled ? "전략 ON" : "전략 OFF"}>
                 <input
                   type="checkbox"
                   checked={c.enabled}
                   onChange={(e) => handleToggle(c, e.target.checked)}
                 />
-                {c.enabled ? "ON" : "OFF"}
+                <span className="switch-track">
+                  <span className="switch-knob" />
+                </span>
+                <span className="switch-label">{c.enabled ? "ON" : "OFF"}</span>
               </label>
               <button className="link-danger" onClick={() => onRemove(c.id)}>
                 삭제

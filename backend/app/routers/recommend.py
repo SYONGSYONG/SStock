@@ -10,16 +10,53 @@ GET /api/recommend/{theme}/stream — 해당 테마 추천 종목 (SSE 스트리
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from app.config import get_settings
 from app.kis.quotes import get_current_price
 from app.kis.rankings import get_investor_flow
 from app.services import recommend_service
-from app.stocks import sector
+from app.stocks import krx, sector
 
 router = APIRouter(prefix="/api/recommend", tags=["recommend"])
+
+
+async def _resolve_fns(
+    settings,
+) -> tuple[recommend_service.PriceFn, recommend_service.FlowFn]:
+    """추천 시세 데이터 소스에 따라 price_fn과 flow_fn을 결정한다.
+
+    - source == "krx": KRX 스냅샷 기반 price_fn + 중립 flow_fn
+    - source == "kis" (기본): KIS 현재가 + 수급 fn
+    """
+    if settings.recommend_data_source == "krx":
+        # KRX 스냅샷 1회 조회 (lazy: price_fn 첫 호출 시)
+        snapshot: dict[str, dict[str, Any]] | None = None
+
+        async def krx_price_fn(symbol: str) -> dict[str, Any]:
+            nonlocal snapshot
+            if snapshot is None:
+                # 첫 호출: 스냅샷 조회 (캐시/단일비행으로 1회만 네트워크)
+                snapshot = await krx.get_market_snapshot(settings)
+            data = snapshot.get(symbol, {})
+            return {
+                "symbol": symbol,
+                "price": data.get("price"),
+                "change_rate": data.get("change_rate"),
+                "volume": data.get("volume"),
+            }
+
+        async def neutral_flow_fn(symbol: str) -> dict[str, Any]:
+            # KRX는 수급 데이터 없음 → 중립(None)
+            return {"foreign_net": None, "inst_net": None}
+
+        return krx_price_fn, neutral_flow_fn
+    else:
+        # KIS (기본값)
+        return get_current_price, get_investor_flow
 
 
 @router.get("/themes")
@@ -37,11 +74,13 @@ async def recommend(
             status_code=404,
             detail={"error": "알 수 없는 테마입니다", "code": "UNKNOWN_THEME"},
         )
+    settings = get_settings()
+    price_fn, flow_fn = await _resolve_fns(settings)
     result = await recommend_service.recommend_for_theme(
         theme,
         limit,
-        price_fn=get_current_price,
-        flow_fn=get_investor_flow,
+        price_fn=price_fn,
+        flow_fn=flow_fn,
     )
     return {"data": result}
 
@@ -54,10 +93,13 @@ async def recommend_stream(
     """SSE 스트리밍 추천 엔드포인트.
 
     이벤트 시퀀스:
-    1. "candidates" — 후보 목록 + 기준일
+    1. "candidates" — 후보 목록 + 기준일 (즉시)
     2. "quote"* — 종목별 시세 (완료 순서대로)
     3. "result" — 최종 점수 + 정렬된 종목 (또는 캐시 히트 시 바로)
     에러 시: "error" — 오류 메시지
+
+    KRX 모드에서는 candidates 즉시 후 스냅샷을 lazy 조회하므로,
+    candidates 출력이 지연되지 않는다.
     """
     if theme not in sector.THEMES:
         raise HTTPException(
@@ -67,11 +109,13 @@ async def recommend_stream(
 
     async def event_generator():
         try:
+            settings = get_settings()
+            price_fn, flow_fn = await _resolve_fns(settings)
             async for event, payload in recommend_service.stream_recommend_for_theme(
                 theme,
                 limit,
-                price_fn=get_current_price,
-                flow_fn=get_investor_flow,
+                price_fn=price_fn,
+                flow_fn=flow_fn,
             ):
                 yield f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
         except Exception as e:

@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # 데이터베이스
     database_path: str = "./data/sstock.db"
 
+    # 분야별 추천 시세 데이터 소스 — kis(기본) | krx
+    recommend_data_source: Literal["kis", "krx"] = "kis"
+
+    # KRX 데이터 OpenAPI 키 (시크릿 — git 커밋 금지)
+    krx_api_key: str = ""
+
     @property
     def rest_base(self) -> str:
         return DOMAINS[self.trading_mode]["rest"]

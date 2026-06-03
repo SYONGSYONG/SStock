@@ -5,6 +5,8 @@
 > `05-tasks.md`의 **Phase 7**에 기록한다.
 >
 > **이 문서는 초안이다.** 사용자 검토·확정 후 구현을 시작한다.
+>
+> **추가 참고:** `backend/docs/08-krx-recommend.md` — KRX 데이터 소스 토글(KIS ↔ KRX).
 
 ---
 

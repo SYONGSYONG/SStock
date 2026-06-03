@@ -5,9 +5,10 @@ import {
   createChart,
   createSeriesMarkers,
   type IChartApi,
+  type Time,
 } from "lightweight-charts";
 import type { ChartData, ChartInterval, CompanyOverview, MinuteUnit } from "../types";
-import { buildExtremaMarkers } from "../lib/chartMarkers";
+import { buildExtremaMarkers, findExtrema, type ExtremaPoint } from "../lib/chartMarkers";
 
 type ChartTab = ChartInterval | "overview";
 
@@ -185,10 +186,11 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
       })),
     );
 
-    // 최고가·최저가 마커 부착
-    const extremaMarkers = buildExtremaMarkers(candles, UP, DOWN);
-    if (extremaMarkers.length > 0) {
-      createSeriesMarkers(candleSeries, extremaMarkers);
+    // 최고가·최저가 화살표 마커(텍스트는 제거하고 화살표만) — 텍스트는 아래 HTML
+    // 오버레이로 표시해 가장자리 봉에서도 잘리지 않게 안쪽으로 밀어준다.
+    const arrowMarkers = buildExtremaMarkers(candles, UP, DOWN).map((m) => ({ ...m, text: "" }));
+    if (arrowMarkers.length > 0) {
+      createSeriesMarkers(candleSeries, arrowMarkers);
     }
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -206,10 +208,59 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
 
     chart.timeScale().fitContent();
 
-    const onResize = () => chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+    // 최고/최저 라벨을 HTML 오버레이로 띄운다. 마커 텍스트는 봉 중앙 정렬이라 양
+    // 가장자리(첫 봉=최저, 끝 봉=최고)에서 잘리므로, 라벨을 차트 안쪽으로 클램프한다.
+    const extrema = findExtrema(candles);
+    const labelEls: HTMLDivElement[] = [];
+    let updateLabels = () => {};
+    if (extrema) {
+      const timeScale = chart.timeScale();
+      const makeLabel = (pt: ExtremaPoint): HTMLDivElement => {
+        const node = document.createElement("div");
+        node.className = `chart-extrema-label ${pt.kind === "high" ? "is-high" : "is-low"}`;
+        node.textContent = pt.label;
+        el.appendChild(node);
+        labelEls.push(node);
+        return node;
+      };
+      const highEl = makeLabel(extrema.high);
+      const lowEl = extrema.low ? makeLabel(extrema.low) : null;
+
+      const placeLabel = (node: HTMLDivElement, pt: ExtremaPoint) => {
+        const x = timeScale.timeToCoordinate(pt.time as Time);
+        const y = candleSeries.priceToCoordinate(pt.price);
+        if (x == null || y == null) {
+          node.style.visibility = "hidden";
+          return;
+        }
+        node.style.visibility = "visible";
+        const w = node.offsetWidth;
+        const h = node.offsetHeight;
+        // 좌우로 차트 안에 들어오도록 클램프(가장자리에서 안쪽으로 밀림)
+        const left = Math.max(4, Math.min(x - w / 2, el.clientWidth - w - 4));
+        const rawTop = pt.kind === "high" ? y - h - 10 : y + 10;
+        const top = Math.max(2, Math.min(rawTop, el.clientHeight - h - 2));
+        node.style.left = `${left}px`;
+        node.style.top = `${top}px`;
+      };
+
+      updateLabels = () => {
+        placeLabel(highEl, extrema.high);
+        if (lowEl && extrema.low) placeLabel(lowEl, extrema.low);
+      };
+      updateLabels();
+      timeScale.subscribeVisibleLogicalRangeChange(updateLabels);
+    }
+
+    const onResize = () => {
+      chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+      updateLabels();
+    };
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
+      if (extrema) chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateLabels);
+      labelEls.forEach((node) => node.remove());
       chart.remove();
     };
   }, [candles, tab]);

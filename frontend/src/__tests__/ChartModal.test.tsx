@@ -7,10 +7,18 @@ vi.mock("lightweight-charts", () => {
   const series = {
     setData: vi.fn(),
     priceScale: () => ({ applyOptions: vi.fn() }),
+    priceToCoordinate: vi.fn(() => 100),
+  };
+  // 최고/최저 라벨 오버레이가 쓰는 timeScale API 포함
+  const timeScale = {
+    fitContent: vi.fn(),
+    timeToCoordinate: vi.fn(() => 200),
+    subscribeVisibleLogicalRangeChange: vi.fn(),
+    unsubscribeVisibleLogicalRangeChange: vi.fn(),
   };
   const chart = {
     addSeries: vi.fn(() => series),
-    timeScale: () => ({ fitContent: vi.fn() }),
+    timeScale: () => timeScale,
     applyOptions: vi.fn(),
     remove: vi.fn(),
   };

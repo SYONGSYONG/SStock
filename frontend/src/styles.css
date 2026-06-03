@@ -553,6 +553,25 @@ body {
   position: absolute;
   inset: 0;
 }
+/* 최고/최저 라벨 오버레이(가장자리에서 안쪽으로 클램프되어 잘리지 않음) */
+.chart-extrema-label {
+  position: absolute;
+  z-index: 5;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+.chart-extrema-label.is-high {
+  color: #d12e2e;
+}
+.chart-extrema-label.is-low {
+  color: #1f5fd1;
+}
 .chart-overlay {
   position: absolute;
   top: 50%;

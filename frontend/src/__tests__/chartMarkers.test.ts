@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { buildExtremaMarkers, formatCandleTime, buildMarkerLabel } from "../lib/chartMarkers";
+import {
+  buildExtremaMarkers,
+  findExtrema,
+  formatCandleTime,
+  buildMarkerLabel,
+} from "../lib/chartMarkers";
 import type { Candle } from "../types";
 
 const UP = "#d12e2e";
@@ -258,6 +263,36 @@ describe("차트마커: 최고가·최저가", () => {
       const lowMarker = markers.find((m) => m.position === "belowBar");
       expect(highMarker?.text).toContain("+100.00%");
       expect(lowMarker?.text).toContain("-60.00%");
+    });
+  });
+
+  describe("findExtrema: 극점 좌표/라벨", () => {
+    test("최고가/최저가 지점의 time·price·label·kind 반환", () => {
+      const candles: Candle[] = [
+        { time: "2026-01-01", open: 100, high: 200, low: 50, close: 100, volume: 1 },
+        { time: "2026-01-02", open: 100, high: 150, low: 75, close: 100, volume: 1 },
+        { time: "2026-01-03", open: 150, high: 160, low: 40, close: 100, volume: 1 },
+      ];
+      const ex = findExtrema(candles);
+      expect(ex).not.toBeNull();
+      expect(ex!.high).toMatchObject({ kind: "high", time: "2026-01-01", price: 200 });
+      expect(ex!.high.label).toContain("+100.00%");
+      expect(ex!.low).toMatchObject({ kind: "low", time: "2026-01-03", price: 40 });
+      expect(ex!.low!.label).toContain("-60.00%");
+    });
+
+    test("캔들이 비면 null", () => {
+      expect(findExtrema([])).toBeNull();
+      expect(findExtrema(undefined)).toBeNull();
+    });
+
+    test("최고가와 최저가가 같은 봉이면 low는 null", () => {
+      const candles: Candle[] = [
+        { time: "2026-01-01", open: 100, high: 300, low: 10, close: 100, volume: 1 },
+      ];
+      const ex = findExtrema(candles);
+      expect(ex!.high.price).toBe(300);
+      expect(ex!.low).toBeNull();
     });
   });
 });

@@ -29,6 +29,14 @@ export function formatCandleTime(time: string | number): string {
   return `${month}.${date} ${hours}:${minutes}`;
 }
 
+/** 차트 위에 표시할 극점(최고/최저) 한 지점 */
+export interface ExtremaPoint {
+  kind: "high" | "low";
+  time: string | number;
+  price: number;
+  label: string;
+}
+
 interface MarkerLabelParams {
   price: number;
   time: string | number;
@@ -55,28 +63,21 @@ export function buildMarkerLabel({
 }
 
 /**
- * 캔들 배열에서 최고가/최저가 봉을 찾아 마커를 생성한다.
- * @param candles 캔들 배열
- * @param upColor 상승(최고가) 마커 색상
- * @param downColor 하락(최저가) 마커 색상
- * @returns SeriesMarker 배열 (최고가, 최저가 각 최대 1개)
+ * 캔들 배열에서 최고가/최저가 봉을 찾아 극점 정보를 반환한다.
+ * 라벨은 `가격 (날짜) 부호등락률%` 형식. 최고가와 최저가가 같은 봉이면 low는 null.
+ * 캔들이 비면 null.
  */
-export function buildExtremaMarkers(
-  candles: Candle[] | null | undefined,
-  upColor: string,
-  downColor: string
-): SeriesMarker<Time>[] {
+export function findExtrema(
+  candles: Candle[] | null | undefined
+): { high: ExtremaPoint; low: ExtremaPoint | null } | null {
   if (!candles || candles.length === 0) {
-    return [];
+    return null;
   }
 
-  const markers: SeriesMarker<Time>[] = [];
   let maxHigh = candles[0].high;
   let minLow = candles[0].low;
   let maxHighIdx = 0;
   let minLowIdx = 0;
-
-  // 최고가/최저가 탐색
   for (let i = 0; i < candles.length; i++) {
     if (candles[i].high > maxHigh) {
       maxHigh = candles[i].high;
@@ -90,38 +91,62 @@ export function buildExtremaMarkers(
 
   // 현재가 = 마지막 캔들의 close
   const currentClose = candles[candles.length - 1].close;
-
-  // 최고가 마커
   const highCandle = candles[maxHighIdx];
-  const highLabel = buildMarkerLabel({
-    price: maxHigh,
+  const high: ExtremaPoint = {
+    kind: "high",
     time: highCandle.time,
-    currentClose,
-  });
-  markers.push({
-    time: highCandle.time as Time,
-    position: "aboveBar",
-    color: upColor,
-    shape: "arrowDown",
-    text: highLabel,
-  });
+    price: maxHigh,
+    label: buildMarkerLabel({ price: maxHigh, time: highCandle.time, currentClose }),
+  };
 
-  // 최저가 마커 (최고가와 다른 봉이면)
+  let low: ExtremaPoint | null = null;
   if (minLowIdx !== maxHighIdx) {
     const lowCandle = candles[minLowIdx];
-    const lowLabel = buildMarkerLabel({
-      price: minLow,
+    low = {
+      kind: "low",
       time: lowCandle.time,
-      currentClose,
-    });
+      price: minLow,
+      label: buildMarkerLabel({ price: minLow, time: lowCandle.time, currentClose }),
+    };
+  }
+
+  return { high, low };
+}
+
+/**
+ * 캔들 배열에서 최고가/최저가 봉을 찾아 마커(화살표)를 생성한다.
+ * @param candles 캔들 배열
+ * @param upColor 상승(최고가) 마커 색상
+ * @param downColor 하락(최저가) 마커 색상
+ * @returns SeriesMarker 배열 (최고가, 최저가 각 최대 1개)
+ */
+export function buildExtremaMarkers(
+  candles: Candle[] | null | undefined,
+  upColor: string,
+  downColor: string
+): SeriesMarker<Time>[] {
+  const extrema = findExtrema(candles);
+  if (!extrema) {
+    return [];
+  }
+
+  const markers: SeriesMarker<Time>[] = [
+    {
+      time: extrema.high.time as Time,
+      position: "aboveBar",
+      color: upColor,
+      shape: "arrowDown",
+      text: extrema.high.label,
+    },
+  ];
+  if (extrema.low) {
     markers.push({
-      time: lowCandle.time as Time,
+      time: extrema.low.time as Time,
       position: "belowBar",
       color: downColor,
       shape: "arrowUp",
-      text: lowLabel,
+      text: extrema.low.label,
     });
   }
-
   return markers;
 }

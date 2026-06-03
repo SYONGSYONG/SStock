@@ -265,6 +265,7 @@ export function StrategyPanel({
           <span className="param-default">전략과 함께 등록됩니다</span>
         </label>
 
+        <p className="budget-rule">종목별 투입 원금 한도 (한도 = 원금 + 실현손익)</p>
         <p className="budget-cash">
           {orderableCash == null ? (
             <span className="muted">주문가능현금 조회 불가</span>

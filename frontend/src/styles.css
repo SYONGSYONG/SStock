@@ -272,6 +272,13 @@ body {
   font-size: 10.5px;
   color: var(--muted);
 }
+/* 칸막이 룰 안내: '전략과 함께 등록됩니다'(param-default)와 동일 크기 */
+.budget-rule {
+  margin: 2px 0;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
 .param-error {
   margin: 0;
 }

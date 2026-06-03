@@ -82,7 +82,10 @@ export function WatchList({ items, strategySymbols, onAdd, onRemove, onSelect, s
 
   return (
     <section className="panel">
-      <h2>관심종목</h2>
+      <div className="panel-head-row">
+        <h2>관심종목</h2>
+        <span className="head-hint">종목 코드를 클릭하면 종목 정보를 확인합니다</span>
+      </div>
       <div className="search-box">
         <input
           aria-label="종목 검색"

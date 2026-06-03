@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   createChart,
   createSeriesMarkers,
   type IChartApi,
+  type MouseEventParams,
   type Time,
 } from "lightweight-charts";
 import type { ChartData, ChartInterval, CompanyOverview, MinuteUnit } from "../types";
 import { buildExtremaMarkers, findExtrema, type ExtremaPoint } from "../lib/chartMarkers";
+import { MA_CONFIGS, buildMaLineData, buildTooltipData } from "../lib/chartIndicators";
 
 type ChartTab = ChartInterval | "overview";
 
@@ -32,6 +35,43 @@ const AUTO_RETRY_DELAY_MS = 700;
 const MAX_AUTO_RETRIES = 2;
 
 const MINUTE_UNITS: MinuteUnit[] = [1, 5, 10, 30];
+
+/**
+ * tooltip 박스 내용을 DOM으로 채운다. innerHTML 대신 textContent로 구성해
+ * 값 주입을 안전하게 한다(XSS 회피). 이평 그룹은 거래량 다음에 구분선으로 나눈다.
+ */
+function fillTooltip(node: HTMLDivElement, data: ReturnType<typeof buildTooltipData>) {
+  node.replaceChildren();
+  if (!data) return;
+
+  const head = document.createElement("div");
+  head.className = "tt-time";
+  head.textContent = data.time;
+  node.appendChild(head);
+
+  data.rows.forEach((row) => {
+    // 이평 첫 행 앞에 구분선 + 소제목
+    if (row.label === "이평5") {
+      const sep = document.createElement("div");
+      sep.className = "tt-sep";
+      sep.textContent = "주가이동평균";
+      node.appendChild(sep);
+    }
+    const r = document.createElement("div");
+    r.className = "tt-row";
+    const label = document.createElement("span");
+    label.className = "tt-label";
+    label.textContent = row.label;
+    const val = document.createElement("span");
+    val.className = "tt-value";
+    val.textContent = row.value;
+    const chg = document.createElement("span");
+    chg.className = `tt-change${row.dir ? ` ${row.dir}` : ""}`;
+    chg.textContent = row.change ?? "";
+    r.append(label, val, chg);
+    node.appendChild(r);
+  });
+}
 
 /** 종목 모달: 캔들차트(일봉/주봉/분봉) + 기업개요 탭. */
 export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, fetchOverview, onClose }: ChartModalProps) {
@@ -206,6 +246,21 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
       })),
     );
 
+    // 이동평균선(5/20/60/120) — 캔들과 같은 가격축에 겹쳐 그린다.
+    // 워밍업 구간은 점이 없어 데이터가 충분한 구간부터 선이 시작된다.
+    for (const cfg of MA_CONFIGS) {
+      const lineData = buildMaLineData(candles, cfg.period);
+      if (lineData.length === 0) continue;
+      const line = chart.addSeries(LineSeries, {
+        color: cfg.color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      line.setData(lineData.map((p) => ({ time: p.time as never, value: p.value })));
+    }
+
     chart.timeScale().fitContent();
 
     // 최고/최저 라벨을 HTML 오버레이로 띄운다. 마커 텍스트는 봉 중앙 정렬이라 양
@@ -252,6 +307,38 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
       timeScale.subscribeVisibleLogicalRangeChange(updateLabels);
     }
 
+    // 마우스 시점 tooltip — 가리키는 봉의 OHLC·거래량·이평을 박스로 표시한다.
+    // whitespace 없이 캔들을 넣었으므로 logical 인덱스 = candles 배열 인덱스.
+    const tooltipEl = document.createElement("div");
+    tooltipEl.className = "chart-tooltip";
+    tooltipEl.style.display = "none";
+    el.appendChild(tooltipEl);
+
+    const onCrosshair = (param: MouseEventParams) => {
+      if (!param.point || param.logical == null) {
+        tooltipEl.style.display = "none";
+        return;
+      }
+      const idx = Math.round(param.logical as number);
+      const data = buildTooltipData(candles, idx);
+      if (!data) {
+        tooltipEl.style.display = "none";
+        return;
+      }
+      fillTooltip(tooltipEl, data);
+      tooltipEl.style.display = "block";
+      // 커서 옆에 띄우되 차트 안으로 클램프(가장자리 잘림 방지)
+      const w = tooltipEl.offsetWidth;
+      const h = tooltipEl.offsetHeight;
+      let left = param.point.x + 16;
+      if (left + w > el.clientWidth) left = param.point.x - w - 16;
+      left = Math.max(4, Math.min(left, el.clientWidth - w - 4));
+      const top = Math.max(4, Math.min(param.point.y + 12, el.clientHeight - h - 4));
+      tooltipEl.style.left = `${left}px`;
+      tooltipEl.style.top = `${top}px`;
+    };
+    chart.subscribeCrosshairMove(onCrosshair);
+
     const onResize = () => {
       chart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
       updateLabels();
@@ -259,6 +346,8 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
+      chart.unsubscribeCrosshairMove(onCrosshair);
+      tooltipEl.remove();
       if (extrema) chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateLabels);
       labelEls.forEach((node) => node.remove());
       chart.remove();

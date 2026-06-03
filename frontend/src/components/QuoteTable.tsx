@@ -12,7 +12,10 @@ interface QuoteTableProps {
 export function QuoteTable({ items, quotes, strategySymbols, onPickSymbol }: QuoteTableProps) {
   return (
     <section className="panel">
-      <h2>실시간 시세</h2>
+      <div className="panel-head-row">
+        <h2>실시간 시세</h2>
+        <span className="head-hint">종목코드를 클릭하면 전략 종목 코드로 복사됩니다</span>
+      </div>
       <div className="table-scroll">
       <table className="quote-table">
         <thead>

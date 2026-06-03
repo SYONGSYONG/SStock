@@ -20,6 +20,8 @@ vi.mock("lightweight-charts", () => {
     addSeries: vi.fn(() => series),
     timeScale: () => timeScale,
     applyOptions: vi.fn(),
+    subscribeCrosshairMove: vi.fn(),
+    unsubscribeCrosshairMove: vi.fn(),
     remove: vi.fn(),
   };
   return {
@@ -27,6 +29,7 @@ vi.mock("lightweight-charts", () => {
     createSeriesMarkers: vi.fn(),
     CandlestickSeries: "Candlestick",
     HistogramSeries: "Histogram",
+    LineSeries: "Line",
   };
 });
 

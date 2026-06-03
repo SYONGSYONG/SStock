@@ -10,6 +10,7 @@ import {
   validateParams,
 } from "../lib/strategy";
 import { HelpPopover } from "./HelpPopover";
+import { Modal } from "./Modal";
 
 interface StrategyPanelProps {
   configs: StrategyConfig[];
@@ -22,6 +23,37 @@ interface StrategyPanelProps {
   onToggle: (id: number, enabled: boolean) => void;
   onRemove: (id: number) => void;
   error?: string | null;
+}
+
+/** 전략 파라미터 입력 필드(추가 폼·수정 모달 공용). */
+function StrategyParamInputs({
+  strategy,
+  params,
+  onChange,
+}: {
+  strategy: StrategyName;
+  params: Record<string, number>;
+  onChange: (key: string, raw: string) => void;
+}) {
+  const fields = STRATEGY_PARAM_FIELDS[strategy] ?? [];
+  return (
+    <div className="strategy-params">
+      {fields.map((f) => (
+        <label key={f.key} className="param-field">
+          <span className="param-label">{f.label}</span>
+          <input
+            type="number"
+            aria-label={f.label}
+            min={f.min}
+            max={f.max}
+            value={Number.isFinite(params[f.key]) ? params[f.key] : ""}
+            onChange={(e) => onChange(f.key, e.target.value)}
+          />
+          <span className="param-default">기본 {STRATEGY_DEFAULTS[strategy][f.key]}</span>
+        </label>
+      ))}
+    </div>
+  );
 }
 
 /** 선택된 전략의 도움말 본문 */
@@ -63,6 +95,8 @@ function StrategyHelpBody({
   );
 }
 
+const toNumber = (raw: string): number => (raw === "" ? Number.NaN : Number(raw));
+
 export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
   const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
@@ -71,26 +105,25 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
     ...STRATEGY_DEFAULTS.ma_cross,
   });
 
-  const fields = STRATEGY_PARAM_FIELDS[strategy] ?? [];
+  // 수정 모달 상태
+  const [editing, setEditing] = useState<StrategyConfig | null>(null);
+  const [editParams, setEditParams] = useState<Record<string, number>>({});
+
   const validSymbol = /^\d{6}$/.test(symbol);
   const paramError = validateParams(strategy, params);
 
   const changeStrategy = (next: StrategyName) => {
     setStrategy(next);
-    // 전략을 바꾸면 해당 전략의 기본값으로 초기화
     setParams({ ...STRATEGY_DEFAULTS[next] });
   };
 
   const changeParam = (key: string, raw: string) => {
-    // 빈 입력은 NaN으로 두어 검증에서 걸리게 한다(0으로 강제하지 않음).
-    const value = raw === "" ? Number.NaN : Number(raw);
-    setParams((prev) => ({ ...prev, [key]: value }));
+    setParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
   };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validSymbol || paramError) return;
-    // 추가 실수 방지를 위해 한 번 더 확인
     const ok = window.confirm(
       `${symbol} 종목에 '${STRATEGY_LABEL[strategy]}' 전략을 추가합니다.\n` +
         `${describeStrategy(strategy, params)}\n\n계속하시겠습니까?`,
@@ -99,6 +132,29 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
     onAdd({ symbol, strategy, params, enabled: false });
     setSymbol("");
     setParams({ ...STRATEGY_DEFAULTS[strategy] });
+  };
+
+  const openEdit = (c: StrategyConfig) => {
+    setEditing(c);
+    setEditParams({ ...c.params });
+  };
+
+  const changeEditParam = (key: string, raw: string) => {
+    setEditParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
+  };
+
+  const editError = editing ? validateParams(editing.strategy, editParams) : null;
+
+  const saveEdit = () => {
+    if (!editing || editError) return;
+    // 같은 종목·전략으로 upsert → 파라미터만 갱신(활성 상태 유지)
+    onAdd({
+      symbol: editing.symbol,
+      strategy: editing.strategy,
+      params: editParams,
+      enabled: editing.enabled,
+    });
+    setEditing(null);
   };
 
   return (
@@ -128,22 +184,7 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           </select>
         </div>
 
-        <div className="strategy-params">
-          {fields.map((f) => (
-            <label key={f.key} className="param-field">
-              <span className="param-label">{f.label}</span>
-              <input
-                type="number"
-                aria-label={f.label}
-                min={f.min}
-                max={f.max}
-                value={Number.isFinite(params[f.key]) ? params[f.key] : ""}
-                onChange={(e) => changeParam(f.key, e.target.value)}
-              />
-              <span className="param-default">기본 {STRATEGY_DEFAULTS[strategy][f.key]}</span>
-            </label>
-          ))}
-        </div>
+        <StrategyParamInputs strategy={strategy} params={params} onChange={changeParam} />
 
         {paramError && validSymbol && <p className="error param-error">{paramError}</p>}
 
@@ -157,6 +198,7 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           <li key={c.id} className="strategy-item">
             <div className="strategy-head">
               <span className="code">{c.symbol}</span>
+              <span className="name">{c.name ?? ""}</span>
               <span className="spacer" />
               <label className="toggle">
                 <input
@@ -166,6 +208,9 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
                 />
                 {c.enabled ? "ON" : "OFF"}
               </label>
+              <button className="link-action" onClick={() => openEdit(c)}>
+                수정
+              </button>
               <button className="link-danger" onClick={() => onRemove(c.id)}>
                 삭제
               </button>
@@ -175,6 +220,28 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
         ))}
         {configs.length === 0 && <li className="empty">등록된 전략이 없습니다</li>}
       </ul>
+
+      {editing && (
+        <Modal
+          title={`${editing.symbol} ${editing.name ?? ""} · ${STRATEGY_LABEL[editing.strategy]} 수정`}
+          onClose={() => setEditing(null)}
+        >
+          <StrategyParamInputs
+            strategy={editing.strategy}
+            params={editParams}
+            onChange={changeEditParam}
+          />
+          {editError && <p className="error param-error">{editError}</p>}
+          <div className="edit-modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
+              취소
+            </button>
+            <button type="button" className="strategy-add" disabled={!!editError} onClick={saveEdit}>
+              저장
+            </button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

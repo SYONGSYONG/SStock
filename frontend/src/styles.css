@@ -283,6 +283,83 @@ body {
   cursor: not-allowed;
 }
 
+/* 목록 항목의 '수정' 링크 버튼 */
+.link-action {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+.link-action:hover {
+  text-decoration: underline;
+}
+
+/* ── 수정 모달 ── */
+.edit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.edit-modal {
+  position: relative;
+  width: 360px;
+  max-width: 100%;
+  padding: 18px 20px 20px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+}
+.edit-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.edit-modal-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.edit-modal-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+  cursor: pointer;
+}
+.edit-modal-close:hover {
+  background: #e2e8f0;
+}
+.edit-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.btn-ghost {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: #fff;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  background: #f8fafc;
+}
+
 .strategy-list {
   list-style: none;
   margin: 0;

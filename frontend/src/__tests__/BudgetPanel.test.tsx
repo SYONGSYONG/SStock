@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { BudgetPanel } from "../components/BudgetPanel";
 import type { Budget, WatchItem } from "../types";
@@ -69,5 +69,22 @@ describe("BudgetPanel", () => {
     fireEvent.change(screen.getByLabelText("원금"), { target: { value: "300000" } });
     expect(screen.getByText(/설정가능금액.*초과/)).toBeInTheDocument();
     expect(screen.getByText("설정")).not.toBeDisabled(); // 차단 안 함
+  });
+
+  test("수정 버튼 → 모달에서 원금을 고쳐 저장하면 onSet 호출", () => {
+    const onSet = vi.fn();
+    render(<BudgetPanel budgets={budgets} items={items} onSet={onSet} onRemove={() => {}} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    const dialog = screen.getByRole("dialog");
+    // 현재 원금이 채워져 있다
+    expect((within(dialog).getByLabelText("수정 원금") as HTMLInputElement).value).toBe("500000");
+
+    fireEvent.change(within(dialog).getByLabelText("수정 원금"), { target: { value: "700000" } });
+    fireEvent.click(within(dialog).getByText("저장"));
+
+    expect(onSet).toHaveBeenCalledWith("005930", 700000);
+    expect(screen.queryByRole("dialog")).toBeNull(); // 저장 후 닫힘
   });
 });

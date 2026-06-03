@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.db.database import get_db
 from app.schemas.strategy import EnabledUpdate, StrategyConfigCreate
 from app.services import strategy_service
+from app.stocks.master import get_name
 from app.strategies.registry import build_strategy
 
 router = APIRouter(prefix="/api/strategies", tags=["strategies"])
@@ -27,7 +28,10 @@ def list_strategies(
         raise HTTPException(
             status_code=400, detail={"error": "잘못된 모드", "code": "BAD_MODE"}
         )
-    return {"data": strategy_service.list_configs(conn, mode=mode)}
+    data = strategy_service.list_configs(conn, mode=mode)
+    for d in data:
+        d["name"] = get_name(d["symbol"])
+    return {"data": data}
 
 
 @router.post("", status_code=201)

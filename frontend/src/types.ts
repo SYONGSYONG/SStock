@@ -35,6 +35,7 @@ export type StrategyName = "ma_cross" | "rsi";
 export interface StrategyConfig {
   id: number;
   symbol: string;
+  name?: string | null;
   strategy: StrategyName;
   params: Record<string, number>;
   enabled: boolean;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { StrategyPanel } from "../components/StrategyPanel";
 import { describeStrategy } from "../lib/strategy";
@@ -37,6 +37,58 @@ describe("StrategyPanel", () => {
     );
     expect(screen.getByText("이동평균 크로스 · 단기 5 / 장기 20")).toBeInTheDocument();
     expect(screen.queryByText(/\{"short"/)).toBeNull();
+  });
+
+  test("전략 목록에 종목번호와 종목명을 함께 표기", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText("005930")).toBeInTheDocument();
+    expect(within(item).getByText("삼성전자")).toBeInTheDocument();
+  });
+
+  test("수정 버튼 → 모달에서 파라미터를 고쳐 저장하면 enabled 유지하며 onAdd 호출", () => {
+    const onAdd = vi.fn();
+    const configs: StrategyConfig[] = [
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    const dialog = screen.getByRole("dialog");
+    // 현재 파라미터가 채워져 있다
+    expect((within(dialog).getByLabelText("단기") as HTMLInputElement).value).toBe("5");
+
+    fireEvent.change(within(dialog).getByLabelText("장기"), { target: { value: "60" } });
+    fireEvent.click(within(dialog).getByText("저장"));
+
+    // upsert: 같은 종목·전략, 새 파라미터, enabled 유지(true), 확인창 없음
+    expect(onAdd).toHaveBeenCalledWith({
+      symbol: "005930",
+      strategy: "ma_cross",
+      params: { short: 5, long: 60 },
+      enabled: true,
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("수정 모달에서 잘못된 값이면 저장 비활성화", () => {
+    const onAdd = vi.fn();
+    const configs: StrategyConfig[] = [
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("단기"), { target: { value: "30" } }); // 30 ≥ 20
+    expect(within(dialog).getByText("저장")).toBeDisabled();
   });
 
   test("도움말 버튼을 누르면 중앙 모달로 전략 설명·5/20 의미가 뜬다", () => {

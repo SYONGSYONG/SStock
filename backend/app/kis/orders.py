@@ -34,10 +34,13 @@ def clear_balance_cache() -> None:
     _balance_locks.clear()
 
 
-def _balance_params(settings: Settings) -> dict[str, str]:
+def _balance_params(settings: Settings, mode: str | None = None) -> dict[str, str]:
+    """모드별 잔고조회 파라미터를 반환한다."""
+    mode_resolved = mode or settings.trading_mode
+    creds = settings.kis_for(mode_resolved)
     return {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
+        "CANO": creds.account_no,
+        "ACNT_PRDT_CD": creds.account_product,
         "AFHR_FLPR_YN": "N",
         "OFL_YN": "",
         "INQR_DVSN": "02",
@@ -53,9 +56,15 @@ def _balance_params(settings: Settings) -> dict[str, str]:
 async def _get_balance_raw(
     settings: Settings,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any]:
-    """inquire-balance 원시 응답(짧은 TTL + 단일비행 캐시). 정상 응답만 캐시한다."""
-    key = f"{settings.kis_account_no}:{settings.trading_mode}"
+    """inquire-balance 원시 응답(짧은 TTL + 단일비행 캐시). 정상 응답만 캐시한다.
+
+    모드별로 계좌번호가 다르므로 캐시 키도 모드별로 분리한다.
+    """
+    mode_resolved = mode or settings.trading_mode
+    creds = settings.kis_for(mode_resolved)
+    key = f"{creds.account_no}:{mode_resolved}"
     cached = _balance_cache.get(key)
     if cached is not None and time.monotonic() - cached[0] < _BALANCE_TTL_SEC:
         return cached[1]
@@ -64,9 +73,9 @@ async def _get_balance_raw(
         cached = _balance_cache.get(key)
         if cached is not None and time.monotonic() - cached[0] < _BALANCE_TTL_SEC:
             return cached[1]
-        client = kis_client or KisClient(settings)
-        tr_id = resolve_tr_id("inquire_balance", settings.trading_mode)
-        data = await client.get(_BALANCE_PATH, tr_id, _balance_params(settings))
+        client = kis_client or KisClient(settings, mode=mode_resolved)
+        tr_id = resolve_tr_id("inquire_balance", mode_resolved)
+        data = await client.get(_BALANCE_PATH, tr_id, _balance_params(settings, mode_resolved))
         if data.get("rt_cd") == "0":  # 오류 응답은 캐시하지 않음(다음 호출에서 재시도)
             _balance_cache[key] = (time.monotonic(), data)
         return data
@@ -86,15 +95,21 @@ async def place_order(
     price: float | None,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> OrderResult:
-    """주식 주문(현금). price가 있으면 지정가(00), 없으면 시장가(01)."""
+    """주식 주문(현금). price가 있으면 지정가(00), 없으면 시장가(01).
+
+    mode: 모드(paper/live). 미지정 시 settings.trading_mode.
+    """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    mode_resolved = mode or settings.trading_mode
+    creds = settings.kis_for(mode_resolved)
+    client = kis_client or KisClient(settings, mode=mode_resolved)
     tr_key = "order_cash_buy" if side == "BUY" else "order_cash_sell"
-    tr_id = resolve_tr_id(tr_key, settings.trading_mode)
+    tr_id = resolve_tr_id(tr_key, mode_resolved)
     body = {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
+        "CANO": creds.account_no,
+        "ACNT_PRDT_CD": creds.account_product,
         "PDNO": symbol,
         "ORD_DVSN": "00" if price else "01",
         "ORD_QTY": str(qty),
@@ -116,14 +131,20 @@ async def cancel_order(
     branch_no: str = "",
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> OrderResult:
-    """주문 취소(order-rvsecncl, RVSE_CNCL_DVSN_CD=02)."""
+    """주문 취소(order-rvsecncl, RVSE_CNCL_DVSN_CD=02).
+
+    mode: 모드(paper/live). 미지정 시 settings.trading_mode.
+    """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
-    tr_id = resolve_tr_id("order_rvsecncl", settings.trading_mode)
+    mode_resolved = mode or settings.trading_mode
+    creds = settings.kis_for(mode_resolved)
+    client = kis_client or KisClient(settings, mode=mode_resolved)
+    tr_id = resolve_tr_id("order_rvsecncl", mode_resolved)
     body = {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
+        "CANO": creds.account_no,
+        "ACNT_PRDT_CD": creds.account_product,
         "KRX_FWDG_ORD_ORGNO": branch_no,
         "ORGN_ODNO": org_order_no,
         "ORD_DVSN": "00",
@@ -144,10 +165,14 @@ async def cancel_order(
 async def get_balance(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    """주식 잔고조회. 보유 종목 리스트(수량>0)를 반환한다."""
+    """주식 잔고조회. 보유 종목 리스트(수량>0)를 반환한다.
+
+    mode: 모드(paper/live). 미지정 시 settings.trading_mode.
+    """
     settings = settings or get_settings()
-    data = await _get_balance_raw(settings, kis_client)
+    data = await _get_balance_raw(settings, kis_client, mode=mode)
     holdings = data.get("output1") or []
     result: list[dict[str, Any]] = []
     for h in holdings:
@@ -181,10 +206,14 @@ def _first_summary(output2: Any) -> dict[str, Any]:
 async def get_account_summary(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> dict[str, Any]:
-    """주식 잔고조회 output2 기준 계좌 요약을 반환한다."""
+    """주식 잔고조회 output2 기준 계좌 요약을 반환한다.
+
+    mode: 모드(paper/live). 미지정 시 settings.trading_mode.
+    """
     settings = settings or get_settings()
-    data = await _get_balance_raw(settings, kis_client)
+    data = await _get_balance_raw(settings, kis_client, mode=mode)
     s = _first_summary(data.get("output2"))
     return {
         "deposit": to_int(s.get("dnca_tot_amt")),
@@ -206,15 +235,21 @@ async def get_daily_ccld(
     symbol: str | None = None,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
+    mode: str | None = None,
 ) -> list[dict[str, Any]]:
-    """당일 주문체결내역을 조회한다."""
+    """당일 주문체결내역을 조회한다.
+
+    mode: 모드(paper/live). 미지정 시 settings.trading_mode.
+    """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
-    tr_id = resolve_tr_id("inquire_daily_ccld", settings.trading_mode)
+    mode_resolved = mode or settings.trading_mode
+    creds = settings.kis_for(mode_resolved)
+    client = kis_client or KisClient(settings, mode=mode_resolved)
+    tr_id = resolve_tr_id("inquire_daily_ccld", mode_resolved)
     today = _kst_today()
     params = {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
+        "CANO": creds.account_no,
+        "ACNT_PRDT_CD": creds.account_product,
         "INQR_STRT_DT": today,
         "INQR_END_DT": today,
         "SLL_BUY_DVSN_CD": "00",

@@ -6,7 +6,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.bot.market_data import market_data_service
+from app.bot.registry import get_registry
 from app.db.database import get_db
 from app.schemas.watchlist import WatchCreate
 from app.services import watchlist_service
@@ -21,8 +21,11 @@ def list_watchlist(conn: sqlite3.Connection = Depends(get_db)) -> dict:
 
 
 async def _refresh_market_data(conn: sqlite3.Connection) -> None:
+    # 관심종목은 모드 공용이므로 모든 모드 시세 피드의 구독을 갱신한다.
+    # (refresh는 돌고 있으면 재구독, 아니면 심볼 목록만 갱신)
     symbols = [row["symbol"] for row in watchlist_service.list_symbols(conn)]
-    await market_data_service.refresh(symbols)
+    for feed in get_registry().feeds().values():
+        await feed.refresh(symbols)
 
 
 @router.post("", status_code=201)

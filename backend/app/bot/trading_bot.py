@@ -29,6 +29,12 @@ _FINAL_STATUSES = {"rejected"}
 
 
 class TradingBot:
+    """자동매매 봇.
+
+    mode: 거래 모드(paper/live). 미지정 시 settings.trading_mode.
+          이 봇이 관리하는 모든 주문/신호는 이 모드로 저장된다.
+    """
+
     def __init__(
         self,
         conn_factory: ConnFactory | None = None,
@@ -37,8 +43,10 @@ class TradingBot:
         order_syncer: OrderSyncer | None = None,
         broadcaster: Broadcaster | None = None,
         default_qty: int = _DEFAULT_QTY,
+        mode: str | None = None,
     ) -> None:
         self._settings = settings or get_settings()
+        self._mode = mode or self._settings.trading_mode
         self._conn_factory = conn_factory or (lambda: connect(self._settings.database_path))
         self._order_placer = order_placer
         self._order_syncer = order_syncer
@@ -94,7 +102,10 @@ class TradingBot:
             conn.close()
 
     async def sync_orders(self, force: bool = False) -> list[dict[str, Any]]:
-        """KIS 주문체결내역과 로컬 주문 상태를 맞춘다."""
+        """KIS 주문체결내역과 로컬 주문 상태를 맞춘다(자기 모드만).
+
+        이 봇의 모드에 해당하는 주문만 동기화한다.
+        """
         conn = self._conn_factory()
         updates: list[dict[str, Any]] = []
         try:
@@ -102,9 +113,10 @@ class TradingBot:
                 """
                 SELECT id, symbol, kis_order_no, qty, filled_qty, remaining_qty, status
                 FROM orders
-                WHERE kis_order_no IS NOT NULL AND status NOT IN ('rejected', 'filled')
+                WHERE mode = ? AND kis_order_no IS NOT NULL AND status NOT IN ('rejected', 'filled')
                 ORDER BY id
-                """
+                """,
+                (self._mode,),
             ).fetchall()
             for row in rows:
                 order_no = row["kis_order_no"]
@@ -158,7 +170,7 @@ class TradingBot:
     async def _fetch_order_snapshots(self, symbol: str, order_no: str) -> list[dict[str, Any]]:
         if self._order_syncer is not None:
             return await self._order_syncer(symbol, order_no)
-        return await get_daily_ccld(order_no, symbol, self._settings)
+        return await get_daily_ccld(order_no, symbol, self._settings, mode=self._mode)
 
     @staticmethod
     def _select_snapshot(
@@ -194,7 +206,7 @@ class TradingBot:
         saved = signal_service.save_signal(
             conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason
         )
-        await self._broadcast({"type": "signal", "data": saved})
+        await self._broadcast({"type": "signal", "data": saved, "mode": self._mode})
 
         qty = cfg.get("max_qty") or self._default_qty
         intent = OrderIntent(
@@ -205,7 +217,6 @@ class TradingBot:
             max_qty=cfg.get("max_qty"),
             max_amount=cfg.get("max_amount"),
         )
-        mode = self._settings.trading_mode
 
         try:
             check_order(conn, self._settings, intent)
@@ -217,11 +228,11 @@ class TradingBot:
                 signal.side,
                 qty,
                 signal.price,
-                mode,
+                self._mode,
                 status="rejected",
                 signal_id=saved["id"],
             )
-            await self._broadcast({"type": "order", "data": order})
+            await self._broadcast({"type": "order", "data": order, "mode": self._mode})
             return
 
         result = await self._place(signal.symbol, signal.side, qty, signal.price)
@@ -232,7 +243,7 @@ class TradingBot:
             signal.side,
             qty,
             signal.price,
-            mode,
+            self._mode,
             status=status,
             signal_id=saved["id"],
             kis_order_no=result.kis_order_no,
@@ -240,16 +251,16 @@ class TradingBot:
         audit_service.log(
             conn,
             "ORDER",
-            f"[{mode}] {signal.symbol} {signal.side} {qty}주 {status} ({result.message or ''})",
+            f"[{self._mode}] {signal.symbol} {signal.side} {qty}주 {status} ({result.message or ''})",
         )
-        await self._broadcast({"type": "order", "data": order})
+        await self._broadcast({"type": "order", "data": order, "mode": self._mode})
         if result.ok:
             await self.sync_orders(force=True)
 
     async def _place(self, symbol: str, side: str, qty: int, price: float | None) -> OrderResult:
         if self._order_placer is not None:
             return await self._order_placer(symbol, side, qty, price)
-        return await place_order(symbol, side, qty, price, self._settings)
+        return await place_order(symbol, side, qty, price, self._settings, mode=self._mode)
 
     async def _broadcast(self, message: dict[str, Any]) -> None:
         if self._broadcaster is not None:

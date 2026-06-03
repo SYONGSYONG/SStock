@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import Settings, get_settings
 from app.kis.orders import get_account_summary
@@ -30,11 +30,17 @@ _EMPTY_SUMMARY: dict[str, int | None] = {
 
 
 @router.get("/balance")
-async def balance(settings: Settings = Depends(get_settings)) -> dict:
-    """계좌 잔고 요약. KIS 오류 시 모든 값 None(조회 불가)으로 반환한다."""
+async def balance(
+    mode: str = Query(default="paper"),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """계좌 잔고 요약(모드별). KIS 오류 시 모든 값 None(조회 불가)으로 반환한다."""
+    if mode not in ("paper", "live"):
+        raise HTTPException(status_code=400, detail={"error": "잘못된 모드", "code": "BAD_MODE"})
+
     try:
-        summary = await get_account_summary(settings)
-        return {"data": {"mode": settings.trading_mode, "available": True, **summary}}
+        summary = await get_account_summary(settings, mode=mode)
+        return {"data": {"mode": mode, "available": True, **summary}}
     except httpx.HTTPError as exc:
-        logger.warning("계좌 잔고 조회 실패: %s", exc)
-        return {"data": {"mode": settings.trading_mode, "available": False, **_EMPTY_SUMMARY}}
+        logger.warning("계좌 잔고 조회 실패[%s]: %s", mode, exc)
+        return {"data": {"mode": mode, "available": False, **_EMPTY_SUMMARY}}

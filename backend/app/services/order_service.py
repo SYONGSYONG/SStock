@@ -130,12 +130,23 @@ def update_execution(
     return cur.rowcount > 0
 
 
-def list_orders(conn: sqlite3.Connection, limit: int = 100) -> list[dict[str, Any]]:
-    rows = conn.execute(
-        "SELECT id, signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status, created_at "
-        "FROM orders ORDER BY id DESC LIMIT ?",
-        (limit,),
-    ).fetchall()
+def list_orders(conn: sqlite3.Connection, limit: int = 100, mode: str | None = None) -> list[dict[str, Any]]:
+    """주문 목록을 반환한다.
+
+    mode: 모드로 필터. 미지정 시 모든 주문.
+    """
+    if mode is not None:
+        rows = conn.execute(
+            "SELECT id, signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status, created_at "
+            "FROM orders WHERE mode = ? ORDER BY id DESC LIMIT ?",
+            (mode, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status, created_at "
+            "FROM orders ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
     return [dict(r) for r in rows]
 
 

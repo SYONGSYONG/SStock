@@ -79,17 +79,28 @@ def build_subscribe_message(approval_key: str, symbol: str, mode: str, subscribe
 
 
 class KisRealtimeClient:
-    """KIS 웹소켓에 연결해 관심종목 체결가를 구독하고 콜백으로 전달한다."""
+    """KIS 웹소켓에 연결해 관심종목 체결가를 구독하고 콜백으로 전달한다.
 
-    def __init__(self, settings: Settings | None = None, auth: KisAuth | None = None) -> None:
+    모드별로 다른 도메인/인증을 사용한다.
+    """
+
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        auth: KisAuth | None = None,
+        mode: str | None = None,
+    ) -> None:
         self._settings = settings or get_settings()
-        self._auth = auth or KisAuth(self._settings)
+        self._mode = mode or self._settings.trading_mode
+        self._auth = auth or KisAuth(self._settings, mode=self._mode)
         self._symbols: set[str] = set()
         self._stop = asyncio.Event()
 
     @property
     def url(self) -> str:
-        return f"{self._settings.ws_base}{_WS_PATH}"
+        """모드별 ws_base를 반환한다."""
+        creds = self._settings.kis_for(self._mode)
+        return f"{creds.ws_base}{_WS_PATH}"
 
     async def run(self, symbols: list[str], on_tick: TickHandler, max_retries: int = 5) -> None:
         """연결→구독→수신 루프. 끊기면 재연결(지수 백오프)."""
@@ -102,12 +113,12 @@ class KisRealtimeClient:
                     retries = 0
                     for symbol in sorted(self._symbols):
                         await ws.send(
-                            json.dumps(build_subscribe_message(approval_key, symbol, self._settings.trading_mode))
+                            json.dumps(build_subscribe_message(approval_key, symbol, self._mode))
                         )
                     await self._receive_loop(ws, on_tick)
             except Exception as exc:  # noqa: BLE001 - 재연결을 위해 광범위 포착
                 retries += 1
-                logger.warning("KIS 웹소켓 연결 오류(%d/%d): %s", retries, max_retries, exc)
+                logger.warning("KIS 웹소켓[%s] 연결 오류(%d/%d): %s", self._mode, retries, max_retries, exc)
                 await asyncio.sleep(min(2**retries, 30))
 
     async def _receive_loop(self, ws: Any, on_tick: TickHandler) -> None:

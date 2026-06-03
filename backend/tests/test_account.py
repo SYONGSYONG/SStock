@@ -125,3 +125,28 @@ def test_잔고_엔드포인트_KIS오류시_graceful(tmp_path):
         assert data["deposit"] is None
     finally:
         app.dependency_overrides.clear()
+
+
+@respx.mock
+def test_잔고_엔드포인트_rt_cd오류시_조회불가(tmp_path):
+    """HTTP 200이라도 rt_cd≠0(예: 잘못된 계좌)이면 available=false(침묵 실패 방지)."""
+    s = _settings(tmp_path)
+    app.dependency_overrides[get_settings] = lambda: s
+    try:
+        respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
+            return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
+        )
+        respx.get(f"{s.rest_base}/uapi/domestic-stock/v1/trading/inquire-balance").mock(
+            return_value=httpx.Response(
+                200,
+                json={"rt_cd": "2", "msg_cd": "OPSQ2000", "msg1": "INVALID_CHECK_ACNO", "output2": []},
+            )
+        )
+        with TestClient(app) as client:
+            res = client.get("/api/account/balance")
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["available"] is False
+        assert data["deposit"] is None
+    finally:
+        app.dependency_overrides.clear()

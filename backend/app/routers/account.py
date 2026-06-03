@@ -12,7 +12,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import Settings, get_settings
-from app.kis.orders import get_account_summary
+from app.kis.orders import AccountUnavailableError, get_account_summary
 
 router = APIRouter(prefix="/api/account", tags=["account"])
 
@@ -41,6 +41,7 @@ async def balance(
     try:
         summary = await get_account_summary(settings, mode=mode)
         return {"data": {"mode": mode, "available": True, **summary}}
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, AccountUnavailableError) as exc:
+        # 네트워크 오류 또는 rt_cd≠0(잘못된 계좌 등) → '조회 불가'로 명시(침묵 실패 방지)
         logger.warning("계좌 잔고 조회 실패[%s]: %s", mode, exc)
         return {"data": {"mode": mode, "available": False, **_EMPTY_SUMMARY}}

@@ -28,6 +28,14 @@ _balance_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _balance_locks: dict[str, asyncio.Lock] = {}
 
 
+class AccountUnavailableError(RuntimeError):
+    """잔고 조회가 KIS 오류(rt_cd≠0, 예: 잘못된 계좌)로 실패했을 때 발생.
+
+    HTTP 200이라도 rt_cd≠0이면 값이 비어 오므로, 침묵 실패(빈 값 표시)를 막기 위해
+    예외로 구분한다. 라우터가 이를 잡아 '조회 불가'(available=false)로 응답한다.
+    """
+
+
 def clear_balance_cache() -> None:
     """잔고 원시 응답 캐시를 비운다(테스트·강제 갱신용)."""
     _balance_cache.clear()
@@ -76,8 +84,11 @@ async def _get_balance_raw(
         client = kis_client or KisClient(settings, mode=mode_resolved)
         tr_id = resolve_tr_id("inquire_balance", mode_resolved)
         data = await client.get(_BALANCE_PATH, tr_id, _balance_params(settings, mode_resolved))
-        if data.get("rt_cd") == "0":  # 오류 응답은 캐시하지 않음(다음 호출에서 재시도)
-            _balance_cache[key] = (time.monotonic(), data)
+        # rt_cd≠0(예: INVALID_CHECK_ACNO)이면 값이 비어 오므로 침묵 실패로 두지 않고
+        # 예외로 구분한다(캐시도 안 함 → 다음 호출에서 재시도).
+        if data.get("rt_cd") != "0":
+            raise AccountUnavailableError(data.get("msg1") or "잔고 조회 실패")
+        _balance_cache[key] = (time.monotonic(), data)
         return data
 
 

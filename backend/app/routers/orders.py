@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import get_settings
 from app.db.database import get_db
-from app.kis.orders import cancel_order, get_balance
+from app.kis.orders import AccountUnavailableError, cancel_order, get_balance
 from app.services import audit_service, order_service
 from app.stocks.master import get_name
 
@@ -45,7 +45,7 @@ async def positions(
     settings = get_settings()
     try:
         data = await get_balance(settings, mode=mode)
-    except httpx.HTTPError:
+    except (httpx.HTTPError, AccountUnavailableError):
         data = []
     for d in data:
         d["name"] = get_name(d["symbol"])

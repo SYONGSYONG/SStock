@@ -21,10 +21,10 @@ describe("describeStrategy", () => {
     );
   });
 
-  test("RSI+MA는 RSI/과매도/과매수/MA로 표기", () => {
+  test("RSI+MA는 틱봉/RSI/과매도/과매수/MA로 표기", () => {
     expect(
-      describeStrategy("rsi_ma", { rsi_period: 14, low: 30, high: 70, ma_period: 50 }),
-    ).toBe("RSI + MA · RSI 14 · 과매도 30 / 과매수 70 · MA 50");
+      describeStrategy("rsi_ma", { rsi_period: 14, low: 30, high: 70, ma_period: 50, bar_ticks: 50 }),
+    ).toBe("RSI + MA · 50틱봉 · RSI 14 · 과매도 30 / 과매수 70 · MA 50");
   });
 });
 
@@ -216,7 +216,7 @@ describe("StrategyPanel", () => {
     expect(screen.getByText("기본 20")).toBeInTheDocument();
   });
 
-  test("RSI+MA 선택 시 4개 파라미터(기본값)와 도움말이 뜬다", () => {
+  test("RSI+MA 선택 시 5개 파라미터(기본값)와 도움말이 뜬다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
@@ -225,11 +225,13 @@ describe("StrategyPanel", () => {
     expect((screen.getByLabelText("과매도") as HTMLInputElement).value).toBe("30");
     expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("70");
     expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByLabelText("틱봉") as HTMLInputElement).value).toBe("50");
 
     fireEvent.click(screen.getByRole("button", { name: "RSI + MA 필터 도움말" }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("상승추세일 때만");
-    expect(dialog).toHaveTextContent("추세 MA 50");
+    expect(dialog).toHaveTextContent("추세 이탈");
+    expect(dialog).toHaveTextContent("틱봉 50");
   });
 
   test("RSI로 바꾸면 파라미터 입력도 RSI 기본값으로 초기화", () => {

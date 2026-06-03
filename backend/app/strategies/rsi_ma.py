@@ -1,11 +1,15 @@
-"""RSI + 이동평균(MA) 추세 필터 전략.
+"""RSI + 이동평균(MA) 추세 필터 전략 (틱봉 집계).
 
-추세 필터(MA)로 매수 방향을 거른 뒤 RSI로 진입 타이밍을 잡는다.
-- 매수: 현재가가 추세선(MA) 위에 있는 상승추세에서만, RSI가 과매도(low)를 상향 돌파할 때.
-        → 상승 흐름 속 일시적 눌림목만 매수(하락추세 역행 매수 차단).
-- 매도: RSI가 과매수(high)를 하향 이탈할 때(추세 무관, 과열 시 청산).
+raw 틱은 노이즈가 커서, 원시 틱을 N개씩 묶은 '틱봉'의 종가 위에서 RSI·MA를 계산한다
+(bar_ticks=50 → 50틱봉). bar_ticks=1이면 원시 틱과 동일.
 
-단일 RSI의 약점(강한 하락추세에서 과매도 신호 남발 → 떨어지는 칼날 매수)을 MA 필터로 막는다.
+매매 규칙(틱봉 종가 기준):
+- 매수: 현재가 > MA(상승추세) **그리고** RSI가 과매도(low)를 아래→위로 회복.
+- 매도(둘 중 하나): RSI가 과매수(high)를 위→아래로 이탈, **또는** 현재가가 MA를
+        위→아래로 하향 돌파(추세 이탈 청산 = 안전장치). 추세선이 깨지는 그 순간만 1회.
+
+단일 RSI의 약점(하락추세에서 과매도 신호 남발)을 MA 필터로 막고, 매수 근거(추세)가
+깨지면(현재가 < MA) 즉시 빠져나와 하방을 제한한다.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ class RsiMaStrategy:
     low: float = 30.0
     high: float = 70.0
     ma_period: int = 50
+    bar_ticks: int = 50
     name: str = "rsi_ma"
 
     def __post_init__(self) -> None:
@@ -31,44 +36,66 @@ class RsiMaStrategy:
             raise ValueError("rsi_period는 2 이상이어야 합니다")
         if self.ma_period < 2:
             raise ValueError("ma_period는 2 이상이어야 합니다")
+        if self.bar_ticks < 1:
+            raise ValueError("bar_ticks는 1 이상이어야 합니다")
         if not (0 < self.low < self.high < 100):
             raise ValueError("0 < low < high < 100 이어야 합니다")
 
+    def _to_bars(self, closes: list[float]) -> list[float]:
+        """원시 틱 종가열을 bar_ticks개씩 묶어 각 틱봉의 종가열로 변환한다.
+
+        가장 최근 틱이 마지막 봉의 종가가 되도록 뒤에서부터 bar_ticks 간격으로 추출한다.
+        """
+        if self.bar_ticks <= 1:
+            return list(closes)
+        idxs = list(range(len(closes) - 1, -1, -self.bar_ticks))
+        idxs.reverse()
+        return [closes[i] for i in idxs]
+
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
-        # RSI는 직전·현재 2개 값이, MA는 현재 값이 필요하다.
-        if len(closes) < max(self.rsi_period + 2, self.ma_period + 1):
+        bars = self._to_bars(closes)
+        # RSI는 직전·현재 2개, MA는 직전·현재 2개(크로스 판정) 값이 필요하다.
+        if len(bars) < max(self.rsi_period + 2, self.ma_period + 1):
             return None
 
-        rsi_values = rsi(closes, self.rsi_period)
-        ma_values = sma(closes, self.ma_period)
-        prev = rsi_values.iloc[-2]
-        cur = rsi_values.iloc[-1]
-        ma_now = ma_values.iloc[-1]
-        if pd.isna(prev) or pd.isna(cur) or pd.isna(ma_now):
+        rsi_values = rsi(bars, self.rsi_period)
+        ma_values = sma(bars, self.ma_period)
+        prev_rsi = rsi_values.iloc[-2]
+        cur_rsi = rsi_values.iloc[-1]
+        prev_ma = ma_values.iloc[-2]
+        cur_ma = ma_values.iloc[-1]
+        if pd.isna(prev_rsi) or pd.isna(cur_rsi) or pd.isna(prev_ma) or pd.isna(cur_ma):
             return None
 
-        price = closes[-1]
+        prev_price = bars[-2]
+        cur_price = bars[-1]
+        order_price = closes[-1]  # 실제 주문가는 최신 틱
 
-        # 매수: 상승추세(현재가 > MA) + RSI 과매도 상향 돌파
-        if price > ma_now and prev <= self.low < cur:
+        # 매수: 현재가 > MA(상승추세) + RSI 과매도 상향 돌파
+        if cur_price > cur_ma and prev_rsi < self.low <= cur_rsi:
             return Signal(
                 symbol=symbol,
                 strategy=self.name,
                 side="BUY",
-                price=price,
-                reason=(
-                    f"상승추세(>MA{self.ma_period}) RSI 과매도 탈출 {prev:.1f}→{cur:.1f}"
-                ),
+                price=order_price,
+                reason=f"상승추세(현재가>MA{self.ma_period}) RSI 과매도 회복 {prev_rsi:.1f}→{cur_rsi:.1f}",
             )
 
-        # 매도: RSI 과매수 하향 이탈(추세 무관 청산)
-        if prev >= self.high > cur:
+        # 매도: RSI 과매수 하향 이탈 OR 추세 이탈(현재가가 MA 하향 돌파)
+        rsi_overbought_exit = prev_rsi > self.high >= cur_rsi
+        ma_breakdown = prev_price >= prev_ma and cur_price < cur_ma
+        if rsi_overbought_exit or ma_breakdown:
+            reason = (
+                f"RSI 과매수 이탈 {prev_rsi:.1f}→{cur_rsi:.1f}"
+                if rsi_overbought_exit
+                else f"추세 이탈(현재가<MA{self.ma_period})"
+            )
             return Signal(
                 symbol=symbol,
                 strategy=self.name,
                 side="SELL",
-                price=price,
-                reason=f"RSI 과매수 이탈 {prev:.1f}→{cur:.1f}",
+                price=order_price,
+                reason=reason,
             )
 
         return None

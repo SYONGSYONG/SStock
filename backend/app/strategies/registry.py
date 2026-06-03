@@ -31,5 +31,6 @@ def build_strategy(name: str, params: dict[str, Any] | None = None) -> Strategy:
             low=float(params.get("low", 30.0)),
             high=float(params.get("high", 70.0)),
             ma_period=int(params.get("ma_period", 50)),
+            bar_ticks=int(params.get("bar_ticks", 50)),
         )
     raise ValueError(f"알 수 없는 전략: {name}")

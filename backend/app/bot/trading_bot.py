@@ -23,7 +23,9 @@ OrderSyncer = Callable[[str, str], Awaitable[list[dict[str, Any]]]]
 Broadcaster = Callable[[dict[str, Any]], Awaitable[None]]
 
 _DEFAULT_QTY = 1
-_HISTORY_SIZE = 300
+# 틱봉 집계 전략(rsi_ma: 50틱봉×MA50 ≈ 2,550틱, 100틱봉 ≈ 5,100틱) 지원을 위해
+# 원시 틱을 넉넉히 보관한다. float 6천 개라 메모리 부담은 사소하다.
+_HISTORY_SIZE = 6000
 _SYNC_INTERVAL_SEC = 3.0
 _FINAL_STATUSES = {"rejected"}
 

@@ -33,7 +33,7 @@ export function BotControl({ running, mode, onStart, onStop, error }: BotControl
           봇 정지
         </button>
       ) : (
-        <button className={isLive ? "btn-start-live" : "btn-start"} onClick={handleStart}>
+        <button className="btn-start" onClick={handleStart}>
           {isLive ? "봇 시작 (실전)" : "봇 시작"}
         </button>
       )}

@@ -182,17 +182,17 @@
 
 ---
 
-## Phase 9 — 종목 차트 (일봉/분봉 모달, 완료)
+## Phase 9 — 종목 차트 (일봉/주봉/분봉 모달, 완료)
 
-목표: 관심종목 클릭 → 캔들차트 모달(일봉/분봉 토글). 설계: `docs/07-chart.md`.
+목표: 관심종목 클릭 → 캔들차트 모달(일봉/주봉/분봉 토글). 설계: `docs/07-chart.md`.
 (Phase 6 #1 "분봉/일봉 차트"를 충족한다.)
 
-> 결정: 일봉/분봉 토글 · **lightweight-charts** 도입(사용자 승인) · 모달 팝업.
+> 결정: 일봉/주봉/분봉 토글 · **lightweight-charts** 도입(사용자 승인) · 모달 팝업.
 
 | # | 단계 | 검증 | 상태 |
 |---|------|------|------|
-| 1 | `kis/charts.py`(일봉/분봉 파싱·graceful) + `/api/charts/{symbol}` 라우터 | 일봉·분봉·graceful·엔드포인트·interval검증 5건 | ✅ |
-| 2 | `ChartModal`(lightweight-charts, 일봉/분봉 토글·닫기) + WatchList 클릭 연동 | Vitest 8건(모듈 모킹) + tsc + build | ✅ |
+| 1 | `kis/charts.py`(일봉/주봉/분봉 파싱·graceful) + `/api/charts/{symbol}` 라우터 | 일봉·분봉·graceful·엔드포인트·interval검증 5건 | ✅ |
+| 2 | `ChartModal`(lightweight-charts, 일봉/주봉/분봉 토글·닫기) + WatchList 클릭 연동 | Vitest 8건(모듈 모킹) + tsc + build | ✅ |
 | 3 | 차트 모달 지연 로딩(코드 스플리팅)으로 초기 번들 분리 | 빌드 청크 분리 확인(초기 68KB gzip 복귀) | ✅ |
 
 > 검증: 백엔드 `pytest` 신규 5건(전체 98건), 프론트 `vitest` 신규 8건(전체 41건) 통과.
@@ -216,7 +216,7 @@
 | Phase 6 — 후속 보강 | 6 | 1 | 17% ⬜ (#1 차트는 Phase 9에서 완료, 나머지 선택 진행) |
 | Phase 7 — 분야별 추천 종목 | 6 | 6 | 100% ✅ (코드리뷰 반영 완료) |
 | Phase 8 — 계좌 잔고 + 칸막이 설정가능금액 | 4 | 4 | 100% ✅ |
-| Phase 9 — 종목 차트(일봉/분봉 모달) | 3 | 3 | 100% ✅ |
+| Phase 9 — 종목 차트(일봉/주봉/분봉 모달) | 3 | 3 | 100% ✅ |
 
 > MVP(Phase 0~5)는 완료. Phase 6은 선택적 보강 항목. Phase 7은 백엔드+프론트 구현 완료
 > (백엔드 pytest 93건 + 프론트 vitest 26건 통과). 코드리뷰 반영 완료: 동시성 제한(세마포어5)

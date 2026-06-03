@@ -1,9 +1,11 @@
 ﻿import { useEffect, useState } from "react";
-import type { RecommendItem, RecommendResult, ThemeInfo } from "../types";
+import type { RecommendCandidate, RecommendItem, RecommendQuote, RecommendResult, ThemeInfo } from "../types";
+import type { RecommendStreamHandlers } from "../api/client";
 
 interface RecommendPageProps {
   fetchThemes: () => Promise<ThemeInfo[]>;
-  fetchRecommend: (
+  subscribeRecommend?: (theme: string, limit: number, handlers: RecommendStreamHandlers) => () => void;
+  fetchRecommend?: (
     theme: string,
     limit?: number,
     signal?: AbortSignal,
@@ -12,10 +14,19 @@ interface RecommendPageProps {
   onSelect?: (symbol: string, name?: string | null) => void;
 }
 
-export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: RecommendPageProps) {
+export function RecommendPage({
+  fetchThemes,
+  subscribeRecommend,
+  fetchRecommend,
+  onAdd,
+  onSelect,
+}: RecommendPageProps) {
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [active, setActive] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<RecommendCandidate[]>([]);
+  const [quotes, setQuotes] = useState<Record<string, RecommendQuote>>({});
   const [result, setResult] = useState<RecommendResult | null>(null);
+  const [baseDate, setBaseDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,33 +36,73 @@ export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: 
       .catch(() => setError("테마 목록을 불러오지 못했습니다."));
   }, [fetchThemes]);
 
-  // 분야 선택 시 추천을 조회한다. 로딩 중 다른 분야를 누르면 cleanup이
-  // 이전 요청을 abort하고 stale 응답을 무시한다(ChartModal의 alive 패턴과 동일).
+  // 분야 선택 시 추천을 조회한다.
+  // subscribeRecommend가 있으면 스트리밍, 아니면 폴백으로 fetchRecommend 사용.
   useEffect(() => {
     if (!active) return;
     let alive = true;
-    const controller = new AbortController();
+
+    // 상태 초기화
+    setCandidates([]);
+    setQuotes({});
+    setResult(null);
+    setBaseDate(null);
     setLoading(true);
     setError(null);
-    setResult(null);
-    fetchRecommend(active, undefined, controller.signal)
-      .then((data) => {
-        if (!alive) return;
-        setResult(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!alive) return;
-        // 의도적 취소(AbortError)는 오류로 표시하지 않는다.
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError("추천 종목을 불러오지 못했습니다.");
-        setLoading(false);
+
+    // subscribeRecommend가 있으면 스트리밍 사용
+    if (subscribeRecommend) {
+      const unsub = subscribeRecommend(active, 10, {
+        onCandidates: (c) => {
+          if (!alive) return;
+          setCandidates(c.candidates);
+          setBaseDate(c.base_date);
+        },
+        onQuote: (q) => {
+          if (!alive) return;
+          setQuotes((prev) => ({ ...prev, [q.symbol]: q }));
+        },
+        onResult: (r) => {
+          if (!alive) return;
+          setResult(r);
+          setLoading(false);
+        },
+        onError: () => {
+          if (!alive) return;
+          setError("추천 종목을 불러오지 못했습니다.");
+          setLoading(false);
+        },
       });
-    return () => {
-      alive = false;
-      controller.abort();
-    };
-  }, [active, fetchRecommend]);
+
+      return () => {
+        alive = false;
+        unsub();
+      };
+    }
+
+    // 폴백: fetchRecommend 사용 (스트리밍이 없을 때)
+    if (fetchRecommend) {
+      const controller = new AbortController();
+      fetchRecommend(active, undefined, controller.signal)
+        .then((data) => {
+          if (!alive) return;
+          setResult(data);
+          setBaseDate(data.base_date);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (!alive) return;
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          setError("추천 종목을 불러오지 못했습니다.");
+          setLoading(false);
+        });
+
+      return () => {
+        alive = false;
+        controller.abort();
+      };
+    }
+  }, [active, subscribeRecommend, fetchRecommend]);
 
   const pick = (slug: string) => setActive(slug);
 
@@ -75,11 +126,10 @@ export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: 
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="muted">불러오는 중...</p>}
 
-      {result && !loading && (
+      {result && !loading ? (
         <>
-          {result.base_date && <p className="muted base-date">기준일: {result.base_date}</p>}
+          {baseDate && <p className="muted base-date">기준일: {baseDate}</p>}
           <div className="rec-grid">
             {result.items.map((it, i) => (
               <RecommendCard
@@ -95,7 +145,33 @@ export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: 
             <p className="empty">해당 분야의 추천 종목이 없습니다</p>
           )}
         </>
-      )}
+      ) : candidates.length > 0 ? (
+        <>
+          {baseDate && <p className="muted base-date">기준일: {baseDate}</p>}
+          {loading && (
+            <p className="muted">
+              {themes.find((t) => t.slug === active)?.label || "분야"} 불러오는 중...{" "}
+              ({Object.keys(quotes).length}/{candidates.length})
+            </p>
+          )}
+          <div className="rec-grid">
+            {candidates.map((cand, i) => (
+              <RecommendSkeletonCard
+                key={cand.symbol}
+                rank={i + 1}
+                candidate={cand}
+                quote={quotes[cand.symbol] || null}
+                onAdd={onAdd}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </>
+      ) : loading ? (
+        <p className="muted">
+          {themes.find((t) => t.slug === active)?.label || "분야"} 불러오는 중...
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -189,5 +265,108 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
       </span>
       <span className="bar-val">{Math.round(value)}</span>
     </div>
+  );
+}
+
+interface RecommendSkeletonCardProps {
+  rank: number;
+  candidate: RecommendCandidate;
+  quote: RecommendQuote | null;
+  onAdd: (symbol: string, name?: string) => void;
+  onSelect?: (symbol: string, name?: string | null) => void;
+}
+
+function RecommendSkeletonCard({
+  rank,
+  candidate,
+  quote,
+  onAdd,
+  onSelect,
+}: RecommendSkeletonCardProps) {
+  const clickable = onSelect != null;
+  const openChart = () => onSelect?.(candidate.symbol, candidate.name);
+
+  return (
+    <article
+      className={"rec-card skeleton" + (clickable ? " clickable" : "")}
+      onClick={clickable ? openChart : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-label={clickable ? `${candidate.name} 차트 보기` : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openChart();
+              }
+            }
+          : undefined
+      }
+    >
+      <header className="rec-head">
+        <span className="rank">{rank}</span>
+        <div className="rec-name">
+          <strong>{candidate.name || candidate.symbol}</strong>
+          <span className="code muted">
+            {candidate.symbol} · {candidate.market}
+          </span>
+        </div>
+        <span className="rec-score" style={{ color: "#ddd" }}>
+          ...
+        </span>
+      </header>
+
+      <div className="rec-price">
+        <span className="now">
+          {quote?.price != null ? quote.price.toLocaleString() : "—"}
+        </span>
+        <span className={quote?.change_rate != null ? changeClass(quote.change_rate) : "muted"}>
+          {quote?.change_rate != null
+            ? `${quote.change_rate > 0 ? "+" : ""}${quote.change_rate.toFixed(2)}%`
+            : "—"}
+        </span>
+      </div>
+
+      <div className="rec-bars">
+        <div className="bar-row" style={{ opacity: 0.4 }}>
+          <span className="bar-label">모멘텀</span>
+          <span className="bar-track">
+            <span className="bar-fill" style={{ width: "0%" }} />
+          </span>
+          <span className="bar-val">...</span>
+        </div>
+        <div className="bar-row" style={{ opacity: 0.4 }}>
+          <span className="bar-label">펀더멘털</span>
+          <span className="bar-track">
+            <span className="bar-fill" style={{ width: "0%" }} />
+          </span>
+          <span className="bar-val">...</span>
+        </div>
+        <div className="bar-row" style={{ opacity: 0.4 }}>
+          <span className="bar-label">수급</span>
+          <span className="bar-track">
+            <span className="bar-fill" style={{ width: "0%" }} />
+          </span>
+          <span className="bar-val">...</span>
+        </div>
+      </div>
+
+      <div className="rec-meta muted" style={{ opacity: 0.5 }}>
+        <span>ROE —</span>
+        {clickable && <span className="chart-hint">클릭 시 차트</span>}
+      </div>
+
+      <button
+        type="button"
+        className="add-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd(candidate.symbol, candidate.name ?? undefined);
+        }}
+      >
+        관심종목 추가
+      </button>
+    </article>
   );
 }

@@ -27,6 +27,7 @@ import {
   startMarket,
   stopBot,
   stopMarket,
+  subscribeRecommend,
 } from "./api/client";
 import { ModeBanner } from "./components/ModeBanner";
 import { WatchList } from "./components/WatchList";
@@ -205,6 +206,7 @@ export function App() {
       {tab === "recommend" ? (
         <RecommendPage
           fetchThemes={getThemes}
+          subscribeRecommend={subscribeRecommend}
           fetchRecommend={getRecommend}
           onAdd={handleAddWatch}
           onSelect={(symbol, name) => setChartTarget({ symbol, name })}

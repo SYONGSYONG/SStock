@@ -90,7 +90,7 @@ export interface AuditLog {
   created_at: string;
 }
 
-export type ChartInterval = "daily" | "minute";
+export type ChartInterval = "daily" | "weekly" | "minute";
 
 export interface Candle {
   time: string | number; // 일봉: "YYYY-MM-DD", 분봉: UNIX 초
@@ -151,4 +151,23 @@ export interface RecommendResult {
   theme: string;
   base_date: string | null;
   items: RecommendItem[];
+}
+
+export interface RecommendCandidate {
+  symbol: string;
+  name: string | null;
+  market: string | null;
+}
+
+export interface RecommendCandidates {
+  theme: string;
+  base_date: string | null;
+  candidates: RecommendCandidate[];
+}
+
+export interface RecommendQuote {
+  symbol: string;
+  price: number | null;
+  change_rate: number | null;
+  volume: number | null;
 }

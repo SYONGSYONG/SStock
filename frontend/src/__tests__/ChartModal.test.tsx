@@ -3,7 +3,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { ChartModal } from "../components/ChartModal";
 import type { ChartData, ChartInterval } from "../types";
 
-// lightweight-charts는 jsdom canvas 미지원 → 모듈 모킹
 vi.mock("lightweight-charts", () => {
   const series = {
     setData: vi.fn(),
@@ -22,7 +21,6 @@ vi.mock("lightweight-charts", () => {
   };
 });
 
-// ChartModal 내부 자동 재시도 횟수와 맞춰 둔다(초기 1 + 자동 MAX_AUTO_RETRIES회).
 const MAX_AUTO_RETRIES = 2;
 
 const DAILY: ChartData = {
@@ -37,31 +35,38 @@ const DAILY: ChartData = {
 afterEach(() => vi.clearAllMocks());
 
 describe("ChartModal", () => {
-  test("심볼/이름과 일봉·분봉 토글을 표시", async () => {
+  test("일봉/주봉/분봉 토글을 보여준다", async () => {
     const fetchChart = vi.fn().mockResolvedValue(DAILY);
-    render(
-      <ChartModal symbol="005930" name="삼성전자" fetchChart={fetchChart} onClose={() => {}} />,
-    );
+    render(<ChartModal symbol="005930" name="삼성전자" fetchChart={fetchChart} onClose={() => {}} />);
     expect(screen.getByText("005930")).toBeInTheDocument();
     expect(screen.getByText("삼성전자")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "일봉" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "주봉" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "분봉" })).toBeInTheDocument();
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily"));
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
   });
 
-  test("분봉 토글 시 minute로 재조회", async () => {
+  test("주봉 탭을 누르면 weekly로 재조회한다", async () => {
     const fetchChart = vi
       .fn()
-      .mockImplementation((_s: string, iv: ChartInterval) =>
-        Promise.resolve({ ...DAILY, interval: iv }),
-      );
+      .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily"));
-    fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "minute"));
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
+    fireEvent.click(screen.getByRole("tab", { name: "주봉" }));
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "weekly", expect.any(AbortSignal)));
   });
 
-  test("닫기 버튼 클릭 시 onClose 호출", async () => {
+  test("분봉 탭을 누르면 minute으로 재조회한다", async () => {
+    const fetchChart = vi
+      .fn()
+      .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
+    render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
+    fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "minute", expect.any(AbortSignal)));
+  });
+
+  test("닫기 버튼 클릭 시 onClose를 호출한다", async () => {
     const onClose = vi.fn();
     const fetchChart = vi.fn().mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={onClose} />);
@@ -69,7 +74,7 @@ describe("ChartModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("Esc 키로 닫기", async () => {
+  test("Esc 키로 닫는다", async () => {
     const onClose = vi.fn();
     const fetchChart = vi.fn().mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={onClose} />);
@@ -77,31 +82,28 @@ describe("ChartModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("끝까지 빈 캔들이면 데이터 없음 안내", async () => {
+  test("빈 캔들이면 데이터 없음 안내를 보여준다", async () => {
     const fetchChart = vi.fn().mockResolvedValue({ ...DAILY, candles: [] });
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
     await waitFor(
       () => expect(screen.getByText("차트 데이터가 없습니다")).toBeInTheDocument(),
       { timeout: 4000 },
     );
-    // 빈 응답도 일시적일 수 있어 재시도(초기 1 + 자동 2 = 3회)한 뒤 안내한다
     expect(fetchChart).toHaveBeenCalledTimes(1 + MAX_AUTO_RETRIES);
   });
 
-  test("빈 응답이 일시적이면 자동 재시도로 데이터 표시", async () => {
+  test("빈 캔들이면 자동 재시도 후 복구된 데이터를 보여준다", async () => {
     const fetchChart = vi
       .fn()
       .mockResolvedValueOnce({ ...DAILY, candles: [] })
       .mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    // 첫 빈 응답 → 자동 재시도로 두 번째 호출에서 데이터 확보
     await waitFor(() => expect(fetchChart).toHaveBeenCalledTimes(2), { timeout: 2000 });
-    // 복구되었으므로 빈상태/오류 안내가 없어야 한다
     expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
     expect(screen.queryByText("차트 데이터를 불러올 수 없습니다")).not.toBeInTheDocument();
   });
 
-  test("일시 실패 후 자동 재시도로 복구", async () => {
+  test("실패 후 자동 재시도로 복구한다", async () => {
     const fetchChart = vi
       .fn()
       .mockRejectedValueOnce(new Error("503"))
@@ -112,14 +114,13 @@ describe("ChartModal", () => {
     expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
   });
 
-  test("계속 실패하면 오류 안내 후 무한 재시도하지 않음", async () => {
+  test("연속 실패 시 오류 안내를 보여준다", async () => {
     const fetchChart = vi.fn().mockRejectedValue(new Error("fail"));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
     await waitFor(
       () => expect(screen.getByText("차트 데이터를 불러올 수 없습니다")).toBeInTheDocument(),
       { timeout: 4000 },
     );
-    // 초기 1 + 자동 2 = 3회로 멈춘다
     expect(fetchChart).toHaveBeenCalledTimes(1 + MAX_AUTO_RETRIES);
   });
 });

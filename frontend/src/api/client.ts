@@ -9,6 +9,8 @@ import type {
   Order,
   Position,
   Quote,
+  RecommendCandidates,
+  RecommendQuote,
   RecommendResult,
   Signal,
   StockSearchResult,
@@ -100,8 +102,8 @@ export const getPositions = () => api<Position[]>("/api/positions");
 
 export const getAccountBalance = () => api<AccountBalance>("/api/account/balance");
 
-export const getChart = (symbol: string, interval: ChartInterval = "daily") =>
-  api<ChartData>(`/api/charts/${symbol}?interval=${interval}`);
+export const getChart = (symbol: string, interval: ChartInterval = "daily", signal?: AbortSignal) =>
+  api<ChartData>(`/api/charts/${symbol}?interval=${interval}`, { signal });
 
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
 
@@ -120,3 +122,41 @@ export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");
 
 export const getRecommend = (theme: string, limit = 10, signal?: AbortSignal) =>
   api<RecommendResult>(`/api/recommend/${theme}?limit=${limit}`, { signal });
+
+export interface RecommendStreamHandlers {
+  onCandidates: (c: RecommendCandidates) => void;
+  onQuote: (q: RecommendQuote) => void;
+  onResult: (r: RecommendResult) => void;
+  onError: () => void;
+}
+
+export function subscribeRecommend(
+  theme: string,
+  limit: number,
+  handlers: RecommendStreamHandlers,
+): () => void {
+  const es = new EventSource(`/api/recommend/${theme}/stream?limit=${limit}`);
+
+  es.addEventListener("candidates", (e) => {
+    const event = e as MessageEvent;
+    handlers.onCandidates(JSON.parse(event.data) as RecommendCandidates);
+  });
+
+  es.addEventListener("quote", (e) => {
+    const event = e as MessageEvent;
+    handlers.onQuote(JSON.parse(event.data) as RecommendQuote);
+  });
+
+  es.addEventListener("result", (e) => {
+    const event = e as MessageEvent;
+    handlers.onResult(JSON.parse(event.data) as RecommendResult);
+    es.close();
+  });
+
+  es.addEventListener("error", () => {
+    handlers.onError();
+    es.close();
+  });
+
+  return () => es.close();
+}

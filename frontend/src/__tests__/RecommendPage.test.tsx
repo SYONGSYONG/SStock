@@ -1,11 +1,17 @@
 ﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { RecommendPage } from "../components/RecommendPage";
-import type { RecommendResult, ThemeInfo } from "../types";
+import type { RecommendCandidate, RecommendResult, ThemeInfo } from "../types";
+import type { RecommendStreamHandlers } from "../api/client";
 
 const THEMES: ThemeInfo[] = [
   { slug: "semiconductor", label: "반도체", count: 7 },
   { slug: "auto", label: "자동차", count: 17 },
+];
+
+const CANDIDATES: RecommendCandidate[] = [
+  { symbol: "000660", name: "SK하이닉스", market: "KOSPI" },
+  { symbol: "005930", name: "삼성전자", market: "KOSPI" },
 ];
 
 const RESULT: RecommendResult = {
@@ -27,20 +33,63 @@ const RESULT: RecommendResult = {
   ],
 };
 
-function setup() {
+function createMockSubscribeRecommend(
+  delays: { candidates?: number; quotes?: number; result?: number } = {},
+) {
+  return vi.fn(
+    (theme: string, _limit: number, handlers: RecommendStreamHandlers) => {
+      // 비동기로 이벤트 발송
+      (async () => {
+        await new Promise((r) => setTimeout(r, delays.candidates ?? 0));
+        handlers.onCandidates({
+          theme,
+          base_date: "20260331",
+          candidates: CANDIDATES,
+        });
+
+        await new Promise((r) => setTimeout(r, delays.quotes ?? 10));
+        // 각 후보에 대해 quote 발송
+        handlers.onQuote({
+          symbol: "000660",
+          price: 180000,
+          change_rate: 3.2,
+          volume: 1000000,
+        });
+
+        await new Promise((r) => setTimeout(r, 10));
+        handlers.onQuote({
+          symbol: "005930",
+          price: 70000,
+          change_rate: 1.5,
+          volume: 5000000,
+        });
+
+        await new Promise((r) => setTimeout(r, delays.result ?? 10));
+        handlers.onResult(RESULT);
+      })();
+
+      // unsubscribe 함수 반환
+      return vi.fn();
+    },
+  );
+}
+
+function setup(
+  options: { subscribeRecommend?: ReturnType<typeof createMockSubscribeRecommend> } = {},
+) {
   const fetchThemes = vi.fn(async () => THEMES);
-  const fetchRecommend = vi.fn(async () => RESULT);
+  const subscribeRecommend = options.subscribeRecommend ?? createMockSubscribeRecommend();
   const onAdd = vi.fn();
   const onSelect = vi.fn();
   render(
     <RecommendPage
       fetchThemes={fetchThemes}
-      fetchRecommend={fetchRecommend}
+      subscribeRecommend={subscribeRecommend}
       onAdd={onAdd}
       onSelect={onSelect}
     />,
   );
-  return { fetchThemes, fetchRecommend, onAdd, onSelect };
+  return { fetchThemes, subscribeRecommend, onAdd, onSelect };
 }
 
 describe("RecommendPage", () => {
@@ -50,30 +99,59 @@ describe("RecommendPage", () => {
     expect(screen.getByText("자동차")).toBeInTheDocument();
   });
 
-  test("테마를 선택하면 추천 종목을 조회한다", async () => {
-    const { fetchRecommend } = setup();
+  test("테마를 선택하면 스트리밍으로 추천 종목을 조회한다", async () => {
+    const { subscribeRecommend } = setup();
     fireEvent.click(await screen.findByText("반도체"));
+
+    // result 이벤트가 오면 최종 카드가 나타남
     expect(await screen.findByText("SK하이닉스")).toBeInTheDocument();
-    expect(fetchRecommend).toHaveBeenCalledWith(
+    expect(subscribeRecommend).toHaveBeenCalledWith(
       "semiconductor",
-      undefined,
-      expect.any(AbortSignal),
+      10,
+      expect.any(Object),
     );
   });
 
-  test("추천 카드에 현재가와 등락률을 보여준다", async () => {
+  test("스켈레톤은 candidates 이벤트 후 바로 나타난다", async () => {
+    const subscribeRecommend = createMockSubscribeRecommend({
+      candidates: 0,
+      quotes: 100,
+      result: 200,
+    });
+    setup({ subscribeRecommend });
+
+    fireEvent.click(await screen.findByText("반도체"));
+
+    // candidates 이벤트 후 스켈레톤이 나타나야 함
+    // 스켈레톤은 skeleton 클래스가 있고, candidates의 name들이 표시됨
+    expect(await screen.findByText("SK하이닉스")).toBeInTheDocument();
+  });
+
+  test("quote 이벤트로 현재가가 채워진다", async () => {
     setup();
     fireEvent.click(await screen.findByText("반도체"));
-    await screen.findByText("SK하이닉스");
-    expect(screen.getByText("180,000")).toBeInTheDocument();
+
+    // quote 이벤트 후 가격이 나타남
+    expect(await screen.findByText("180,000")).toBeInTheDocument();
     expect(screen.getByText("+3.20%")).toBeInTheDocument();
+  });
+
+  test("result 이벤트로 최종 카드와 점수가 나타난다", async () => {
+    setup();
+    fireEvent.click(await screen.findByText("반도체"));
+
+    // 최종 카드의 점수가 표시되어야 함
+    expect(await screen.findByText(/87\.4/)).toBeInTheDocument();
   });
 
   test("카드를 클릭하면 onSelect(symbol, name)를 호출한다", async () => {
     const { onSelect } = setup();
     fireEvent.click(await screen.findByText("반도체"));
     await screen.findByText("SK하이닉스");
-    fireEvent.click(screen.getByRole("button", { name: /SK하이닉스 차트 보기/ }));
+
+    // 최종 카드 클릭
+    const card = screen.getByRole("button", { name: /SK하이닉스 차트 보기/ });
+    fireEvent.click(card);
     expect(onSelect).toHaveBeenCalledWith("000660", "SK하이닉스");
   });
 
@@ -81,58 +159,63 @@ describe("RecommendPage", () => {
     const { onAdd, onSelect } = setup();
     fireEvent.click(await screen.findByText("반도체"));
     await screen.findByText("SK하이닉스");
-    fireEvent.click(screen.getByRole("button", { name: /관심종목 추가/ }));
+
+    const addBtn = screen.getAllByRole("button", { name: /관심종목 추가/ })[0];
+    fireEvent.click(addBtn);
     expect(onAdd).toHaveBeenCalledWith("000660", "SK하이닉스");
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  test("로딩 중 다른 분야를 누르면 늦게 온 이전 응답이 새 분야를 덮어쓰지 않는다", async () => {
-    const AUTO: RecommendResult = {
-      theme: "auto",
-      base_date: "20260331",
-      items: [
-        {
-          symbol: "005380",
-          name: "현대차",
-          market: "KOSPI",
-          score: 70,
-          momentum: 70,
-          fundamental: 70,
-          supply: 70,
-          price: 250000,
-          change_rate: 1.0,
-          roe: 10,
-        },
-      ],
-    };
-    const fetchThemes = vi.fn(async () => THEMES);
-    // 반도체는 느리게(120ms), 자동차는 빠르게(20ms) 응답 → 완료 순서가 뒤집힘
-    const fetchRecommend = vi.fn(
-      (theme: string) =>
-        new Promise<RecommendResult>((resolve) => {
-          if (theme === "semiconductor") setTimeout(() => resolve(RESULT), 120);
-          else setTimeout(() => resolve(AUTO), 20);
-        }),
-    );
-    render(
-      <RecommendPage
-        fetchThemes={fetchThemes}
-        fetchRecommend={fetchRecommend}
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />,
-    );
+  test("로딩 중 다른 분야를 누르면 stale 결과가 화면을 덮어쓰지 않는다", async () => {
+    // 반도체는 느리게(150ms), 자동차는 빠르게(50ms) result 발송
+    const semiconductorSubscribe = createMockSubscribeRecommend({
+      result: 150,
+    });
+    const autoSubscribe = createMockSubscribeRecommend({
+      candidates: 0,
+      quotes: 10,
+      result: 50,
+    });
+
+    const subscribeRecommend2 = vi.fn((theme: string, lim: number, handlers) => {
+      if (theme === "semiconductor") {
+        return semiconductorSubscribe(theme, lim, handlers);
+      } else {
+        return autoSubscribe(theme, lim, handlers);
+      }
+    });
+
+    setup({ subscribeRecommend: subscribeRecommend2 });
 
     fireEvent.click(await screen.findByText("반도체")); // 느린 요청 시작
-    fireEvent.click(screen.getByText("자동차")); // 빠른 요청 시작(이전 요청 abort)
+    await waitFor(() => expect(screen.getByText("SK하이닉스")).toBeInTheDocument()); // 스켈레톤 나타남
 
-    // 최신 선택(자동차) 결과가 표시되어야 한다
-    expect(await screen.findByText("현대차")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("자동차")); // 빠른 요청 시작
 
-    // 늦게 도착하는 반도체 응답(120ms)이 화면을 덮어쓰면 안 된다
-    await waitFor(() => expect(fetchRecommend).toHaveBeenCalledTimes(2));
-    await new Promise((r) => setTimeout(r, 200));
-    expect(screen.queryByText("SK하이닉스")).not.toBeInTheDocument();
-    expect(screen.getByText("현대차")).toBeInTheDocument();
+    // 빠른 요청(자동차) result가 먼저 도착하고 표시되어야 함
+    await waitFor(() =>
+      expect(screen.queryByText("SK하이닉스")).not.toBeInTheDocument(),
+    );
+  });
+
+  test("로딩 중 선택한 분야명과 진행률을 표시한다", async () => {
+    const subscribeRecommend = createMockSubscribeRecommend({
+      candidates: 10,
+      quotes: 100,
+      result: 200,
+    });
+    setup({ subscribeRecommend });
+
+    fireEvent.click(await screen.findByText("반도체"));
+
+    // candidates 이벤트 후 로딩 문구가 "0/2" 진행률로 표시됨
+    expect(await screen.findByText(/반도체 불러오는 중\.\.\. \(0\/2\)/)).toBeInTheDocument();
+
+    // quotes가 들어오면 진행률이 업데이트됨
+    await waitFor(() =>
+      expect(
+        screen.getByText(/반도체 불러오는 중\.\.\. \([12]\/2\)/),
+      ).toBeInTheDocument(),
+    );
   });
 });

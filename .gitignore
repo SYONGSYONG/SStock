@@ -38,13 +38,16 @@ dist/
 
 # ===== 임시 / 추출 산출물 =====
 Reference/API_DOC/*.txt
+_tmp/
 
 # ===== Playwright / 테스트 스크린샷 =====
 **/.playwright-mcp/
 sstock-*.png
+recommend-*.png
 
 # ===== 실행 로그 =====
 logs/
+*.log
 
 # ===== OS / 에디터 =====
 .DS_Store

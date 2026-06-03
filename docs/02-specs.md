@@ -94,10 +94,10 @@
 
 | 엔드포인트 | 설명 | 출처 |
 |-----------|------|------|
-| `GET /api/charts/{symbol}?interval=daily\|minute` | 일봉(최근 ~100영업일)/분봉(당일) 캔들 | 기간별시세 `FHKST03010100` / 당일분봉 `FHKST03010200` |
+| `GET /api/charts/{symbol}?interval=daily\|weekly\|minute` | 일봉(최근 ~100영업일)/주봉(최근 ~100주)/분봉(당일) 캔들 | 기간별시세 `FHKST03010100` / 당일분봉 `FHKST03010200` |
 
 - 응답: `{ "data": { "symbol", "interval", "candles": [ { "time", "open", "high", "low", "close", "volume" } ] } }` (시간 오름차순).
-- 일봉 `time`=`"YYYY-MM-DD"`, 분봉 `time`=UNIX 초(KST 벽시계→UTC 환산). KIS 오류 시 빈 캔들 graceful.
+- 일봉/주봉 `time`=`"YYYY-MM-DD"`, 분봉 `time`=UNIX 초(KST 벽시계→UTC 환산). KIS 오류 시 빈 캔들 graceful.
 - 상세 설계: `docs/07-chart.md`.
 
 ---

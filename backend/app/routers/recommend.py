@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 
 from app.config import get_settings
 from app.kis.quotes import get_current_price
-from app.kis.rankings import get_investor_flow
+from app.kis.rankings import get_investor_flow, get_investor_flow_daily
 from app.services import recommend_service
 from app.stocks import krx, sector
 
@@ -29,7 +29,7 @@ async def _resolve_fns(
 ) -> tuple[recommend_service.PriceFn, recommend_service.FlowFn]:
     """추천 시세 데이터 소스에 따라 price_fn과 flow_fn을 결정한다.
 
-    - source == "krx": KRX 스냅샷 기반 price_fn + 중립 flow_fn
+    - source == "krx": KRX 스냅샷 기반 price_fn + KIS 일별 캐시 수급 flow_fn
     - source == "kis" (기본): KIS 현재가 + 수급 fn
     """
     if settings.recommend_data_source == "krx":
@@ -49,11 +49,8 @@ async def _resolve_fns(
                 "volume": data.get("volume"),
             }
 
-        async def neutral_flow_fn(symbol: str) -> dict[str, Any]:
-            # KRX는 수급 데이터 없음 → 중립(None)
-            return {"foreign_net": None, "inst_net": None}
-
-        return krx_price_fn, neutral_flow_fn
+        # 수급은 KRX 미제공 → KIS로 조회하되 종목별 하루 캐시(EOD라 종목당 1회).
+        return krx_price_fn, get_investor_flow_daily
     else:
         # KIS (기본값)
         return get_current_price, get_investor_flow

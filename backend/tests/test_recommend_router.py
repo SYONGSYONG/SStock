@@ -106,22 +106,29 @@ def test_krx_시세_소스_토글(monkeypatch):
         assert item["volume"] in [5000000, 3000000]
 
 
-def test_krx_수급은_중립(monkeypatch):
-    """KRX 모드: 수급 정보 없음 → 전 종목 동일 점수(중립=50)."""
+def test_krx_수급은_KIS_일별로_조회(monkeypatch):
+    """KRX 모드: 시세는 KRX, 수급은 KIS(일별 캐시)로 조회한다."""
     from unittest.mock import patch
 
     from app.services.recommend_service import clear_cache
 
     clear_cache()
 
-    # KRX 스냅샷 mock (모든 종목이 동일 시세)
     krx_snapshot = {
-        f"00000{i}": {"price": 50000, "change_rate": 1.5, "volume": 100000}
-        for i in range(1, 6)
+        "005930": {"price": 70000, "change_rate": 1.5, "volume": 5000000},
+        "000660": {"price": 120000, "change_rate": -0.8, "volume": 3000000},
     }
 
     async def mock_krx_snapshot(*args, **kwargs):
         return krx_snapshot
+
+    called: list[str] = []
+
+    async def fake_flow_daily(symbol, *args, **kwargs):
+        called.append(symbol)
+        # 종목마다 다른 순매수로 수급 점수가 차별화되게 한다
+        n = int(symbol[-1]) if symbol[-1].isdigit() else 0
+        return {"foreign_net": n * 1000, "inst_net": n * 500}
 
     with patch("app.routers.recommend.get_settings") as mock_settings:
         settings = type("Settings", (), {
@@ -131,17 +138,14 @@ def test_krx_수급은_중립(monkeypatch):
         mock_settings.return_value = settings
 
         monkeypatch.setattr("app.routers.recommend.krx.get_market_snapshot", mock_krx_snapshot)
+        monkeypatch.setattr("app.routers.recommend.get_investor_flow_daily", fake_flow_daily)
 
         with TestClient(app) as c:
             r = c.get("/api/recommend/semiconductor?limit=5")
 
-    data = r.json()["data"]
-    for item in data["items"]:
-        # 수급 점수가 중립(50)이어야 함 (foreign_net/inst_net 없음)
-        # score = momentum(40%) + fundamental(35%) + supply(25%)
-        # supply = 50(neutral) 이므로 supply 가중치 0.25 * 50 = 12.5 포함
-        # 모든 종목이 같은 시세이므로 모멘텀/펀더멘털도 중립(50)
-        assert item["supply"] == 50.0  # 중립
+    assert r.status_code == 200
+    # KRX 모드에서도 수급은 KIS(일별 캐시)로 조회된다
+    assert len(called) > 0
 
 
 def test_kis_소스_기본값(monkeypatch):

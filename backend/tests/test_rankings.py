@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from app.config import Settings
-from app.kis.rankings import get_investor_flow
+from app.kis.rankings import clear_flow_cache, get_investor_flow, get_investor_flow_daily
 
 _INVESTOR_URL = "/uapi/domestic-stock/v1/quotations/inquire-investor"
 
@@ -79,3 +79,42 @@ async def test_수급_빈_output이면_None():
 
     assert flow["foreign_net"] is None
     assert flow["inst_net"] is None
+
+
+@respx.mock
+async def test_수급_일별캐시_재호출_안함():
+    """get_investor_flow_daily: 같은 종목 재호출 시 캐시 사용(네트워크 1회)."""
+    clear_flow_cache()
+    settings = _settings()
+    _mock_token(settings)
+    route = respx.get(f"{settings.rest_base}{_INVESTOR_URL}").mock(
+        return_value=httpx.Response(
+            200,
+            json={"rt_cd": "0", "output": [{"frgn_ntby_qty": "100", "orgn_ntby_qty": "50"}]},
+        )
+    )
+
+    f1 = await get_investor_flow_daily("005930", settings)
+    f2 = await get_investor_flow_daily("005930", settings)
+
+    assert f1 == f2
+    assert f1["foreign_net"] == 100
+    assert route.call_count == 1  # 두 번째는 캐시
+    clear_flow_cache()
+
+
+@respx.mock
+async def test_수급_오류는_캐시안함():
+    """수급 None(오류·빈데이터)은 캐시하지 않아 다음 호출에서 재시도한다."""
+    clear_flow_cache()
+    settings = _settings()
+    _mock_token(settings)
+    route = respx.get(f"{settings.rest_base}{_INVESTOR_URL}").mock(
+        return_value=httpx.Response(200, json={"rt_cd": "0", "output": []})
+    )
+
+    await get_investor_flow_daily("005930", settings)
+    await get_investor_flow_daily("005930", settings)
+
+    assert route.call_count == 2  # None은 캐시 안 함 → 매번 재시도
+    clear_flow_cache()

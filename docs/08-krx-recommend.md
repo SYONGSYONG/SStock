@@ -140,8 +140,8 @@ async def get_market_snapshot(
 async def _resolve_fns(settings) -> tuple[PriceFn, FlowFn]:
     """추천 시세 데이터 소스에 따라 price_fn/flow_fn 결정."""
     if settings.recommend_data_source == "krx":
-        # KRX 스냅샷 lazy 조회
-        return krx_price_fn, neutral_flow_fn
+        # 시세=KRX 스냅샷(lazy), 수급=KIS 일별 캐시(KRX 미제공)
+        return krx_price_fn, get_investor_flow_daily
     else:
         # KIS (기본)
         return get_current_price, get_investor_flow
@@ -162,18 +162,21 @@ async def _resolve_fns(settings) -> tuple[PriceFn, FlowFn]:
 | **데이터 종류** | 실시간 시세 + 투자자 수급 | EOD(일별) 시세만 |
 | **호출 비용** | rate limit (2건/초 paper, 16건/초 live) | 비교적 여유로움 |
 | **종목 수** | 개별 조회 | KOSPI 948 + KOSDAQ 1822 (스냅샷) |
-| **수급 정보** | 있음 (외국인/기관) | **없음** |
-| **추천 점수 구성** | momentum(40) + fundamental(35) + supply(25) | momentum(40) + fundamental(35) + supply(25, **중립**) |
-| **실시간성** | 실시간 (장중) | EOD (전일 또는 이틀 전) |
+| **수급 정보** | KIS 직접 | **KRX 미제공 → KIS로 보완(일별 캐시)** |
+| **추천 점수 구성** | momentum(40) + fundamental(35) + supply(25) | momentum(40) + fundamental(35) + supply(25) |
+| **시세 실시간성** | 실시간 (장중) | EOD (직전 거래일) |
 | **용도** | 실시간 모니터링, 실시간 매매 | 일일 추천, 배치 분석 |
 
-### 수급 처리
+### 수급 처리 (KRX 미제공 → KIS 보완)
 
-**KIS:** `foreign_net`, `inst_net` 실제 데이터 → 수급 점수 편차 큼  
-**KRX:** 외국인/기관 수급 데이터 부재 → **중립(50.0)** 처리
+KRX 일별매매에는 외국인/기관 순매수(수급)가 없다. 그래서 KRX 모드에서도 **수급만 KIS**로 조회한다.
+- `rankings.get_investor_flow_daily`: 수급은 EOD(장 종료 후 1회 정산)이라 **종목별 하루 캐시**(`_FLOW_TTL_SEC=86400`) + 종목별 단일비행으로, 종목당 하루 1회만 KIS를 호출한다.
+- 호출 비용: 모의 초당 2건 제한 → 분야 첫 로드 시 후보 30종목 ≈ 13.5초(이후 캐시로 즉시). 수급이 None(오류)이면 캐시하지 않고 다음에 재시도.
+- 따라서 KRX 모드도 수급 점수가 정상 반영된다(전 종목 중립 아님).
 
-→ KRX 모드에서는 모든 종목의 수급 점수 = 50, 수급 가중치(0.25)만 포함되므로  
-→ 최종 점수 = momentum(40%) + fundamental(35%) + 12.5(수급 중립 기여도)
+### 시세 기준일 표기 (price_date)
+
+KRX는 EOD라 추천 응답에 **시세 기준일(`price_date`, 거래일)** 을 재무 기준일(`base_date`, 분기)과 구분해 노출한다(`krx.get_resolved_date()`). 화면은 "시세 {거래일} · 재무 {분기}"로 표기.
 
 ---
 
@@ -214,8 +217,8 @@ async def _resolve_fns(settings) -> tuple[PriceFn, FlowFn]:
 
 5. **flow_fn 호출:**
    ```python
-   # KRX 모드에서는 neutral_flow_fn
-   return {"foreign_net": None, "inst_net": None}
+   # KRX 모드에서도 수급은 KIS로 조회(종목별 하루 캐시)
+   return await get_investor_flow_daily(symbol)
    ```
 
 ### 스트리밍에서의 동작
@@ -350,9 +353,10 @@ RECOMMEND_DATA_SOURCE=kis
    - KRX는 일별매매만 제공 (실시간 아님).
    - 장중 조회 시 전일 또는 이틀 전 데이터 사용.
 
-3. **수급 중립:**
-   - KRX 모드에서는 외국인/기관 수급 정보 없음 (API 미지원).
-   - 점수에서 수급 가중치(0.25) 중 일부만 기여 (모든 종목 동일).
+3. **수급(KRX 미제공 → KIS 보완):**
+   - KRX 일별매매엔 외국인/기관 수급이 없어, KRX 모드에서도 수급은 KIS로 조회한다.
+   - 종목별 하루 캐시(`get_investor_flow_daily`)로 종목당 하루 1회만 호출(EOD 정산).
+   - 모의 초당 2건 제한 → 분야 첫 로드만 십수 초, 이후 캐시로 즉시.
 
 4. **스냅샷 크기:**
    - KOSPI 948 + KOSDAQ 1822 = 약 2770종목 데이터.

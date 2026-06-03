@@ -7,9 +7,8 @@ from typing import Any
 from app.strategies.base import Strategy
 from app.strategies.ma_cross import MaCrossStrategy
 from app.strategies.rsi_ma import RsiMaStrategy
-from app.strategies.rsi_strategy import RsiStrategy
 
-STRATEGY_NAMES = ("ma_cross", "rsi", "rsi_ma")
+STRATEGY_NAMES = ("ma_cross", "rsi_ma")
 
 
 def build_strategy(name: str, params: dict[str, Any] | None = None) -> Strategy:
@@ -18,12 +17,7 @@ def build_strategy(name: str, params: dict[str, Any] | None = None) -> Strategy:
         return MaCrossStrategy(
             short=int(params.get("short", 5)),
             long=int(params.get("long", 20)),
-        )
-    if name == "rsi":
-        return RsiStrategy(
-            period=int(params.get("period", 14)),
-            low=float(params.get("low", 30.0)),
-            high=float(params.get("high", 70.0)),
+            bar_ticks=int(params.get("bar_ticks", 50)),
         )
     if name == "rsi_ma":
         return RsiMaStrategy(

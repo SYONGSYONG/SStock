@@ -5,6 +5,9 @@
 
 이동평균은 Rolling SMA(러닝 합계로 갱신하는 단순이동평균)로 계산한다 — 매 지점마다
 최근 N개를 다시 더하지 않고 한 번의 순회로 구한다. 산출값은 일반 SMA와 동일하다.
+
+원시 틱은 노이즈가 커서 bar_ticks개씩 묶은 '틱봉'의 종가 위에서 MA를 계산한다
+(bar_ticks=50 → 50틱봉). bar_ticks=1이면 원시 틱과 동일.
 """
 
 from __future__ import annotations
@@ -12,25 +15,29 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.strategies.base import Signal
-from app.strategies.indicators import rolling_sma
+from app.strategies.indicators import rolling_sma, to_tick_bars
 
 
 @dataclass
 class MaCrossStrategy:
     short: int = 5
     long: int = 20
+    bar_ticks: int = 50
     name: str = "ma_cross"
 
     def __post_init__(self) -> None:
         if self.short >= self.long:
             raise ValueError("short는 long보다 작아야 합니다")
+        if self.bar_ticks < 1:
+            raise ValueError("bar_ticks는 1 이상이어야 합니다")
 
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
-        if len(closes) < self.long + 1:
+        bars = to_tick_bars(closes, self.bar_ticks)
+        if len(bars) < self.long + 1:
             return None
-        short_ma = rolling_sma(closes, self.short)
-        long_ma = rolling_sma(closes, self.long)
-        # len >= long+1 이므로 마지막 두 지점의 단기·장기 SMA는 모두 유효(None 아님).
+        short_ma = rolling_sma(bars, self.short)
+        long_ma = rolling_sma(bars, self.long)
+        # len(bars) >= long+1 이므로 마지막 두 지점의 단기·장기 SMA는 모두 유효(None 아님).
         prev_diff = short_ma[-2] - long_ma[-2]
         cur_diff = short_ma[-1] - long_ma[-1]
         price = closes[-1]

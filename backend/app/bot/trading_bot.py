@@ -100,7 +100,11 @@ class TradingBot:
                 if c["symbol"] == symbol
             ]
             for cfg in configs:
-                strategy = build_strategy(cfg["strategy"], cfg["params"])
+                # 알 수 없는 전략(예: 제거된 'rsi')·잘못된 파라미터는 건너뛴다(틱 처리 보호).
+                try:
+                    strategy = build_strategy(cfg["strategy"], cfg["params"])
+                except ValueError:
+                    continue
                 signal = strategy.evaluate(symbol, hist)
                 if signal is not None:
                     await self._handle_signal(conn, signal, cfg)

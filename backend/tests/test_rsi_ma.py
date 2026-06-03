@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.strategies.indicators import to_tick_bars
 from app.strategies.registry import build_strategy
 from app.strategies.rsi_ma import RsiMaStrategy
 
@@ -58,13 +59,12 @@ def test_MA_하향돌파시_추세이탈_매도() -> None:
     assert "추세 이탈" in sig.reason
 
 
-def test_to_bars_틱봉_집계() -> None:
+def test_to_tick_bars_틱봉_집계() -> None:
     """원시 틱을 bar_ticks개씩 묶어 각 봉의 종가(가장 최근 틱)만 남긴다."""
-    s = _strat(bar_ticks=3)
     # 인덱스 6,3,0 → [10, 40, 70]
-    assert s._to_bars([10, 20, 30, 40, 50, 60, 70]) == [10.0, 40.0, 70.0]
+    assert to_tick_bars([10, 20, 30, 40, 50, 60, 70], 3) == [10.0, 40.0, 70.0]
     # bar_ticks=1이면 원본 그대로
-    assert _strat(bar_ticks=1)._to_bars([1, 2, 3]) == [1, 2, 3]
+    assert to_tick_bars([1, 2, 3], 1) == [1, 2, 3]
 
 
 def test_틱봉_집계로_매수_신호() -> None:

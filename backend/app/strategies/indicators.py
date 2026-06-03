@@ -12,6 +12,19 @@ def sma(closes: list[float], period: int) -> pd.Series:
     return pd.Series(closes, dtype="float64").rolling(window=period).mean()
 
 
+def to_tick_bars(closes: list[float], bar_ticks: int) -> list[float]:
+    """원시 틱 종가열을 bar_ticks개씩 묶어 각 틱봉의 종가열로 변환한다.
+
+    가장 최근 틱이 마지막 봉의 종가가 되도록 뒤에서부터 bar_ticks 간격으로 추출한다.
+    bar_ticks<=1이면 원본 그대로(원시 틱). 틱봉 단위로 RSI·MA를 계산해 노이즈를 줄인다.
+    """
+    if bar_ticks <= 1:
+        return list(closes)
+    idxs = list(range(len(closes) - 1, -1, -bar_ticks))
+    idxs.reverse()
+    return [closes[i] for i in idxs]
+
+
 def rolling_sma(closes: list[float], period: int) -> list[float | None]:
     """Rolling SMA — 러닝 합계로 갱신하는 단순이동평균(최근 N개 창).
 

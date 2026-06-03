@@ -19,7 +19,9 @@ def _setup(tmp_path, **settings_kw):
     path = str(tmp_path / "test.db")
     init_db(path)
     conn = connect(path)
-    strategy_service.upsert_config(conn, "005930", "ma_cross", {"short": 2, "long": 4}, enabled=True)
+    strategy_service.upsert_config(
+        conn, "005930", "ma_cross", {"short": 2, "long": 4, "bar_ticks": 1}, enabled=True
+    )
     # 봇이 매매하려면 칸막이 등록이 필수 → 충분한 원금을 배정
     budget_service.set_principal(conn, "005930", 10_000_000)
     conn.close()

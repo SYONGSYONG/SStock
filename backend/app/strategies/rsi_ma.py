@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from app.strategies.base import Signal
-from app.strategies.indicators import rsi, sma
+from app.strategies.indicators import rolling_sma, rsi, to_tick_bars
 
 
 @dataclass
@@ -41,30 +41,19 @@ class RsiMaStrategy:
         if not (0 < self.low < self.high < 100):
             raise ValueError("0 < low < high < 100 이어야 합니다")
 
-    def _to_bars(self, closes: list[float]) -> list[float]:
-        """원시 틱 종가열을 bar_ticks개씩 묶어 각 틱봉의 종가열로 변환한다.
-
-        가장 최근 틱이 마지막 봉의 종가가 되도록 뒤에서부터 bar_ticks 간격으로 추출한다.
-        """
-        if self.bar_ticks <= 1:
-            return list(closes)
-        idxs = list(range(len(closes) - 1, -1, -self.bar_ticks))
-        idxs.reverse()
-        return [closes[i] for i in idxs]
-
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
-        bars = self._to_bars(closes)
+        bars = to_tick_bars(closes, self.bar_ticks)
         # RSI는 직전·현재 2개, MA는 직전·현재 2개(크로스 판정) 값이 필요하다.
         if len(bars) < max(self.rsi_period + 2, self.ma_period + 1):
             return None
 
         rsi_values = rsi(bars, self.rsi_period)
-        ma_values = sma(bars, self.ma_period)
+        ma_values = rolling_sma(bars, self.ma_period)  # Rolling SMA(러닝 합계)
         prev_rsi = rsi_values.iloc[-2]
         cur_rsi = rsi_values.iloc[-1]
-        prev_ma = ma_values.iloc[-2]
-        cur_ma = ma_values.iloc[-1]
-        if pd.isna(prev_rsi) or pd.isna(cur_rsi) or pd.isna(prev_ma) or pd.isna(cur_ma):
+        prev_ma = ma_values[-2]
+        cur_ma = ma_values[-1]
+        if pd.isna(prev_rsi) or pd.isna(cur_rsi) or prev_ma is None or cur_ma is None:
             return None
 
         prev_price = bars[-2]

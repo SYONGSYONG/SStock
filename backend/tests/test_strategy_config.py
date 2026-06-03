@@ -34,7 +34,7 @@ def test_전략설정_upsert_및_조회(tmp_path):
 
 def test_enabled_토글_및_삭제(tmp_path):
     conn = _db(tmp_path)
-    cfg = strategy_service.upsert_config(conn, "005930", "rsi", {}, enabled=False)
+    cfg = strategy_service.upsert_config(conn, "005930", "rsi_ma", {}, enabled=False)
     assert strategy_service.set_enabled(conn, cfg["id"], True) is True
     assert strategy_service.list_enabled(conn)[0]["id"] == cfg["id"]
     assert strategy_service.delete_config(conn, cfg["id"]) is True
@@ -44,7 +44,7 @@ def test_enabled_토글_및_삭제(tmp_path):
 def test_신호_저장_및_조회(tmp_path):
     conn = _db(tmp_path)
     signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스")
-    signal_service.save_signal(conn, "000660", "rsi", "SELL", 120000.0, "RSI 과매수")
+    signal_service.save_signal(conn, "000660", "rsi_ma", "SELL", 120000.0, "RSI 과매수")
     rows = signal_service.list_signals(conn, limit=10)
     assert len(rows) == 2
     # 최신순(DESC)

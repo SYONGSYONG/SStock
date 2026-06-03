@@ -28,6 +28,11 @@ export function BotControl({ running, mode, onStart, onStop, error }: BotControl
   return (
     <section className="panel">
       <h2>자동매매 봇</h2>
+      {!running && (
+        <p className="muted bot-hint">
+          버튼을 클릭하면 {isLive ? "실제" : "모의"} 주문이 체결됩니다.
+        </p>
+      )}
       {running ? (
         <button className="btn-stop" onClick={onStop}>
           봇 정지
@@ -36,11 +41,6 @@ export function BotControl({ running, mode, onStart, onStop, error }: BotControl
         <button className="btn-start" onClick={handleStart}>
           {isLive ? "봇 시작 (실전)" : "봇 시작"}
         </button>
-      )}
-      {isLive && !running && (
-        <p className="muted" style={{ marginTop: "8px", fontSize: "12px" }}>
-          버튼을 클릭하면 실제 주문이 체결됩니다.
-        </p>
       )}
       {error && <p className="error">{error}</p>}
     </section>

@@ -9,7 +9,7 @@ export function MarketControl({ running, clients, onStart, onStop }: MarketContr
   return (
     <section className="panel market-control">
       <h2>시세 수집</h2>
-      <p className="muted">대시보드 연결 {clients}개</p>
+      <p className="muted">대시보드 {clients}개 연결되었습니다.</p>
       {running ? (
         <button className="btn-stop" onClick={onStop}>
           정지

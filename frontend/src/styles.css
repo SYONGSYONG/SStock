@@ -108,6 +108,12 @@ body {
 .control-row > .panel {
   min-width: 0;
 }
+/* 봇 시작 버튼 위 안내 문구 */
+.bot-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 .panel {
   background: var(--surface);

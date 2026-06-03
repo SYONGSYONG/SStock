@@ -12,6 +12,28 @@ def sma(closes: list[float], period: int) -> pd.Series:
     return pd.Series(closes, dtype="float64").rolling(window=period).mean()
 
 
+def rolling_sma(closes: list[float], period: int) -> list[float | None]:
+    """Rolling SMA — 러닝 합계로 갱신하는 단순이동평균(최근 N개 창).
+
+    매 지점마다 최근 N개를 다시 전부 더하지 않고, 합계에 새 값을 더하고 창을 벗어난
+    값을 빼며(add-new / subtract-old) 한 번의 순회로 계산한다. pandas 전체 재계산보다
+    가볍다. 길이가 부족한 구간(i < period-1)은 None.
+
+    값은 `sma`와 동일하다(부족 구간 표기만 NaN→None).
+    """
+    if period <= 0:
+        raise ValueError("period는 1 이상이어야 합니다")
+    out: list[float | None] = [None] * len(closes)
+    running = 0.0
+    for i, value in enumerate(closes):
+        running += value
+        if i >= period:
+            running -= closes[i - period]
+        if i >= period - 1:
+            out[i] = running / period
+    return out
+
+
 def rsi(closes: list[float], period: int = 14) -> pd.Series:
     """RSI(상대강도지수). 0~100. 길이가 부족한 구간은 NaN."""
     if period <= 0:

@@ -2,6 +2,9 @@
 
 골든 크로스(단기선이 장기선을 상향 돌파) → 매수.
 데드 크로스(단기선이 장기선을 하향 돌파) → 매도.
+
+이동평균은 Rolling SMA(러닝 합계로 갱신하는 단순이동평균)로 계산한다 — 매 지점마다
+최근 N개를 다시 더하지 않고 한 번의 순회로 구한다. 산출값은 일반 SMA와 동일하다.
 """
 
 from __future__ import annotations
@@ -9,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.strategies.base import Signal
-from app.strategies.indicators import sma
+from app.strategies.indicators import rolling_sma
 
 
 @dataclass
@@ -25,10 +28,11 @@ class MaCrossStrategy:
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
         if len(closes) < self.long + 1:
             return None
-        short_ma = sma(closes, self.short)
-        long_ma = sma(closes, self.long)
-        prev_diff = short_ma.iloc[-2] - long_ma.iloc[-2]
-        cur_diff = short_ma.iloc[-1] - long_ma.iloc[-1]
+        short_ma = rolling_sma(closes, self.short)
+        long_ma = rolling_sma(closes, self.long)
+        # len >= long+1 이므로 마지막 두 지점의 단기·장기 SMA는 모두 유효(None 아님).
+        prev_diff = short_ma[-2] - long_ma[-2]
+        cur_diff = short_ma[-1] - long_ma[-1]
         price = closes[-1]
 
         if prev_diff <= 0 < cur_diff:

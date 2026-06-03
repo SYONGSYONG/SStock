@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -16,6 +18,58 @@ _ORDER_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 _RVSECNCL_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _DAILY_CCLD_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+
+# inquire-balance 응답에는 보유종목(output1)과 계좌요약(output2)이 함께 온다.
+# 잔고 요약(get_account_summary)과 포지션(get_balance)이 같은 호출을 공유하도록
+# 원시 응답을 짧은 TTL + 단일비행으로 캐시한다. 대시보드 5초 폴링이 같은 데이터를
+# KIS에 2번 부르던 것을 1번으로 줄여, 차트 등 사용자 조회와의 레이트리밋 경합을 낮춘다.
+_BALANCE_TTL_SEC = 2.0
+_balance_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_balance_locks: dict[str, asyncio.Lock] = {}
+
+
+def clear_balance_cache() -> None:
+    """잔고 원시 응답 캐시를 비운다(테스트·강제 갱신용)."""
+    _balance_cache.clear()
+    _balance_locks.clear()
+
+
+def _balance_params(settings: Settings) -> dict[str, str]:
+    return {
+        "CANO": settings.kis_account_no,
+        "ACNT_PRDT_CD": settings.kis_account_product,
+        "AFHR_FLPR_YN": "N",
+        "OFL_YN": "",
+        "INQR_DVSN": "02",
+        "UNPR_DVSN": "01",
+        "FUND_STTL_ICLD_YN": "N",
+        "FNCG_AMT_AUTO_RDPT_YN": "N",
+        "PRCS_DVSN": "00",
+        "CTX_AREA_FK100": "",
+        "CTX_AREA_NK100": "",
+    }
+
+
+async def _get_balance_raw(
+    settings: Settings,
+    kis_client: KisClient | None = None,
+) -> dict[str, Any]:
+    """inquire-balance 원시 응답(짧은 TTL + 단일비행 캐시). 정상 응답만 캐시한다."""
+    key = f"{settings.kis_account_no}:{settings.trading_mode}"
+    cached = _balance_cache.get(key)
+    if cached is not None and time.monotonic() - cached[0] < _BALANCE_TTL_SEC:
+        return cached[1]
+    lock = _balance_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _balance_cache.get(key)
+        if cached is not None and time.monotonic() - cached[0] < _BALANCE_TTL_SEC:
+            return cached[1]
+        client = kis_client or KisClient(settings)
+        tr_id = resolve_tr_id("inquire_balance", settings.trading_mode)
+        data = await client.get(_BALANCE_PATH, tr_id, _balance_params(settings))
+        if data.get("rt_cd") == "0":  # 오류 응답은 캐시하지 않음(다음 호출에서 재시도)
+            _balance_cache[key] = (time.monotonic(), data)
+        return data
 
 
 @dataclass(frozen=True)
@@ -93,22 +147,7 @@ async def get_balance(
 ) -> list[dict[str, Any]]:
     """주식 잔고조회. 보유 종목 리스트(수량>0)를 반환한다."""
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
-    tr_id = resolve_tr_id("inquire_balance", settings.trading_mode)
-    params = {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
-        "AFHR_FLPR_YN": "N",
-        "OFL_YN": "",
-        "INQR_DVSN": "02",
-        "UNPR_DVSN": "01",
-        "FUND_STTL_ICLD_YN": "N",
-        "FNCG_AMT_AUTO_RDPT_YN": "N",
-        "PRCS_DVSN": "00",
-        "CTX_AREA_FK100": "",
-        "CTX_AREA_NK100": "",
-    }
-    data = await client.get(_BALANCE_PATH, tr_id, params)
+    data = await _get_balance_raw(settings, kis_client)
     holdings = data.get("output1") or []
     result: list[dict[str, Any]] = []
     for h in holdings:
@@ -145,22 +184,7 @@ async def get_account_summary(
 ) -> dict[str, Any]:
     """주식 잔고조회 output2 기준 계좌 요약을 반환한다."""
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
-    tr_id = resolve_tr_id("inquire_balance", settings.trading_mode)
-    params = {
-        "CANO": settings.kis_account_no,
-        "ACNT_PRDT_CD": settings.kis_account_product,
-        "AFHR_FLPR_YN": "N",
-        "OFL_YN": "",
-        "INQR_DVSN": "02",
-        "UNPR_DVSN": "01",
-        "FUND_STTL_ICLD_YN": "N",
-        "FNCG_AMT_AUTO_RDPT_YN": "N",
-        "PRCS_DVSN": "00",
-        "CTX_AREA_FK100": "",
-        "CTX_AREA_NK100": "",
-    }
-    data = await client.get(_BALANCE_PATH, tr_id, params)
+    data = await _get_balance_raw(settings, kis_client)
     s = _first_summary(data.get("output2"))
     return {
         "deposit": to_int(s.get("dnca_tot_amt")),

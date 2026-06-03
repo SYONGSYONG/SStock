@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -25,12 +28,60 @@ _MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 _KST = timezone(timedelta(hours=9))
 _KST_OFFSET_SEC = 9 * 3600  # 분봉 타임스탬프를 차트축에 KST 벽시계로 노출하기 위한 보정
-_LOOKBACK_DAYS = 200
+# KIS inquire-daily-itemchartprice는 1회 응답 최대 100건. 봉별로 lookback을 분리해
+# 100건 상한을 채운다(같은 1회 호출이라 건수가 늘어도 속도 영향은 사실상 없음).
+_LOOKBACK_DAYS = 200  # 일봉: ~200일 ≈ 100영업일
+_WEEKLY_LOOKBACK_DAYS = 730  # 주봉: ~2년 ≈ 100주
 
 # 국내 정규장: 09:00 ~ 15:30 (KST)
 _MARKET_OPEN_MIN = 9 * 60
 _MARKET_CLOSE_MIN = 15 * 60 + 30
 _MARKET_CLOSE_HMS = "153000"
+
+# 차트 캐시: 모달을 다시 열거나 탭을 전환할 때마다 KIS를 재호출하지 않도록
+# (symbol, interval)별로 캔들을 캐시한다. 일/주봉은 장중 마지막 봉만 갱신되고
+# 장외에는 고정이므로 TTL을 시장 시간대에 맞춰 조절한다. 분봉은 더 짧게 둔다.
+# 빈 결과/오류는 캐시하지 않아(아래 _cached_fetch) 다음 호출에서 재시도한다.
+_chart_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_chart_locks: dict[str, asyncio.Lock] = {}
+
+_TTL_PERIOD_MARKET = 60.0  # 일/주봉 장중: 1분(마지막 봉 갱신 반영)
+_TTL_MINUTE_MARKET = 30.0  # 분봉 장중: 30초
+_TTL_CLOSED = 1800.0  # 장외(데이터 고정): 30분
+
+
+def clear_chart_cache() -> None:
+    """차트 캐시를 비운다(테스트·강제 갱신용)."""
+    _chart_cache.clear()
+    _chart_locks.clear()
+
+
+def _is_market_hours() -> bool:
+    """현재가 국내 정규장(평일 09:00~15:30 KST)인지 여부."""
+    now = datetime.now(_KST)
+    if now.weekday() >= 5:  # 토(5)·일(6)
+        return False
+    minutes = now.hour * 60 + now.minute
+    return _MARKET_OPEN_MIN <= minutes <= _MARKET_CLOSE_MIN
+
+
+async def _cached_fetch(
+    key: str, ttl: float, fetcher: Callable[[], Awaitable[list[dict[str, Any]]]]
+) -> list[dict[str, Any]]:
+    """(symbol,interval) 키로 캔들을 캐시한다. 단일비행(Lock)으로 동시 호출을 1회로 묶고,
+    빈 결과/오류는 캐시하지 않는다(예외는 그대로 전파)."""
+    cached = _chart_cache.get(key)
+    if cached is not None and time.monotonic() - cached[0] < ttl:
+        return cached[1]
+    lock = _chart_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _chart_cache.get(key)
+        if cached is not None and time.monotonic() - cached[0] < ttl:
+            return cached[1]
+        candles = await fetcher()
+        if candles:  # 빈 결과는 캐시하지 않음(재시도 여지)
+            _chart_cache[key] = (time.monotonic(), candles)
+        return candles
 
 
 def _ohlcv(oprc: Any, hgpr: Any, lwpr: Any, close: Any, vol: Any) -> dict[str, Any] | None:
@@ -154,7 +205,10 @@ async def get_daily_chart(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
-    return await _get_period_chart(symbol, "D", settings=settings, kis_client=kis_client)
+    ttl = _TTL_PERIOD_MARKET if _is_market_hours() else _TTL_CLOSED
+    return await _cached_fetch(
+        f"{symbol}:D", ttl, lambda: _get_period_chart(symbol, "D", settings, kis_client)
+    )
 
 
 async def get_weekly_chart(
@@ -162,10 +216,24 @@ async def get_weekly_chart(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
-    return await _get_period_chart(symbol, "W", settings=settings, kis_client=kis_client)
+    ttl = _TTL_PERIOD_MARKET if _is_market_hours() else _TTL_CLOSED
+    return await _cached_fetch(
+        f"{symbol}:W", ttl, lambda: _get_period_chart(symbol, "W", settings, kis_client)
+    )
 
 
 async def get_minute_chart(
+    symbol: str,
+    settings: Settings | None = None,
+    kis_client: KisClient | None = None,
+) -> list[dict[str, Any]]:
+    ttl = _TTL_MINUTE_MARKET if _is_market_hours() else _TTL_CLOSED
+    return await _cached_fetch(
+        f"{symbol}:m", ttl, lambda: _fetch_minute_chart(symbol, settings, kis_client)
+    )
+
+
+async def _fetch_minute_chart(
     symbol: str,
     settings: Settings | None = None,
     kis_client: KisClient | None = None,

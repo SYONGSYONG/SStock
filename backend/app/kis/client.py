@@ -29,6 +29,22 @@ _RATE_LIMIT_MSG_CODES = frozenset({"EGW00201"})
 _RATE_LOCK = asyncio.Lock()
 _next_slot = 0.0
 
+# 앱 lifespan이 등록하는 keep-alive 공유 httpx 클라이언트.
+# 요청마다 새 클라이언트를 만들면 매번 TCP+TLS 핸드셰이크가 발생하므로,
+# 등록돼 있으면 이를 재사용해 커넥션 풀링으로 baseline 지연을 줄인다.
+# 테스트(lifespan 미실행)에서는 None이라 기존처럼 요청별 클라이언트를 생성한다.
+_shared_client: httpx.AsyncClient | None = None
+
+
+def set_shared_client(client: httpx.AsyncClient | None) -> None:
+    """공유 httpx 클라이언트를 등록/해제한다(앱 lifespan에서 호출)."""
+    global _shared_client
+    _shared_client = client
+
+
+def get_shared_client() -> httpx.AsyncClient | None:
+    return _shared_client
+
 
 def reset_rate_limiter() -> None:
     """레이트리미터 슬롯을 초기화한다(테스트용)."""
@@ -93,9 +109,12 @@ class KisClient:
         json: dict[str, Any] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> dict[str, Any]:
-        owns_client = client is None
+        owns_client = False
+        if client is None:
+            client = _shared_client  # 등록된 keep-alive 공유 클라이언트 우선 사용
         if client is None:
             client = httpx.AsyncClient(base_url=self._settings.rest_base, timeout=10.0)
+            owns_client = True
 
         max_retries = 3
         last_exc = None

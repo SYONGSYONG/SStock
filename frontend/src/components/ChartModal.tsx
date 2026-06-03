@@ -32,6 +32,8 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const autoRetriesRef = useRef(0);
+  // 이미 받은 캔들을 탭(interval)별로 메모 → 탭을 다시 눌러도 재조회하지 않는다.
+  const candlesCacheRef = useRef<Map<ChartInterval, ChartData["candles"]>>(new Map());
 
   // 기업개요
   const [overview, setOverview] = useState<CompanyOverview | null>(null);
@@ -50,9 +52,22 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
     autoRetriesRef.current = 0;
   }, [symbol, tab]);
 
+  // 종목이 바뀌면 메모를 비운다(이전 종목 캔들 재사용 방지).
+  useEffect(() => {
+    candlesCacheRef.current.clear();
+  }, [symbol]);
+
   // 차트 데이터 조회 (차트 탭일 때만)
   useEffect(() => {
     if (tab === "overview") return;
+    // 이미 받은 탭이면 메모에서 즉시 표시(네트워크 0).
+    const memo = candlesCacheRef.current.get(tab);
+    if (memo) {
+      setCandles(memo);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     let alive = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const controller = new AbortController();
@@ -73,6 +88,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
       .then((d) => {
         if (!alive) return;
         if (d.candles.length === 0 && scheduleRetry()) return;
+        if (d.candles.length > 0) candlesCacheRef.current.set(tab, d.candles);
         setCandles(d.candles);
         setLoading(false);
       })

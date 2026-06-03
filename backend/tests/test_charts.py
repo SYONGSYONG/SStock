@@ -235,6 +235,35 @@ async def test_daily_chart_empty_body_returns_empty_list(tmp_path):
 
 
 @respx.mock
+async def test_daily_chart_caches_within_ttl(tmp_path):
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json=_DAILY_BODY))
+
+    first = await get_daily_chart("005930", s)
+    second = await get_daily_chart("005930", s)
+
+    assert first == second
+    assert route.call_count == 1  # 두 번째는 캐시 히트 → KIS 재호출 없음
+
+
+@respx.mock
+async def test_empty_chart_is_not_cached(tmp_path):
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json={"rt_cd": "0", "output2": []}))
+
+    await get_daily_chart("005930", s)
+    await get_daily_chart("005930", s)
+
+    assert route.call_count == 2  # 빈 결과는 캐시하지 않으므로 매번 재호출
+
+
+@respx.mock
 def test_chart_router_daily(tmp_path):
     s = _settings(tmp_path)
     app.dependency_overrides[get_settings] = lambda: s

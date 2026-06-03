@@ -38,6 +38,10 @@ from app.routers import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    import httpx
+
+    from app.kis.client import set_shared_client
+
     settings = get_settings()
     init_db(settings.database_path)
     # 종목명이 비어 있는 기존 관심종목을 마스터에서 채운다
@@ -51,21 +55,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         conn.close()
 
+    # KIS REST 호출용 keep-alive 공유 클라이언트. 요청마다 새 클라이언트를
+    # 만들면 매번 TCP+TLS 핸드셰이크가 발생하므로, 커넥션 풀을 재사용해 지연을 줄인다.
+    shared_client = httpx.AsyncClient(
+        base_url=settings.rest_base,
+        timeout=10.0,
+        limits=httpx.Limits(
+            max_keepalive_connections=10, max_connections=20, keepalive_expiry=30.0
+        ),
+    )
+    set_shared_client(shared_client)
+
     # KIS 접근토큰 프리워밍: 첫 시세/잔고 호출이 토큰 발급 왕복을 부담하지 않도록
     # 기동 시 미리 확보한다. 토큰 파일이 유효하면 네트워크 없이 끝나고, 만료/없을 때만
     # 1회 발급한다. KIS 장애 시에도 기동은 계속(실패 무시).
     if settings.kis_token_prewarm:
-        await _prewarm_kis_token(settings)
+        await _prewarm_kis_token(settings, shared_client)
 
-    yield
+    try:
+        yield
+    finally:
+        set_shared_client(None)
+        await shared_client.aclose()
 
 
-async def _prewarm_kis_token(settings) -> None:
+async def _prewarm_kis_token(settings, client=None) -> None:
     from app.kis.auth import KisAuth
 
     try:
         await asyncio.wait_for(
-            KisAuth(settings).get_access_token(), timeout=_TOKEN_PREWARM_TIMEOUT_SEC
+            KisAuth(settings).get_access_token(client), timeout=_TOKEN_PREWARM_TIMEOUT_SEC
         )
         logger.info("KIS 토큰 프리워밍 완료")
     except Exception as exc:  # 기동 차단 방지(네트워크/타임아웃/인증 오류 모두 무시)

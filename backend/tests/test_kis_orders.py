@@ -6,7 +6,13 @@ import httpx
 import respx
 
 from app.config import Settings
-from app.kis.orders import cancel_order, get_balance, get_daily_ccld, place_order
+from app.kis.orders import (
+    cancel_order,
+    get_account_summary,
+    get_balance,
+    get_daily_ccld,
+    place_order,
+)
 
 
 def _settings(tmp_path) -> Settings:
@@ -88,6 +94,36 @@ async def test_잔고조회_성공(tmp_path):
     assert holdings[0]["symbol"] == "005930"
     assert holdings[0]["qty"] == 10
     assert holdings[0]["pl_amount"] == 20000
+
+
+@respx.mock
+async def test_잔고와_포지션이_inquire_balance를_1회만_호출한다(tmp_path):
+    """get_account_summary(잔고 요약)와 get_balance(포지션)는 같은 inquire-balance
+    응답을 공유해 KIS를 1회만 호출한다(폴링 중복 제거)."""
+    s = _settings(tmp_path)
+    respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
+        return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
+    )
+    route = respx.get(f"{s.rest_base}/uapi/domestic-stock/v1/trading/inquire-balance").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "rt_cd": "0",
+                "output1": [
+                    {"pdno": "005930", "prdt_name": "삼성전자", "hldg_qty": "10"},
+                ],
+                "output2": [{"dnca_tot_amt": "1000000", "nass_amt": "1700000"}],
+            },
+        )
+    )
+
+    summary = await get_account_summary(s)
+    holdings = await get_balance(s)
+
+    assert summary["deposit"] == 1000000
+    assert summary["net_asset"] == 1700000
+    assert len(holdings) == 1 and holdings[0]["symbol"] == "005930"
+    assert route.call_count == 1  # 두 호출이 같은 응답을 공유
 
 
 @respx.mock

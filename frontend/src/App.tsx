@@ -100,9 +100,15 @@ export function App() {
     getMarketStatus().then(setMarket).catch(() => {});
   }, [refreshWatch, refreshStrategies]);
 
-  // 봇/신호/주문/포지션/로그 폴링
+  // 봇/신호/주문/포지션/로그 폴링.
+  // 대시보드 탭이 실제로 보일 때만 폴링한다 — 추천 탭/백그라운드/차트 모달 중에는
+  // 멈춰 KIS 호출(잔고·포지션)을 아껴 차트 등 사용자 조회와의 레이트리밋 경합을 막는다.
+  const chartOpen = chartTarget !== null;
   useEffect(() => {
+    if (tab !== "dashboard" || chartOpen) return;
+
     const tick = () => {
+      if (document.hidden) return; // 탭이 백그라운드면 건너뜀
       getBotStatus().then(setBot).catch(() => {});
       getSignals(50).then(setSignals).catch(() => {});
       getOrders(50).then(setOrders).catch(() => {});
@@ -112,10 +118,17 @@ export function App() {
       getAccountBalance().then(setAccount).catch(() => {});
       getMarketStatus().then(setMarket).catch(() => {});
     };
+    const onVisible = () => {
+      if (!document.hidden) tick(); // 다시 보이면 즉시 1회 갱신
+    };
+    document.addEventListener("visibilitychange", onVisible);
     tick();
     const id = setInterval(tick, POLL_MS);
-    return () => clearInterval(id);
-  }, []);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [tab, chartOpen]);
 
   const handleAddWatch = async (symbol: string, name?: string) => {
     setWatchError(null);

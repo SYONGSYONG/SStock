@@ -22,6 +22,9 @@ vi.mock("lightweight-charts", () => {
   };
 });
 
+// ChartModal 내부 자동 재시도 횟수와 맞춰 둔다(초기 1 + 자동 MAX_AUTO_RETRIES회).
+const MAX_AUTO_RETRIES = 2;
+
 const DAILY: ChartData = {
   symbol: "005930",
   interval: "daily",
@@ -74,19 +77,49 @@ describe("ChartModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("빈 캔들이면 데이터 없음 안내", async () => {
+  test("끝까지 빈 캔들이면 데이터 없음 안내", async () => {
     const fetchChart = vi.fn().mockResolvedValue({ ...DAILY, candles: [] });
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    await waitFor(() =>
-      expect(screen.getByText("차트 데이터가 없습니다")).toBeInTheDocument(),
+    await waitFor(
+      () => expect(screen.getByText("차트 데이터가 없습니다")).toBeInTheDocument(),
+      { timeout: 4000 },
     );
+    // 빈 응답도 일시적일 수 있어 재시도(초기 1 + 자동 2 = 3회)한 뒤 안내한다
+    expect(fetchChart).toHaveBeenCalledTimes(1 + MAX_AUTO_RETRIES);
   });
 
-  test("조회 실패 시 오류 안내", async () => {
+  test("빈 응답이 일시적이면 자동 재시도로 데이터 표시", async () => {
+    const fetchChart = vi
+      .fn()
+      .mockResolvedValueOnce({ ...DAILY, candles: [] })
+      .mockResolvedValue(DAILY);
+    render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    // 첫 빈 응답 → 자동 재시도로 두 번째 호출에서 데이터 확보
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledTimes(2), { timeout: 2000 });
+    // 복구되었으므로 빈상태/오류 안내가 없어야 한다
+    expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("차트 데이터를 불러올 수 없습니다")).not.toBeInTheDocument();
+  });
+
+  test("일시 실패 후 자동 재시도로 복구", async () => {
+    const fetchChart = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("503"))
+      .mockResolvedValue(DAILY);
+    render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    await waitFor(() => expect(fetchChart).toHaveBeenCalledTimes(2), { timeout: 2000 });
+    expect(screen.queryByText("차트 데이터를 불러올 수 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
+  });
+
+  test("계속 실패하면 오류 안내 후 무한 재시도하지 않음", async () => {
     const fetchChart = vi.fn().mockRejectedValue(new Error("fail"));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    await waitFor(() =>
-      expect(screen.getByText("차트 데이터를 불러올 수 없습니다")).toBeInTheDocument(),
+    await waitFor(
+      () => expect(screen.getByText("차트 데이터를 불러올 수 없습니다")).toBeInTheDocument(),
+      { timeout: 4000 },
     );
+    // 초기 1 + 자동 2 = 3회로 멈춘다
+    expect(fetchChart).toHaveBeenCalledTimes(1 + MAX_AUTO_RETRIES);
   });
 });

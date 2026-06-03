@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import type { RecommendItem, RecommendResult, ThemeInfo } from "../types";
 
 interface RecommendPageProps {
   fetchThemes: () => Promise<ThemeInfo[]>;
-  fetchRecommend: (theme: string, limit?: number) => Promise<RecommendResult>;
+  fetchRecommend: (
+    theme: string,
+    limit?: number,
+    signal?: AbortSignal,
+  ) => Promise<RecommendResult>;
   onAdd: (symbol: string, name?: string) => void;
-  onSelect?: (symbol: string) => void; // 종목 클릭 시 차트 모달 열기
+  onSelect?: (symbol: string, name?: string | null) => void;
 }
 
-/** 분야(KRX 테마)별 복합 점수 추천 종목 페이지. */
 export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: RecommendPageProps) {
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [active, setActive] = useState<string | null>(null);
@@ -19,28 +22,44 @@ export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: 
   useEffect(() => {
     fetchThemes()
       .then(setThemes)
-      .catch(() => setError("테마 목록을 불러오지 못했습니다"));
+      .catch(() => setError("테마 목록을 불러오지 못했습니다."));
   }, [fetchThemes]);
 
-  const pick = async (slug: string) => {
-    setActive(slug);
+  // 분야 선택 시 추천을 조회한다. 로딩 중 다른 분야를 누르면 cleanup이
+  // 이전 요청을 abort하고 stale 응답을 무시한다(ChartModal의 alive 패턴과 동일).
+  useEffect(() => {
+    if (!active) return;
+    let alive = true;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setResult(null);
-    try {
-      setResult(await fetchRecommend(slug));
-    } catch {
-      setError("추천을 불러오지 못했습니다");
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchRecommend(active, undefined, controller.signal)
+      .then((data) => {
+        if (!alive) return;
+        setResult(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!alive) return;
+        // 의도적 취소(AbortError)는 오류로 표시하지 않는다.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError("추천 종목을 불러오지 못했습니다.");
+        setLoading(false);
+      });
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [active, fetchRecommend]);
+
+  const pick = (slug: string) => setActive(slug);
 
   return (
     <section className="panel recommend">
       <h2>분야별 추천 종목</h2>
       <p className="disclaimer muted">
-        ※ 투자 판단의 참고용이며 수익을 보장하지 않습니다. 자동 매매와는 무관합니다.
+        추천은 참고용이며 수익을 보장하지 않습니다. 자동 매매는 별도 설정입니다.
       </p>
 
       <div className="theme-chips">
@@ -56,13 +75,11 @@ export function RecommendPage({ fetchThemes, fetchRecommend, onAdd, onSelect }: 
       </div>
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="muted">불러오는 중…</p>}
+      {loading && <p className="muted">불러오는 중...</p>}
 
       {result && !loading && (
         <>
-          {result.base_date && (
-            <p className="muted base-date">재무 기준일: {result.base_date}</p>
-          )}
+          {result.base_date && <p className="muted base-date">기준일: {result.base_date}</p>}
           <div className="rec-grid">
             {result.items.map((it, i) => (
               <RecommendCard
@@ -87,10 +104,9 @@ interface RecommendCardProps {
   rank: number;
   item: RecommendItem;
   onAdd: (symbol: string, name?: string) => void;
-  onSelect?: (symbol: string) => void;
+  onSelect?: (symbol: string, name?: string | null) => void;
 }
 
-// 국내 관례: 상승 빨강 / 하락 파랑 / 보합·없음 회색
 function changeClass(rate: number | null): string {
   if (rate == null || rate === 0) return "muted";
   return rate > 0 ? "up" : "down";
@@ -98,7 +114,8 @@ function changeClass(rate: number | null): string {
 
 function RecommendCard({ rank, item, onAdd, onSelect }: RecommendCardProps) {
   const clickable = onSelect != null;
-  const openChart = () => onSelect?.(item.symbol);
+  const openChart = () => onSelect?.(item.symbol, item.name);
+
   return (
     <article
       className={"rec-card" + (clickable ? " clickable" : "")}
@@ -145,13 +162,14 @@ function RecommendCard({ rank, item, onAdd, onSelect }: RecommendCardProps) {
 
       <div className="rec-meta muted">
         <span>ROE {item.roe != null ? item.roe.toFixed(1) : "-"}</span>
-        {clickable && <span className="chart-hint">클릭 → 차트</span>}
+        {clickable && <span className="chart-hint">클릭 시 차트</span>}
       </div>
 
       <button
+        type="button"
         className="add-btn"
         onClick={(e) => {
-          e.stopPropagation(); // 카드 클릭(차트)과 분리
+          e.stopPropagation();
           onAdd(item.symbol, item.name);
         }}
       >

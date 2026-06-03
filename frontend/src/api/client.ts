@@ -118,5 +118,5 @@ export const deleteBudget = (symbol: string) =>
 
 export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");
 
-export const getRecommend = (theme: string, limit = 10) =>
-  api<RecommendResult>(`/api/recommend/${theme}?limit=${limit}`);
+export const getRecommend = (theme: string, limit = 10, signal?: AbortSignal) =>
+  api<RecommendResult>(`/api/recommend/${theme}?limit=${limit}`, { signal });

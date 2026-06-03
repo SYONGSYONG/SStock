@@ -78,10 +78,17 @@
 | 엔드포인트 | 설명 | 출처 |
 |-----------|------|------|
 | `GET /api/account/balance` | 계좌 잔고 요약(예수금·주문가능현금·총평가·평가손익·순자산) | 주식잔고조회 `output2` |
+| `GET /api/positions` | 계좌 보유 포지션(수량·평단·현재가·평가금액·손익·손익률) | 주식잔고조회 `output2` |
+
+- `/api/positions` 는 `inquire-balance` 기준의 보유 잔고만 반환한다. 요청 주문 수량은 포지션에 포함하지 않는다.
+- 주문 체결 상태는 `inquire-daily-ccld` 결과로 로컬 주문 상태를 보정한다.
 
 - 응답: `{ "data": { "mode", "available", "deposit", "orderable_cash", "purchase_amount", "eval_amount", "eval_pnl", "total_eval", "net_asset" } }`.
 - 필드 매핑(`output2`): `dnca_tot_amt`(예수금)·`prvs_rcdl_excc_amt`(가수도정산≈주문가능현금)·`pchs_amt_smtl_amt`(매입합계)·`evlu_amt_smtl_amt`(평가합계)·`evlu_pfls_smtl_amt`(평가손익)·`tot_evlu_amt`(총평가)·`nass_amt`(순자산).
 - **graceful**: KIS 일시 오류(예: 토큰 만료 `EGW00121`, 모의서버 500) 시 500 대신 `available=false` + 모든 값 `null`로 응답 → 대시보드가 깨지지 않는다(시세 조회와 동일 정책).
+- **지연 특성**: 잔고는 로컬 DB 패널(~0.23s)과 달리 **매 폴링마다 KIS REST 왕복**이 있어 ~0.5s 걸린다. 두 가지로 체감 지연을 줄인다.
+  - **토큰 프리워밍**(`KIS_TOKEN_PREWARM=true`, 기본): 기동 시 토큰을 미리 확보해 첫 호출의 발급 왕복 제거(파일 캐시 유효 시 네트워크 없음, 실패해도 기동 계속).
+  - **로딩 상태 분리**: 프론트 `AccountPanel`은 첫 조회 전(`null`)엔 "불러오는 중…", KIS 오류(`available=false`)일 때만 "조회 불가"를 표시(에러처럼 보이는 깜빡임 제거).
 
 ### 대시보드 차트 API
 
@@ -107,6 +114,19 @@
    POST /oauth2/Approval → approval_key
    웹소켓 핸드셰이크 시 approval_key 사용
 ```
+
+## KIS 클라이언트 안정성 강화 전략
+
+KIS API의 초당 호출 제한(TPS) 및 일시적 네트워크 불안정에 대응하기 위해 `KisClient`에 다음과 같은 전략을 적용한다.
+
+| 전략 | 내용 | 목적 |
+|------|------|------|
+| **레이트리미터 (사전 억제)** | 전역으로 호출 간 최소 간격(`KIS_MIN_CALL_INTERVAL_SEC`, 기본 paper 0.45s/live 0.06s)을 강제 | 초당 거래건수 초과(EGW00201) **사전** 방지 |
+| **동시성 제어 (Semaphore)** | 전역 세마포어(`asyncio.Semaphore(3)`)로 동시 호출 수 제한 | TPS 초과 방지 및 서버 부하 조절 |
+| **지수 백오프 재시도** | 429, 503, 5xx, 네트워크 오류 시 최대 3회 재시도 (0.5s → 1s → 2s) | 일시적 오류 자동 복구 및 성공률 제고 |
+| **EGW00201 본문 재시도** | HTTP 200이라도 본문 `rt_cd≠0`+`msg_cd=EGW00201`이면 백오프 재시도 | 상태코드로 안 드러나는 레이트리밋 사후 복구 |
+| **토큰 자동 갱신** | 401 Unauthorized 발생 시 즉시 토큰 무효화 후 1회 재시도 | 만료 토큰으로 인한 실패 방지 |
+| **Graceful 응답** | KIS 최종 실패 시 시세/잔고는 빈 데이터, **차트는 예외→503**으로 구분 | 일시 오류와 '데이터 없음' 혼동 방지 |
 
 ---
 
@@ -187,6 +207,8 @@ KIS_APP_KEY=
 KIS_APP_SECRET=
 KIS_ACCOUNT_NO=          # 종합계좌번호 8자리
 KIS_ACCOUNT_PRODUCT=01   # 계좌상품코드 2자리
+KIS_TOKEN_PREWARM=true   # 기동 시 토큰 프리워밍(첫 시세/잔고 호출 지연↓). 테스트는 conftest가 off
+KIS_MIN_CALL_INTERVAL_SEC=  # KIS 호출 간 최소 간격(초). 비우면 모드별 기본(paper 0.45/live 0.06). 테스트는 0
 
 # 서버
 HOST=127.0.0.1

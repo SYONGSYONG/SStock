@@ -21,6 +21,7 @@
 - 일봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_DATE_1`(시작), `FID_INPUT_DATE_2`(종료, 1회 최대 100개), `FID_PERIOD_DIV_CODE=D`, `FID_ORG_ADJ_PRC=1`(원주가).
 - 분봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 조회 종료시각), `FID_PW_DATA_INCU_YN=Y`, `FID_ETC_CLS_CODE=""`.
 - 일봉 종가는 `stck_clpr`, 분봉 종가는 `stck_prpr`. 거래량은 일봉 `acml_vol`(당일 누적=일거래량), 분봉 `cntg_vol`(분 체결량).
+- **유연한 파싱**: 시가/고가/저가가 누락된 경우 종가를 기준으로 캔들을 최대한 복구하여 표시한다.
 
 ## 3. 백엔드 (`app/kis/charts.py` + `app/routers/charts.py`)
 
@@ -28,23 +29,33 @@
 - 응답 캔들: `{ "time", "open", "high", "low", "close", "volume" }`.
   - 일봉 `time` = `"YYYY-MM-DD"`(lightweight-charts business day).
   - 분봉 `time` = UNIX 초. **KST 벽시계 숫자를 UTC로 환산**해 차트 축이 KST HH:MM을 그대로 표시하게 한다.
-- 시세 조회와 동일하게 **graceful**: KIS 일시 오류(`httpx.HTTPError`) 시 예외 전파 없이 빈 캔들(`[]`) 반환.
+- **일시 오류와 '데이터 없음'을 구분한다(중요).**
+  - KIS 일시 오류(`httpx.HTTPError`, 또는 HTTP 200이라도 `rt_cd != "0"`) → `ChartUnavailableError`를 던진다.
+  - 라우터가 이를 잡아 **503 `CHART_UNAVAILABLE`**로 응답한다(빈 캔들 200으로 위장하지 않음).
+  - 정상 응답(`rt_cd == "0"`)인데 데이터가 없을 때만 빈 리스트(`[]`)를 반환한다(진짜 '데이터 없음').
+  - 배경: 초당 거래건수 초과(`EGW00201`)는 HTTP 200 + `rt_cd != "0"`로 와서, 예전엔 빈 캔들로 둔갑해
+    "차트 데이터가 없습니다"가 간헐적으로 떴다. 이제 `KisClient`가 본문 `msg_cd`를 보고 레이트리밋을
+    지수 백오프로 재시도하고, 그래도 실패하면 503으로 분리한다(모든 KIS 호출 공통).
 - 엔드포인트: `GET /api/charts/{symbol}?interval=daily|minute` → `{ "data": { "symbol", "interval", "candles": [...] } }`.
 - 일봉 날짜 범위는 서버에서 산출(종료=오늘 KST, 시작=오늘−200일 ≈ 100영업일 확보).
 
 ## 4. 프론트 (`components/ChartModal.tsx`)
 
 - 라이브러리: **lightweight-charts**(승인된 의존성). 캔들 시리즈 + 거래량 히스토그램.
-- 관심종목 `WatchList` 행을 클릭 가능(button)으로 만들고 `onSelect(symbol)` 호출.
-- `App`이 `selectedSymbol` 상태로 모달 표시. 모달 안에서 일봉/분봉 토글 버튼.
+- 관심종목 `WatchList` 행을 클릭 가능(button)으로 만들고 `onSelect(symbol, name)` 호출.
+- `App`이 `chartTarget` 상태로 모달 표시. 모달 안에서 일봉/분봉 토글 버튼.
+- **로딩 안정성**: 조회 실패(503 등) 시 사용자 개입 없이 **1회 자동 재시도**한다(`AUTO_RETRY_DELAY_MS=600`).
+  재시도 사이에는 `loading`을 유지해 "데이터 없음" 빈상태가 깜빡이지 않게 한다. 자동 재시도까지
+  실패하면 **[다시 시도]** 버튼(수동 재요청)을 노출한다. 자동 재시도는 `symbol`/`interval` 1건당 1회.
 - 닫기: X 버튼, 배경 클릭, Esc. 접근성: `role="dialog"`, `aria-modal`, 포커스/Esc 처리.
-- 빈 캔들(조회 불가) 시 "차트 데이터를 불러올 수 없습니다" 안내.
+- 일시 오류 시 "차트 데이터를 불러올 수 없습니다", 진짜 빈 데이터 시 "차트 데이터가 없습니다" 안내(구분).
 - 상승=빨강/하락=파랑(국내 관례) 색상 토큰 적용.
 
 ## 5. 테스트
 
-- 백엔드: 일봉/분봉 파싱(respx mock), graceful(500→`[]`), 라우터 종단(`interval` 분기·잘못된 interval 400).
-- 프론트: `lightweight-charts`는 jsdom canvas 미지원이라 **모듈 모킹**. ChartModal의 토글/닫기/빈상태 로직과 WatchList 클릭→onSelect 호출을 검증.
+- 백엔드: 일봉/분봉 파싱(respx mock), 오류 구분(500·`rt_cd≠0`→`ChartUnavailableError`, `rt_cd=0`+빈데이터→`[]`),
+  라우터 종단(`interval` 분기·잘못된 interval 400·일시 오류 503), `KisClient`의 `EGW00201` 재시도(`test_client.py`).
+- 프론트: `lightweight-charts`는 jsdom canvas 미지원이라 **모듈 모킹**. ChartModal의 토글/닫기/빈상태 로직과 WatchList 클릭→`onSelect(symbol, name)` 호출을 검증.
 
 ## 6. 안전/성능
 

@@ -88,9 +88,15 @@
 [6] 종합점수 랭킹 → 상위 K(기본 10) 추천
 ```
 
-- KIS **rate limit** 대비(구현됨): 후보 압축(N=30) + **세마포어 동시성 제한(5)** +
+- KIS **rate limit** 대비(구현됨): 후보 압축(N=30) + **세마포어 동시성 제한(3)** +
+  **공용 레이트리미터**(`KisClient`, 호출 간 최소 간격으로 EGW00201 사전 억제) +
   **결과 TTL 캐시(300초)**. → `recommend_service.recommend_for_theme`.
+  - 시세 조회(`quotes.get_current_price`)는 `rt_cd≠0`(레이트리밋 등)이면 빈 시세(None)를
+    반환하고 로깅한다 → 카드에 `-`. 레이트리미터 도입 후 누락은 거의 사라진다(실측 8/8).
 - 장 시간 외/수급 미집계 시: 모멘텀·수급은 중립 처리, **펀더멘털 위주**로 동작(degrade).
+- **분야 전환 경쟁 상태 방지**(프론트): `RecommendPage`는 분야 선택을 `useEffect`로 조회하고,
+  로딩 중 다른 분야를 누르면 cleanup이 이전 요청을 **AbortController로 취소 + stale 응답 무시**한다
+  (ChartModal의 `alive` 패턴과 동일). 늦게 도착한 옛 분야가 새 분야를 덮어쓰지 않는다.
 
 ---
 
@@ -191,7 +197,7 @@
   - 일봉: KIS `inquire-daily-itemchartprice`(FHKST03010100), 분봉: `inquire-time-itemchartprice`(FHKST03010200).
   - 응답 `{"data": {symbol, interval, candles:[{time, open, high, low, close, volume}, ...]}}` (시간 오름차순).
   - KIS 일시 실패 시 빈 `candles`(degrade).
-- **연동(추천 페이지)**: `RecommendPage`에 `onSelect(symbol)` 추가 → `App`의 `setChartSymbol`로
+- **연동(추천 페이지)**: `RecommendPage`에 `onSelect(symbol, name)` 추가 → `App`의 `setChartTarget`로
   기존 모달을 띄운다. 카드의 "관심종목 추가" 버튼은 `stopPropagation`으로 차트 클릭과 분리.
 
 ### 10.3 파일 (이번 작업 = 연동 위주)
@@ -200,12 +206,12 @@
 |------|------|------|
 | `backend/app/kis/charts.py`, `routers/charts.py` | **기존** | KIS 일/분봉 조회 + 라우터 |
 | `frontend/src/components/ChartModal.tsx` | **기존** | lightweight-charts 캔들 모달 |
-| `frontend/src/components/RecommendPage.tsx` | 수정 | 현재가·등락률 표시 + 카드 클릭→`onSelect` |
-| `frontend/src/App.tsx` | 수정 | `RecommendPage`에 `onSelect={setChartSymbol}` |
+| `frontend/src/components/RecommendPage.tsx` | 수정 | 현재가·등락률 표시 + 카드 클릭→`onSelect(symbol, name)` |
+| `frontend/src/App.tsx` | 수정 | `RecommendPage`에 `onSelect={(symbol, name) => setChartTarget({ symbol, name })}` |
 | `frontend/src/styles.css` | 수정 | 카드 현재가·clickable 스타일 |
 
 ### 10.4 테스트
 
-- **프론트**: 카드 현재가·등락률(부호) 표시, 카드 클릭→`onSelect` 호출, "관심종목 추가"는
+- **프론트**: 카드 현재가·등락률(부호) 표시, 카드 클릭→`onSelect(symbol, name)` 호출, "관심종목 추가"는
   `onSelect` 미호출(stopPropagation). → `RecommendPage.test.tsx` 신규 3건.
 - 차트 데이터/모달 자체는 기존 `test_charts.py`·`ChartModal.test.tsx`가 커버.

@@ -1,15 +1,4 @@
-"""KIS 종목 차트(일봉/분봉) 조회.
-
-- 일봉: 국내주식 기간별시세(inquire-daily-itemchartprice, FHKST03010100)
-- 분봉: 주식당일분봉조회(inquire-time-itemchartprice, FHKST03010200)
-
-시세 조회와 동일하게, KIS 일시 실패 시 예외를 전파하지 않고 빈 캔들 리스트를
-반환한다(차트 모달은 "데이터 없음" 안내). 캔들은 시간 오름차순으로 정렬한다.
-
-반환 캔들 형식(lightweight-charts 호환):
-- 일봉  time = "YYYY-MM-DD"
-- 분봉  time = UNIX 초(KST 벽시계를 UTC로 환산 → 축이 KST HH:MM 표기)
-"""
+"""KIS 종목 차트(일봉/분봉) 조회."""
 
 from __future__ import annotations
 
@@ -26,19 +15,32 @@ from app.kis.numbers import to_int
 
 logger = logging.getLogger(__name__)
 
+
+class ChartUnavailableError(RuntimeError):
+    """KIS 일시 오류로 차트를 조회하지 못함.
+
+    '진짜 데이터 없음'(빈 캔들)과 구분하기 위한 예외다. 재시도로 회복 가능한
+    상황(레이트리밋·토큰 만료·일시 5xx)을 호출 측이 오류로 인지하게 한다.
+    """
+
+
 _DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 _KST = timezone(timedelta(hours=9))
-_DAILY_LOOKBACK_DAYS = 200  # ~100 영업일 확보용 달력일
+_DAILY_LOOKBACK_DAYS = 200
 
 
 def _ohlcv(oprc: Any, hgpr: Any, lwpr: Any, close: Any, vol: Any) -> dict[str, Any] | None:
-    """OHLCV를 int로 변환. 핵심 값이 비면 None(해당 캔들 제외)."""
-    o, h, low, c = to_int(oprc), to_int(hgpr), to_int(lwpr), to_int(close)
-    if None in (o, h, low, c):
+    """OHLCV를 int로 변환한다. 종가가 있으면 나머지는 0으로라도 채운다."""
+    c = to_int(close)
+    if c is None:
         return None
-    return {"open": o, "high": h, "low": low, "close": c, "volume": to_int(vol) or 0}
+    o = to_int(oprc) or c
+    h = to_int(hgpr) or c
+    low = to_int(lwpr) or c
+    v = to_int(vol) or 0
+    return {"open": o, "high": h, "low": low, "close": c, "volume": v}
 
 
 def _parse_daily(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -48,13 +50,16 @@ def _parse_daily(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(date) != 8:
             continue
         body = _ohlcv(
-            r.get("stck_oprc"), r.get("stck_hgpr"), r.get("stck_lwpr"),
-            r.get("stck_clpr"), r.get("acml_vol"),
+            r.get("stck_oprc"),
+            r.get("stck_hgpr"),
+            r.get("stck_lwpr"),
+            r.get("stck_clpr"),
+            r.get("acml_vol"),
         )
         if body is None:
             continue
         candles.append({"time": f"{date[0:4]}-{date[4:6]}-{date[6:8]}", **body})
-    candles.sort(key=lambda c: c["time"])  # 오름차순
+    candles.sort(key=lambda c: c["time"])
     return candles
 
 
@@ -63,20 +68,33 @@ def _parse_minute(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for r in rows:
         date = (r.get("stck_bsop_date") or "").strip()
         hms = (r.get("stck_cntg_hour") or "").strip()
-        if len(date) != 8 or len(hms) != 6:
+        if len(date) != 8 or len(hms) < 4:  # HHMMSS 또는 HHMM
             continue
+        if len(hms) == 4:
+            hms += "00"
+
         body = _ohlcv(
-            r.get("stck_oprc"), r.get("stck_hgpr"), r.get("stck_lwpr"),
-            r.get("stck_prpr"), r.get("cntg_vol"),
+            r.get("stck_oprc"),
+            r.get("stck_hgpr"),
+            r.get("stck_lwpr"),
+            r.get("stck_prpr"),
+            r.get("cntg_vol"),
         )
         if body is None:
             continue
-        # KST 벽시계 숫자를 UTC로 환산해 차트 축이 KST HH:MM을 그대로 표기하게 함
-        dt = datetime(
-            int(date[0:4]), int(date[4:6]), int(date[6:8]),
-            int(hms[0:2]), int(hms[2:4]), int(hms[4:6]), tzinfo=timezone.utc,
-        )
-        candles.append({"time": int(dt.timestamp()), **body})
+        try:
+            dt_kst = datetime(
+                int(date[0:4]),
+                int(date[4:6]),
+                int(date[6:8]),
+                int(hms[0:2]),
+                int(hms[2:4]),
+                int(hms[4:6]),
+                tzinfo=_KST,
+            )
+            candles.append({"time": int(dt_kst.astimezone(timezone.utc).timestamp()), **body})
+        except ValueError:
+            continue
     candles.sort(key=lambda c: c["time"])
     return candles
 
@@ -86,7 +104,11 @@ async def get_daily_chart(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
-    """일봉(최근 ~100영업일) 캔들. KIS 오류 시 빈 리스트."""
+    """일봉 차트(최근 약 100영업일)를 반환한다.
+
+    KIS 일시 오류(httpx 오류·rt_cd≠0)는 빈 리스트가 아니라 ``ChartUnavailableError``로
+    전파한다. 빈 리스트는 '정상 응답이나 데이터 없음'만을 의미한다.
+    """
     settings = settings or get_settings()
     client = kis_client or KisClient(settings)
     today = datetime.now(_KST).date()
@@ -102,9 +124,26 @@ async def get_daily_chart(
     try:
         data = await client.get(_DAILY_PATH, QUOTE_TR_IDS["inquire_daily_itemchartprice"], params)
     except httpx.HTTPError as exc:
-        logger.warning("일봉 조회 실패 %s: %s", symbol, exc)
-        return []
-    return _parse_daily(data.get("output2") or [])
+        logger.warning("일봉 HTTP 호출 실패 %s: %s", symbol, exc)
+        raise ChartUnavailableError(f"일봉 조회 실패: {symbol}") from exc
+
+    if data.get("rt_cd") != "0":
+        logger.warning(
+            "일봉 조회 응답 오류 %s: %s(%s)",
+            symbol,
+            data.get("msg1"),
+            data.get("msg_cd"),
+        )
+        raise ChartUnavailableError(data.get("msg1") or f"일봉 조회 오류: {symbol}")
+
+    output2 = data.get("output2") or []
+    if not output2:
+        logger.info("일봉 데이터 없음 %s: %s", symbol, data.get("msg1"))
+
+    candles = _parse_daily(output2)
+    if output2 and not candles:
+        logger.warning("일봉 데이터 파싱 실패 %s (데이터는 있으나 유효한 캔들 없음)", symbol)
+    return candles
 
 
 async def get_minute_chart(
@@ -112,9 +151,15 @@ async def get_minute_chart(
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
-    """당일 분봉 캔들. KIS 오류 시 빈 리스트."""
+    """분봉 차트를 반환한다.
+
+    KIS 일시 오류(httpx 오류·rt_cd≠0)는 빈 리스트가 아니라 ``ChartUnavailableError``로
+    전파한다. 빈 리스트는 '정상 응답이나 데이터 없음'(장 마감 후·주말 등)만을 의미한다.
+    """
     settings = settings or get_settings()
     client = kis_client or KisClient(settings)
+    # FID_INPUT_HOUR_1을 현재 시각으로 보내거나, 빈 값으로 보내 최신 데이터를 가져온다.
+    # 일부 종목은 현재 시각을 보내면 결과가 비어있는 경우가 있어 빈 값 시도 고려 가능.
     now_hms = datetime.now(_KST).strftime("%H%M%S")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
@@ -126,6 +171,23 @@ async def get_minute_chart(
     try:
         data = await client.get(_MINUTE_PATH, QUOTE_TR_IDS["inquire_time_itemchartprice"], params)
     except httpx.HTTPError as exc:
-        logger.warning("분봉 조회 실패 %s: %s", symbol, exc)
-        return []
-    return _parse_minute(data.get("output2") or [])
+        logger.warning("분봉 HTTP 호출 실패 %s: %s", symbol, exc)
+        raise ChartUnavailableError(f"분봉 조회 실패: {symbol}") from exc
+
+    if data.get("rt_cd") != "0":
+        logger.warning(
+            "분봉 조회 응답 오류 %s: %s(%s)",
+            symbol,
+            data.get("msg1"),
+            data.get("msg_cd"),
+        )
+        raise ChartUnavailableError(data.get("msg1") or f"분봉 조회 오류: {symbol}")
+
+    output2 = data.get("output2") or []
+    if not output2:
+        logger.info("분봉 데이터 없음 %s: %s", symbol, data.get("msg1"))
+
+    candles = _parse_minute(output2)
+    if output2 and not candles:
+        logger.warning("분봉 데이터 파싱 실패 %s (데이터는 있으나 유효한 캔들 없음)", symbol)
+    return candles

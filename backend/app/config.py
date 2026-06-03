@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     kis_account_no: str = ""
     kis_account_product: str = "01"
 
+    # 기동 시 KIS 접근토큰 프리워밍(첫 시세/잔고 호출의 토큰 발급 왕복 제거).
+    # 테스트는 conftest에서 끈다(실서버 KIS 호출 방지).
+    kis_token_prewarm: bool = True
+
+    # KIS 호출 사이 최소 간격(초) — 초당 거래건수 초과(EGW00201)를 사전 억제한다.
+    # None이면 모드별 기본값(paper≈0.45→2건/초, live≈0.06→16건/초)을 쓴다.
+    # 테스트는 conftest에서 0으로 끈다.
+    kis_min_call_interval_sec: float | None = None
+
     # 서버
     host: str = "127.0.0.1"
     port: int = 8000
@@ -56,6 +65,13 @@ class Settings(BaseSettings):
     @property
     def is_live(self) -> bool:
         return self.trading_mode == "live"
+
+    @property
+    def kis_call_interval(self) -> float:
+        """KIS 호출 간 최소 간격(초). 미설정 시 모드별 기본값."""
+        if self.kis_min_call_interval_sec is not None:
+            return max(0.0, self.kis_min_call_interval_sec)
+        return 0.06 if self.trading_mode == "live" else 0.45
 
     def masked_app_key(self) -> str:
         """로그 노출용 마스킹된 앱키."""

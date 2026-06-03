@@ -33,7 +33,8 @@ DEFAULT_CANDIDATE_LIMIT = 30  # 1차 압축 N
 DEFAULT_RESULT_LIMIT = 10  # 추천 개수 K
 
 # KIS rate limit 대비: 동시 조회 상한 + 결과 캐시(TTL) (docs/06-recommend.md §4·§7)
-_MAX_CONCURRENCY = 5
+# KisClient의 전역 세마포어(_GLOBAL_SEMAPHORE=3)와 보조를 맞추어 동시성 제한.
+_MAX_CONCURRENCY = 3
 _CACHE_TTL_SEC = 300.0
 
 PriceFn = Callable[[str], Awaitable[dict[str, Any]]]

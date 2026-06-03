@@ -46,6 +46,18 @@ async def get_current_price(
         logger.warning("시세 조회 실패 %s: %s", symbol, exc)
         return _empty_quote(symbol)
 
+    # HTTP 200이라도 rt_cd!=0이면 KIS 오류(초당 거래건수 초과 EGW00201 등).
+    # 차트와 달리 시세는 선택 정보라 예외 대신 빈 시세를 반환하되, 원인을 로깅한다.
+    # (client.py가 EGW00201을 재시도하므로 여기 도달은 재시도까지 소진된 경우다.)
+    if data.get("rt_cd") not in (None, "0"):
+        logger.warning(
+            "시세 조회 응답 오류 %s: %s(%s)",
+            symbol,
+            data.get("msg1"),
+            data.get("msg_cd"),
+        )
+        return _empty_quote(symbol)
+
     out = data.get("output") or {}
     return {
         "symbol": symbol,

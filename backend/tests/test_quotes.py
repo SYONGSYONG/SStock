@@ -72,6 +72,28 @@ async def test_KIS_5xx여도_500전파안함_빈시세():
 
 
 @respx.mock
+async def test_KIS_rt_cd오류_빈시세_반환():
+    """HTTP 200이라도 rt_cd!=0(레이트리밋 등)이면 예외 없이 빈 시세를 반환한다."""
+    settings = _settings()
+    respx.post(f"{settings.rest_base}/oauth2/tokenP").mock(
+        return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
+    )
+    respx.get(
+        f"{settings.rest_base}/uapi/domestic-stock/v1/quotations/inquire-price"
+    ).mock(
+        return_value=httpx.Response(
+            200, json={"rt_cd": "1", "msg_cd": "EGW00123", "msg1": "오류"}
+        )
+    )
+
+    data = await get_current_price("005930", settings)
+
+    assert data["symbol"] == "005930"
+    assert data["price"] is None
+    assert data["change_rate"] is None
+
+
+@respx.mock
 async def test_현재가_빈값_None_처리():
     settings = _settings()
     respx.post(f"{settings.rest_base}/oauth2/tokenP").mock(

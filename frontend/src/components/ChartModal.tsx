@@ -12,10 +12,11 @@ type ChartTab = ChartInterval | "overview";
 interface ChartModalProps {
   symbol: string;
   name?: string | null;
+  minuteScope?: "today" | "session";
   fetchChart: (
     symbol: string,
     interval: ChartInterval,
-    opts?: { unit?: number; signal?: AbortSignal },
+    opts?: { unit?: number; scope?: "today" | "session"; signal?: AbortSignal },
   ) => Promise<ChartData>;
   fetchOverview?: (symbol: string) => Promise<CompanyOverview>;
   onClose: () => void;
@@ -30,7 +31,7 @@ const MAX_AUTO_RETRIES = 2;
 const MINUTE_UNITS: MinuteUnit[] = [1, 5, 10, 30];
 
 /** 종목 모달: 캔들차트(일봉/주봉/분봉) + 기업개요 탭. */
-export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }: ChartModalProps) {
+export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, fetchOverview, onClose }: ChartModalProps) {
   const [tab, setTab] = useState<ChartTab>("overview");
   const [candles, setCandles] = useState<ChartData["candles"]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +59,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
 
   useEffect(() => {
     autoRetriesRef.current = 0;
-  }, [symbol, tab, minuteUnit]);
+  }, [symbol, tab, minuteUnit, minuteScope]);
 
   // 종목이 바뀌면 메모를 비운다(이전 종목 캔들 재사용 방지).
   useEffect(() => {
@@ -68,7 +69,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
   // 차트 데이터 조회 (차트 탭일 때만)
   useEffect(() => {
     if (tab === "overview") return;
-    const memoKey = tab === "minute" ? `minute:${minuteUnit}` : tab;
+    const memoKey = tab === "minute" ? `minute:${minuteScope}:${minuteUnit}` : tab;
     // 이미 받은 조합이면 메모에서 즉시 표시(네트워크 0).
     const memo = candlesCacheRef.current.get(memoKey);
     if (memo) {
@@ -96,6 +97,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
     fetchChart(symbol, tab, {
       signal: controller.signal,
       unit: tab === "minute" ? minuteUnit : undefined,
+      scope: tab === "minute" ? minuteScope : undefined,
     })
       .then((d) => {
         if (!alive) return;
@@ -116,7 +118,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
       if (retryTimer) clearTimeout(retryTimer);
       controller.abort();
     };
-  }, [symbol, tab, minuteUnit, fetchChart, retryCount]);
+  }, [symbol, tab, minuteUnit, minuteScope, fetchChart, retryCount]);
 
   // 기업개요 조회 (기업개요 탭일 때만)
   useEffect(() => {
@@ -234,7 +236,7 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
             {tabButton("weekly", "주봉")}
             {tabButton("minute", "분봉")}
           </div>
-          {tab === "minute" && (
+          {tab === "minute" && minuteScope === "session" && (
             <div className="minute-units" role="tablist" aria-label="분봉 단위">
               {MINUTE_UNITS.map((u) => (
                 <button

@@ -181,6 +181,7 @@ def _patch_now(monkeypatch, *, year=2026, month=6, day=3, hour=10, minute=15) ->
 
 
 _DAILY_MINUTE_URL = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
+_TODAY_MINUTE_URL = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 
 def _min_rows(date_str: str, end_hm: str, count: int) -> list[dict]:
@@ -202,6 +203,57 @@ def _min_rows(date_str: str, end_hm: str, count: int) -> list[dict]:
             }
         )
     return rows
+
+
+@respx.mock
+async def test_today_minute_chart_uses_inquire_time_path(tmp_path, monkeypatch):
+    """당일분봉(scope="today")은 FHKST03010200(inquire_time_itemchartprice)을 사용한다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(f"{s.rest_base}{_TODAY_MINUTE_URL}").mock(
+        return_value=httpx.Response(200, json=_MINUTE_BODY)
+    )
+    _patch_now(monkeypatch)
+
+    candles = await get_minute_chart("005930", scope="today", settings=s)
+
+    assert len(candles) == 2
+    assert candles[0]["time"] < candles[1]["time"]
+    assert route.calls.last.request.headers["tr_id"] == "FHKST03010200"
+    # 장중이면 현재 시각, 장외면 마감 시각으로 호출
+    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "101500"  # _patch_now 기본: 10:15
+
+
+@respx.mock
+async def test_today_minute_chart_clamps_to_close_time_outside_market(tmp_path, monkeypatch):
+    """장외에는 당일분봉을 마감 시각(15:30)으로 고정해 조회한다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(f"{s.rest_base}{_TODAY_MINUTE_URL}").mock(
+        return_value=httpx.Response(200, json=_MINUTE_BODY)
+    )
+    # 장외 시각: 16:30
+    _patch_now(monkeypatch, year=2026, month=6, day=3, hour=16, minute=30)
+
+    await get_minute_chart("005930", scope="today", settings=s)
+
+    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "153000"
+
+
+@respx.mock
+async def test_session_minute_chart_still_uses_dailychart(tmp_path, monkeypatch):
+    """scope="session"(기본)일 때는 여전히 FHKST03010230(일별분봉)을 사용한다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
+        return_value=httpx.Response(200, json=_MINUTE_BODY)
+    )
+    _patch_now(monkeypatch)
+
+    candles = await get_minute_chart("005930", scope="session", settings=s)
+
+    assert len(candles) == 2
+    assert route.calls.last.request.headers["tr_id"] == "FHKST03010230"
 
 
 @respx.mock
@@ -439,6 +491,54 @@ def test_chart_router_bad_unit():
         res = client.get("/api/charts/005930?interval=minute&unit=3")
     assert res.status_code == 400
     assert res.json()["code"] == "BAD_UNIT"
+
+
+@respx.mock
+def test_chart_router_minute_scope_today(tmp_path):
+    """분봉 API에 scope=today를 전달하면 응답에 포함된다."""
+    s = _settings(tmp_path)
+    app.dependency_overrides[get_settings] = lambda: s
+    try:
+        _token_mock(s)
+        respx.get(f"{s.rest_base}{_TODAY_MINUTE_URL}").mock(
+            return_value=httpx.Response(200, json=_MINUTE_BODY)
+        )
+        with TestClient(app) as client:
+            res = client.get("/api/charts/005930?interval=minute&scope=today")
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["interval"] == "minute"
+        assert data["scope"] == "today"
+        assert len(data["candles"]) == 2
+    finally:
+        app.dependency_overrides.clear()
+
+
+@respx.mock
+def test_chart_router_minute_scope_session_default(tmp_path):
+    """scope을 명시하지 않으면 session이 기본값이다."""
+    s = _settings(tmp_path)
+    app.dependency_overrides[get_settings] = lambda: s
+    try:
+        _token_mock(s)
+        respx.get(f"{s.rest_base}{_DAILY_MINUTE_URL}").mock(
+            return_value=httpx.Response(200, json=_MINUTE_BODY)
+        )
+        with TestClient(app) as client:
+            res = client.get("/api/charts/005930?interval=minute")
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["scope"] == "session"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_chart_router_bad_scope():
+    """잘못된 scope은 400 BAD_SCOPE를 반환한다."""
+    with TestClient(app) as client:
+        res = client.get("/api/charts/005930?interval=minute&scope=invalid")
+    assert res.status_code == 400
+    assert res.json()["code"] == "BAD_SCOPE"
 
 
 @respx.mock

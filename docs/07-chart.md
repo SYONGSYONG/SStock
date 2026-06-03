@@ -13,28 +13,57 @@
 
 ## 2. KIS API (모드 무관 — 시세 데이터)
 
+### 2-1. 분봉 데이터원 분기 (진입 출처 기반)
+
+차트 모달의 분봉은 **진입 경로(scope)**에 따라 다른 API를 사용한다.
+
+| 데이터원 | scope | URL | TR_ID | 특징 |
+|---------|-------|-----|-------|------|
+| 당일분봉 | `"today"` | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | `FHKST03010200` | 당일 인트라데이 실시간(1분·30건) |
+| 세션분봉 | `"session"` | `/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice` | `FHKST03010230` | 일별분봉(1분·120건·과거 1년) |
+
+**진입 경로 매핑**:
+- **대시보드(WatchList 클릭)** → scope=`"today"` → 당일분봉 사용(실시간, 즉시성 우선)
+- **분야별 추천(RecommendPage 클릭)** → scope=`"session"` → 세션분봉 사용(완료 세션 기준, 안정성)
+
+### 2-2. KIS API 상세
+
 | 종류 | URL | TR_ID | 핵심 응답(output2[]) |
 |------|-----|-------|----------------------|
 | 일봉 | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` | `FHKST03010100` | `stck_bsop_date·stck_oprc·stck_hgpr·stck_lwpr·stck_clpr·acml_vol` |
-| 분봉 | `/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice` | `FHKST03010230` | `stck_bsop_date·stck_cntg_hour·stck_oprc·stck_hgpr·stck_lwpr·stck_prpr·cntg_vol` |
+| 당일분봉 | `/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice` | `FHKST03010200` | `stck_bsop_date·stck_cntg_hour·stck_oprc·stck_hgpr·stck_lwpr·stck_prpr·cntg_vol` |
+| 세션분봉(구) | `/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice` | `FHKST03010230` | `stck_bsop_date·stck_cntg_hour·stck_oprc·stck_hgpr·stck_lwpr·stck_prpr·cntg_vol` |
 
-- 일봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_DATE_1`(시작), `FID_INPUT_DATE_2`(종료, 1회 최대 100개), `FID_PERIOD_DIV_CODE=D`, `FID_ORG_ADJ_PRC=1`(원주가).
-- 분봉은 **일별분봉(`FHKST03010230`, 1회 120건·과거 1년 보관, 모의 지원 확인됨)**으로 조회한다.
-  요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 조회 종료시각),
+**당일분봉(`FHKST03010200`, scope="today")**:
+- 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 현재시각 또는 마감 153000),
+  `FID_PW_DATA_INCU_YN=Y`, `FID_ETC_CLS_CODE=""`.
+- 지정 시각 기준 직전 30분의 실시간 데이터를 반환한다. 장중이면 현재 시각, 장외이면 마감 시각(15:30)으로 고정해
+  마지막 거래 세션의 실제 분봉을 가져온다.
+- **단위 선택 불가**: 당일분봉은 1분 데이터만 제공하므로 단위 선택기를 렌더하지 않는다(unit=1 고정).
+- 캐시 키: `{symbol}:today`, TTL=장중 30초/장외 30분.
+
+**세션분봉(`FHKST03010230`, scope="session", 기본값)**:
+- 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_HOUR_1`(HHMMSS, 조회 종료시각),
   `FID_INPUT_DATE_1`(거래일 YYYYMMDD), `FID_PW_DATA_INCU_YN=Y`, `FID_FAKE_TICK_INCU_YN=""`.
   - **세션 페이지네이션**: `153000`부터 역순으로 가장 이른 시각을 다음 `FID_INPUT_HOUR_1`로 넘기며
     09:00까지 1분봉을 모은다(최대 6페이지). 오늘이 휴장이면 직전 거래일로 거슬러 탐색(최대 7일).
   - **단위 집계(resample)**: 1분봉을 1/5/10/30분 버킷으로 묶어 N분봉을 만든다
     (open=첫 봉·high=최고·low=최저·close=막 봉·volume=합). 1분봉 세션은 `{symbol}:m1`로 캐시하고
     단위는 그 위에서 즉석 집계 → 단위 전환 시 추가 KIS 호출 없음.
-  - 라우터: `?interval=minute&unit=1|5|10|30`(잘못된 unit→400 `BAD_UNIT`). 응답에 `unit` 포함.
-  - (구 당일분봉 `FHKST03010200`은 1분·30건·당일만이라 더 이상 사용하지 않음.)
+  - 캐시 키: `{symbol}:m1`, TTL=장중 30초/장외 30분.
+
+**공통**:
+- 일봉 요청 파라미터: `FID_COND_MRKT_DIV_CODE=J`, `FID_INPUT_ISCD`, `FID_INPUT_DATE_1`(시작), `FID_INPUT_DATE_2`(종료, 1회 최대 100개), `FID_PERIOD_DIV_CODE=D`, `FID_ORG_ADJ_PRC=1`(원주가).
+- 라우터: `?interval=minute&unit=1|5|10|30&scope=today|session`(기본 scope=session). 분봉만 scope 의미 있음.
+  - 잘못된 unit→400 `BAD_UNIT`, 잘못된 scope→400 `BAD_SCOPE`. 응답에 `unit`, `scope` 포함.
 - 일봉 종가는 `stck_clpr`, 분봉 종가는 `stck_prpr`. 거래량은 일봉 `acml_vol`(당일 누적=일거래량), 분봉 `cntg_vol`(분 체결량).
 - **유연한 파싱**: 시가/고가/저가가 누락된 경우 종가를 기준으로 캔들을 최대한 복구하여 표시한다.
 
 ## 3. 백엔드 (`app/kis/charts.py` + `app/routers/charts.py`)
 
-- `get_daily_chart(symbol)` / `get_weekly_chart(symbol)` / `get_minute_chart(symbol)` → 캔들 리스트(시간 오름차순).
+- `get_daily_chart(symbol)` / `get_weekly_chart(symbol)` / `get_minute_chart(symbol, unit=1, scope="session")` → 캔들 리스트(시간 오름차순).
+  - `scope="today"`: 당일분봉 API(`_fetch_today_minute`)으로 당일 인트라데이 데이터 조회.
+  - `scope="session"`(기본): 세션분봉 API(`_fetch_minute_session`)으로 마지막 거래 세션 데이터 조회.
 - 응답 캔들: `{ "time", "open", "high", "low", "close", "volume" }`.
   - 일봉 `time` = `"YYYY-MM-DD"`(lightweight-charts business day).
   - 분봉 `time` = UNIX 초. **KST 벽시계 숫자를 UTC로 환산**해 차트 축이 KST HH:MM을 그대로 표시하게 한다.
@@ -54,27 +83,66 @@
   (장외엔 데이터 고정). 빈 결과/오류는 캐시하지 않아 다음 호출에서 재시도한다. `clear_chart_cache()`로 비운다.
   효과: 캐시 히트 시 ~3000ms+ → ~25ms.
 
-## 4. 프론트 (`components/ChartModal.tsx`)
+## 4. 프론트 (`App.tsx` + `components/ChartModal.tsx` + `api/client.ts`)
+
+### 4-1. App.tsx — 진입 출처 추적
+
+- `chartTarget` 상태 확장: `{ symbol, name?, source: "dashboard" | "recommend" }`로 진입 경로를 기록.
+- `WatchList.onSelect()` → `source: "dashboard"` 설정.
+- `RecommendPage.onSelect()` → `source: "recommend"` 설정.
+- `ChartModal`에 `minuteScope` prop 전달:
+  - `source === "dashboard"` → `minuteScope="today"`.
+  - `source === "recommend"` → `minuteScope="session"`.
+
+### 4-2. api/client.ts — scope 쿼리 파라미터
+
+- `getChart(symbol, interval, opts)`: opts에 `scope?: "today" | "session"` 추가.
+- 분봉일 때만(`interval === "minute"`): `&scope=...` 쿼리 파라미터 부착.
+
+### 4-3. ChartModal.tsx — 단위 선택기 조건부 렌더
+
+- prop `minuteScope?: "today" | "session"` 추가(기본 "session").
+- 분봉 탭 호출 시 `getChart(symbol, "minute", { unit, scope: minuteScope })` 전달.
+- 분봉 메모 키 확장: `minute:<minuteScope>:<unit>` (scope 포함).
+- **단위 선택기 조건부 렌더**:
+  - `minuteScope === "today"` → `.minute-units` 렌더 안 함(당일분봉은 단위 1분 고정).
+  - `minuteScope === "session"` → `.minute-units` 렌더함(`1·5·10·30분` 선택 가능).
+
+### 4-4. 공통 동작
 
 - 라이브러리: **lightweight-charts**(승인된 의존성). 캔들 시리즈 + 거래량 히스토그램.
-- 관심종목 `WatchList` 행을 클릭 가능(button)으로 만들고 `onSelect(symbol, name)` 호출.
-- `App`이 `chartTarget` 상태로 모달 표시. 모달 안에서 일봉/주봉/분봉 토글 버튼.
-- **분봉 단위 선택**: 분봉 탭이 활성일 때 `1·5·10·30분` 세그먼트(`.minute-units`)를 노출.
-  `getChart(symbol, "minute", { unit })`로 조회하고, 메모 키는 `minute:<unit>`로 단위별 분리.
+- 관심종목 `WatchList` 행과 추천 카드를 클릭 가능(button)으로 만들고 `onSelect(symbol, name)` 호출.
+- 모달 안에서 일봉/주봉/분봉 토글 버튼.
 - **로딩 안정성**: 조회 실패(503 등) 시 사용자 개입 없이 **1회 자동 재시도**한다(`AUTO_RETRY_DELAY_MS=600`).
   재시도 사이에는 `loading`을 유지해 "데이터 없음" 빈상태가 깜빡이지 않게 한다. 자동 재시도까지
   실패하면 **[다시 시도]** 버튼(수동 재요청)을 노출한다. 자동 재시도는 `symbol`/`interval` 1건당 1회.
 - 닫기: X 버튼, 배경 클릭, Esc. 접근성: `role="dialog"`, `aria-modal`, 포커스/Esc 처리.
 - 일시 오류 시 "차트 데이터를 불러올 수 없습니다", 진짜 빈 데이터 시 "차트 데이터가 없습니다" 안내(구분).
 - 상승=빨강/하락=파랑(국내 관례) 색상 토큰 적용.
-- **탭 메모(성능)**: 이미 받은 캔들을 탭(interval)별로 `useRef` Map에 메모해, 탭을 다시 눌러도
+- **탭 메모(성능)**: 이미 받은 캔들을 탭(interval+scope)별로 `useRef` Map에 메모해, 탭을 다시 눌러도
   재조회하지 않는다(네트워크 0). 종목이 바뀌면 메모를 비운다. 빈 결과는 메모하지 않는다.
 
 ## 5. 테스트
 
-- 백엔드: 일봉/주봉/분봉 파싱(respx mock), 오류 구분(500·`rt_cd≠0`→`ChartUnavailableError`, `rt_cd=0`+빈데이터→`[]`),
-  분봉 **일별분봉 사용·세션 페이지네이션·직전 거래일 폴백·5분 집계**, 라우터 종단(`interval`/`unit` 분기·400 `BAD_INTERVAL`/`BAD_UNIT`·일시 오류 503), `KisClient`의 `EGW00201` 재시도(`test_client.py`).
-- 프론트: `lightweight-charts`는 jsdom canvas 미지원이라 **모듈 모킹**. ChartModal의 토글/닫기/빈상태 로직과 WatchList 클릭→`onSelect(symbol, name)` 호출을 검증.
+### 백엔드 (`backend/tests/test_charts.py`)
+
+- 일봉/주봉/분봉 파싱(respx mock), 오류 구분(500·`rt_cd≠0`→`ChartUnavailableError`, `rt_cd=0`+빈데이터→`[]`).
+- **분봉 scope 분기 테스트**:
+  - `scope="today"` → `FHKST03010200`(inquire_time_itemchartprice) 호출, 현재시각 또는 마감 153000 사용.
+  - `scope="session"`(기본) → `FHKST03010230`(inquire_time_dailychartprice) 호출, 기존 세션 페이지네이션 로직.
+  - scope 기본값 확인, 잘못된 scope→400 `BAD_SCOPE`.
+- 분봉 **세션 페이지네이션·직전 거래일 폴백·5분 집계**, 라우터 종단(`interval`/`unit`/`scope` 분기·400 에러·일시 오류 503).
+- `KisClient`의 `EGW00201` 재시도(`test_client.py`).
+
+### 프론트 (`frontend/src/__tests__/ChartModal.test.tsx`)
+
+- `lightweight-charts`는 jsdom canvas 미지원이라 **모듈 모킹**.
+- **분봉 scope 분기 테스트**:
+  - `minuteScope="today"` 렌더 시 단위 선택기 없음, `scope: "today"` 호출.
+  - `minuteScope="session"` 렌더 시 단위 선택기 표시, `scope: "session"` 호출.
+  - 기본값(prop 미지정) = `minuteScope="session"`.
+- ChartModal의 탭 토글/닫기/빈상태 로직, 메모 메커니즘(scope 포함).
+- App의 `chartTarget.source` 기반 `minuteScope` 전달 (별도 통합 테스트 권장).
 
 ## 6. 안전/성능
 

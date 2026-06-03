@@ -75,7 +75,7 @@ export function App() {
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [account, setAccount] = useState<AccountBalance | null>(null);
-  const [chartTarget, setChartTarget] = useState<{ symbol: string; name?: string | null } | null>(null);
+  const [chartTarget, setChartTarget] = useState<{ symbol: string; name?: string | null; source: "dashboard" | "recommend" } | null>(null);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
@@ -223,7 +223,7 @@ export function App() {
           subscribeRecommend={subscribeRecommend}
           fetchRecommend={getRecommend}
           onAdd={handleAddWatch}
-          onSelect={(symbol, name) => setChartTarget({ symbol, name })}
+          onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "recommend" })}
           watchedSymbols={new Set(items.map((it) => it.symbol))}
         />
       ) : (
@@ -233,7 +233,7 @@ export function App() {
             items={items}
             onAdd={handleAddWatch}
             onRemove={handleRemoveWatch}
-            onSelect={(symbol, name) => setChartTarget({ symbol, name })}
+            onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
             search={searchStocks}
             error={watchError}
           />
@@ -281,6 +281,7 @@ export function App() {
           <ChartModal
             symbol={chartTarget.symbol}
             name={chartTarget.name ?? items.find((it) => it.symbol === chartTarget.symbol)?.name}
+            minuteScope={chartTarget.source === "dashboard" ? "today" : "session"}
             fetchChart={getChart}
             fetchOverview={getCompanyOverview}
             onClose={() => setChartTarget(null)}

@@ -24,6 +24,8 @@ class ChartUnavailableError(RuntimeError):
 
 
 _CHART_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+# 당일분봉(FHKST03010200): 당일 인트라데이 실시간 데이터. 장중에만 호출.
+_MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 _KST = timezone(timedelta(hours=9))
 _KST_OFFSET_SEC = 9 * 3600  # 분봉 타임스탬프를 차트축에 KST 벽시계로 노출하기 위한 보정
@@ -264,17 +266,87 @@ def _resample_minutes(bars: list[dict[str, Any]], unit: int) -> list[dict[str, A
 async def get_minute_chart(
     symbol: str,
     unit: int = 1,
+    scope: str = "session",
     settings: Settings | None = None,
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
-    """N분봉(1/5/10/30). 1분봉 세션을 캐시하고 단위에 맞게 집계한다."""
+    """N분봉(1/5/10/30).
+
+    scope="today"일 때는 당일분봉(FHKST03010200, 인트라데이 실시간)을 사용.
+    scope="session"(기본)일 때는 일별분봉(FHKST03010230, 완료 세션 기준)을 사용.
+    1분봉을 캐시하고 단위에 맞게 집계한다.
+    """
     if unit not in _MINUTE_UNITS:
         unit = 1
     ttl = _TTL_MINUTE_MARKET if _is_market_hours() else _TTL_CLOSED
-    one_min = await _cached_fetch(
-        f"{symbol}:m1", ttl, lambda: _fetch_minute_session(symbol, settings, kis_client)
-    )
+
+    if scope == "today":
+        # 당일분봉 캐시: scope 포함
+        cache_key = f"{symbol}:today"
+        one_min = await _cached_fetch(
+            cache_key, ttl, lambda: _fetch_today_minute(symbol, settings, kis_client)
+        )
+    else:
+        # 세션분봉 캐시(기본)
+        one_min = await _cached_fetch(
+            f"{symbol}:m1", ttl, lambda: _fetch_minute_session(symbol, settings, kis_client)
+        )
+
     return one_min if unit == 1 else _resample_minutes(one_min, unit)
+
+
+async def _fetch_today_minute(
+    symbol: str,
+    settings: Settings | None = None,
+    kis_client: KisClient | None = None,
+) -> list[dict[str, Any]]:
+    """당일분봉(FHKST03010200): 당일 인트라데이 실시간 데이터(1분 집계).
+
+    지정 시각 기준 직전 30분 데이터를 반환한다. 장외이면 마감 시각(15:30)으로 고정해
+    마지막 거래 세션의 실제 분봉을 가져온다.
+    """
+    settings = settings or get_settings()
+    client = kis_client or KisClient(settings)
+
+    # 장중이면 현재 시각, 장외이면 마감 시각(15:30)으로 조회
+    now_kst = datetime.now(_KST)
+    minutes = now_kst.hour * 60 + now_kst.minute
+    if _MARKET_OPEN_MIN <= minutes <= _MARKET_CLOSE_MIN:
+        hour_1 = now_kst.strftime("%H%M%S")
+    else:
+        hour_1 = _MARKET_CLOSE_HMS
+
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_HOUR_1": hour_1,
+        "FID_PW_DATA_INCU_YN": "Y",
+        "FID_ETC_CLS_CODE": "",
+    }
+
+    try:
+        data = await client.get(_MINUTE_PATH, QUOTE_TR_IDS["inquire_time_itemchartprice"], params)
+    except httpx.HTTPError as exc:
+        logger.warning("당일분봉 HTTP 호출 실패 %s: %s", symbol, exc)
+        raise ChartUnavailableError(f"당일분봉 조회 실패: {symbol}") from exc
+
+    if data.get("rt_cd") != "0":
+        logger.warning(
+            "당일분봉 조회 응답 오류 %s: %s(%s)",
+            symbol,
+            data.get("msg1"),
+            data.get("msg_cd"),
+        )
+        raise ChartUnavailableError(data.get("msg1") or f"당일분봉 조회 오류: {symbol}")
+
+    output2 = data.get("output2") or []
+    if not output2:
+        logger.info("당일분봉 데이터 없음 %s: %s", symbol, data.get("msg1"))
+
+    candles = _parse_minute_rows(output2)
+    if output2 and not candles:
+        logger.warning("당일분봉 파싱 실패 %s", symbol)
+    return candles
 
 
 async def _fetch_minute_session(

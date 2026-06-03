@@ -135,6 +135,58 @@ describe("ChartModal", () => {
     );
   });
 
+  test('당일분봉(minuteScope="today")일 때 단위 선택기를 렌더하지 않고 scope="today"로 호출한다', async () => {
+    const fetchChart = vi
+      .fn()
+      .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
+    render(
+      <ChartModal
+        symbol="005930"
+        minuteScope="today"
+        fetchChart={fetchChart}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "minute",
+        expect.objectContaining({ scope: "today", unit: 1 }),
+      ),
+    );
+    // 당일분봉일 때는 단위 선택기가 렌더되지 않음
+    expect(screen.queryByRole("tab", { name: "5분" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "10분" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "30분" })).not.toBeInTheDocument();
+  });
+
+  test('세션분봉(minuteScope="session", 기본)일 때 단위 선택기를 렌더하고 scope="session"로 호출한다', async () => {
+    const fetchChart = vi
+      .fn()
+      .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
+    render(
+      <ChartModal
+        symbol="005930"
+        minuteScope="session"
+        fetchChart={fetchChart}
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
+    await waitFor(() =>
+      expect(fetchChart).toHaveBeenCalledWith(
+        "005930",
+        "minute",
+        expect.objectContaining({ scope: "session", unit: 1 }),
+      ),
+    );
+    // 세션분봉일 때는 단위 선택기가 렌더됨
+    expect(screen.getByRole("tab", { name: "5분" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "10분" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "30분" })).toBeInTheDocument();
+  });
+
   test("닫기 버튼 클릭 시 onClose를 호출한다", async () => {
     const onClose = vi.fn();
     const fetchChart = vi.fn().mockResolvedValue(DAILY);

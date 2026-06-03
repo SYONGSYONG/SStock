@@ -106,10 +106,11 @@ export const getAccountBalance = () => api<AccountBalance>("/api/account/balance
 export const getChart = (
   symbol: string,
   interval: ChartInterval = "daily",
-  opts?: { unit?: number; signal?: AbortSignal },
+  opts?: { unit?: number; scope?: "today" | "session"; signal?: AbortSignal },
 ) => {
   const q = new URLSearchParams({ interval });
   if (interval === "minute" && opts?.unit) q.set("unit", String(opts.unit));
+  if (interval === "minute" && opts?.scope) q.set("scope", opts.scope);
   return api<ChartData>(`/api/charts/${symbol}?${q.toString()}`, { signal: opts?.signal });
 };
 

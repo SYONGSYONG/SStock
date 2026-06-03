@@ -172,6 +172,7 @@ body {
 }
 .watch-form button,
 .btn-start,
+.btn-start-live,
 .btn-stop {
   border: none;
   border-radius: 8px;

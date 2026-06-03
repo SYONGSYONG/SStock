@@ -1,9 +1,11 @@
 """주문 안전 가드.
 
 모든 주문은 집행 전 이 가드를 통과해야 한다(절대 안전 규칙).
-- 일일 최대 주문 횟수
-- 일일 최대 주문 금액
 - 종목별 한도(수량/금액)
+- 자본 칸막이 필수: 미등록 종목은 매수·매도 모두 금지(ENVELOPE_REQUIRED)
+- 매수: 보유원가 + 주문금액 <= 원금 + 실현손익(ENVELOPE_EXCEEDED)
+- 매도: 봇이 산 수량까지만 허용(SELL_EXCEEDS_HOLDING, 기보유분 보호)
+- 일일 최대 주문 횟수/금액
 """
 
 from __future__ import annotations
@@ -33,6 +35,22 @@ class OrderIntent:
     price: float | None
     max_qty: int | None = None
     max_amount: int | None = None
+
+
+def _bot_open_sell_qty(conn: sqlite3.Connection, symbol: str, mode: str) -> int:
+    """아직 체결되지 않은 봇 매도 주문의 미체결 수량 합계.
+
+    봇이 보유한 수량을 여러 미체결 매도로 중복 소진하는 것을 막기 위해, 매도 가능
+    수량 계산 시 이 값을 차감한다. 체결/취소/거부 주문은 remaining_qty가 0이라
+    자연히 제외된다.
+    """
+    row = conn.execute(
+        "SELECT COALESCE(SUM(remaining_qty), 0) AS q FROM orders "
+        "WHERE symbol = ? AND mode = ? AND side = 'SELL' "
+        "AND status NOT IN ('rejected', 'cancelled')",
+        (symbol, mode),
+    ).fetchone()
+    return int(row["q"])
 
 
 def _today_order_count(conn: sqlite3.Connection, mode: str) -> int:
@@ -79,20 +97,39 @@ def check_order(
             "SYMBOL_AMOUNT_LIMIT", f"종목 금액 한도 초과: {order_amount} > {intent.max_amount}"
         )
 
-    # 종목별 자본 칸막이(envelope): 매수 시 보유원가 + 주문금액 <= 원금 + 실현손익
-    if intent.side == "BUY":
-        from app.services import budget_service
+    # 자본 칸막이(envelope) 필수: 미등록 종목은 매수·매도 모두 금지한다.
+    # 봇은 명시적으로 원금을 배정한 종목만 매매하며, 등록되지 않은 종목(특히 직접
+    # 매수한 기보유 종목)은 봇이 절대 건드리지 않는다.
+    from app.services import budget_service
 
-        principal = budget_service.get_principal(conn, intent.symbol, mode=mode)
-        if principal is not None:
-            state = budget_service.compute_symbol_state(conn, intent.symbol, mode=mode)
-            ceiling = principal + state["realized_pnl"]
-            if state["holding_cost"] + order_amount > ceiling:
-                raise RiskError(
-                    "ENVELOPE_EXCEEDED",
-                    f"종목 자본 칸막이 초과: 한도 {int(ceiling)}원, "
-                    f"보유원가 {int(state['holding_cost'])}원 + 주문 {order_amount}원",
-                )
+    principal = budget_service.get_principal(conn, intent.symbol, mode=mode)
+    if principal is None:
+        raise RiskError(
+            "ENVELOPE_REQUIRED",
+            f"자본 칸막이 미등록 종목은 매매할 수 없습니다: {intent.symbol}",
+        )
+
+    state = budget_service.compute_symbol_state(conn, intent.symbol, mode=mode)
+
+    if intent.side == "BUY":
+        # 매수: 보유원가 + 주문금액 <= 원금 + 실현손익
+        ceiling = principal + state["realized_pnl"]
+        if state["holding_cost"] + order_amount > ceiling:
+            raise RiskError(
+                "ENVELOPE_EXCEEDED",
+                f"종목 자본 칸막이 초과: 한도 {int(ceiling)}원, "
+                f"보유원가 {int(state['holding_cost'])}원 + 주문 {order_amount}원",
+            )
+    else:  # SELL
+        # 매도: 봇이 자기 주문으로 보유한 수량까지만 허용(직접 매수한 기보유분 보호).
+        bot_qty = int(state["holding_qty"])
+        sellable = bot_qty - _bot_open_sell_qty(conn, intent.symbol, mode)
+        if intent.qty > sellable:
+            raise RiskError(
+                "SELL_EXCEEDS_HOLDING",
+                f"봇 보유수량 초과 매도: 매도 {intent.qty}주 > 봇 보유 {sellable}주 "
+                f"(직접 매수한 기보유분은 봇이 매도하지 않습니다)",
+            )
 
     # 일일 주문 횟수 (모드별)
     if _today_order_count(conn, mode) >= settings.daily_max_orders:

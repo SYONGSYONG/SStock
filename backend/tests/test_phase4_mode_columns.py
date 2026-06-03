@@ -366,6 +366,10 @@ class TestRiskGuardModeIsolation:
             daily_max_amount=100_000,
         )
 
+        # 일일 한도 검증 전에 칸막이 가드를 통과하도록 등록
+        budget_service.set_principal(conn, "051910", 10**9, mode="paper")
+        budget_service.set_principal(conn, "051910", 10**9, mode="live")
+
         # paper에서 2건 주문 저장
         order_service.save_order(conn, "005930", "BUY", 1, 10000, "paper", status="filled")
         order_service.save_order(conn, "000660", "BUY", 1, 10000, "paper", status="filled")
@@ -406,6 +410,10 @@ class TestRiskGuardModeIsolation:
             daily_max_orders=999,
             daily_max_amount=100_000,  # 일일 10만원
         )
+
+        # 일일 금액 한도 검증 전에 칸막이 가드를 통과하도록 등록
+        budget_service.set_principal(conn, "000660", 10**9, mode="paper")
+        budget_service.set_principal(conn, "000660", 10**9, mode="live")
 
         # paper: 80000 주문
         order_service.save_order(conn, "005930", "BUY", 8, 10000, "paper", status="filled")
@@ -459,12 +467,13 @@ class TestBackwardCompatibility:
         settings = _settings()
 
         budget_service.set_principal(conn, "005930", 100_000)
+        budget_service.set_principal(conn, "005930", 1_000_000, mode="live")
         order_service.save_order(conn, "005930", "BUY", 10, 10000, "paper", status="filled")
 
-        # mode 미지정 = mode="paper"
+        # mode 미지정 = mode="paper" → paper 칸막이 한도 초과
         with pytest.raises(RiskError) as e:
             check_order(conn, settings, OrderIntent("005930", "BUY", 1, 10000))
         assert e.value.code == "ENVELOPE_EXCEEDED"
 
-        # live 칸막이는 없으므로 추가 mode 지정 시 성공 가능
+        # live 칸막이는 한도가 커서 동일 주문도 성공
         check_order(conn, settings, OrderIntent("005930", "BUY", 1, 10000), mode="live")

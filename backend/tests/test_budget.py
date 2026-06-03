@@ -81,15 +81,17 @@ def test_가드_실현이익으로_한도_늘면_매수_허용(tmp_path):
     assert e.value.code == "ENVELOPE_EXCEEDED"
 
 
-def test_칸막이_미설정_종목은_제한없음(tmp_path):
+def test_칸막이_미설정_종목은_매매_금지(tmp_path):
     conn = _db(tmp_path)
-    # 칸막이 설정 안 한 종목 -> envelope 체크 건너뜀
-    check_order(conn, _settings(), OrderIntent("000660", "BUY", 100, 100000))
+    # 칸막이 미등록 종목 -> 매수·매도 모두 금지
+    with pytest.raises(RiskError) as e:
+        check_order(conn, _settings(), OrderIntent("000660", "BUY", 100, 100000))
+    assert e.value.code == "ENVELOPE_REQUIRED"
 
 
-def test_매도는_칸막이_제한_안받음(tmp_path):
+def test_매도는_칸막이_금액한도_안받음(tmp_path):
     conn = _db(tmp_path)
     budget_service.set_principal(conn, "005930", 1000)  # 아주 작은 원금
     order_service.save_order(conn, "005930", "BUY", 10, 100, "paper", status="filled")
-    # 매도는 envelope 체크 대상 아님
+    # 매도는 칸막이 금액 한도(ceiling) 대상이 아니다. 봇 보유 10주 이내이므로 통과.
     check_order(conn, _settings(), OrderIntent("005930", "SELL", 10, 200))

@@ -26,8 +26,10 @@ _EXPIRY_MARGIN_SEC = 60
 class KisAuth:
     """접근토큰 발급 + 메모리/파일 캐시."""
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(self, settings: Settings | None = None, mode: str | None = None) -> None:
         self._settings = settings or get_settings()
+        self._mode = mode or self._settings.trading_mode
+        self._creds = self._settings.kis_for(self._mode)
         self._token: str | None = None
         self._expires_at: float = 0.0
         self._lock = asyncio.Lock()
@@ -36,7 +38,7 @@ class KisAuth:
     @property
     def _token_file(self) -> Path:
         parent = Path(self._settings.database_path).parent
-        return parent / f".kis_token_{self._settings.trading_mode}.json"
+        return parent / f".kis_token_{self._mode}.json"
 
     async def get_access_token(self, client: httpx.AsyncClient | None = None) -> str:
         """유효한 access_token을 반환한다. 메모리→파일→발급 순으로 재사용한다."""
@@ -82,14 +84,14 @@ class KisAuth:
     async def _fetch(self, client: httpx.AsyncClient | None) -> str:
         owns_client = client is None
         if client is None:
-            client = httpx.AsyncClient(base_url=self._settings.rest_base, timeout=10.0)
+            client = httpx.AsyncClient(base_url=self._creds.rest_base, timeout=10.0)
         try:
             resp = await client.post(
                 _TOKEN_PATH,
                 json={
                     "grant_type": "client_credentials",
-                    "appkey": self._settings.kis_app_key,
-                    "appsecret": self._settings.kis_app_secret,
+                    "appkey": self._creds.app_key,
+                    "appsecret": self._creds.app_secret,
                 },
             )
             resp.raise_for_status()
@@ -120,14 +122,14 @@ class KisAuth:
         """
         owns_client = client is None
         if client is None:
-            client = httpx.AsyncClient(base_url=self._settings.rest_base, timeout=10.0)
+            client = httpx.AsyncClient(base_url=self._creds.rest_base, timeout=10.0)
         try:
             resp = await client.post(
                 _APPROVAL_PATH,
                 json={
                     "grant_type": "client_credentials",
-                    "appkey": self._settings.kis_app_key,
-                    "secretkey": self._settings.kis_app_secret,
+                    "appkey": self._creds.app_key,
+                    "secretkey": self._creds.app_secret,
                 },
             )
             resp.raise_for_status()

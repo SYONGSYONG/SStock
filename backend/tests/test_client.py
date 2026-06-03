@@ -98,3 +98,50 @@ async def test_레이트리미터_호출간_최소간격_강제(tmp_path):
 
     assert elapsed >= 0.2  # 최소 (3-1)*0.1 간격 강제
     reset_rate_limiter()
+
+
+@respx.mock
+async def test_모드별_자격증명과_도메인_분리(tmp_path):
+    """KisClient(mode=...)는 해당 모드의 앱키로 해당 모드 도메인에 호출한다."""
+    s = Settings(
+        _env_file=None,
+        trading_mode="paper",
+        kis_paper_app_key="pkey",
+        kis_paper_app_secret="ps",
+        kis_paper_account_no="11111111",
+        kis_live_app_key="lkey",
+        kis_live_app_secret="ls",
+        kis_live_account_no="63376776",
+        database_path=str(tmp_path / "sstock.db"),
+    )
+    p = s.kis_for("paper")
+    live = s.kis_for("live")
+    assert p.rest_base != live.rest_base
+    for base, tok in ((p.rest_base, "PT"), (live.rest_base, "LT")):
+        respx.post(f"{base}/oauth2/tokenP").mock(
+            return_value=httpx.Response(200, json={"access_token": tok, "expires_in": 86400})
+        )
+    p_route = respx.get(f"{p.rest_base}{_TEST_PATH}").mock(
+        return_value=httpx.Response(200, json={"rt_cd": "0", "output": {}})
+    )
+    l_route = respx.get(f"{live.rest_base}{_TEST_PATH}").mock(
+        return_value=httpx.Response(200, json={"rt_cd": "0", "output": {}})
+    )
+
+    await KisClient(s, mode="paper").get(_TEST_PATH, "FHKST01010100", {"FID_INPUT_ISCD": "005930"})
+    await KisClient(s, mode="live").get(_TEST_PATH, "FHKST01010100", {"FID_INPUT_ISCD": "005930"})
+
+    assert p_route.calls.last.request.headers["appkey"] == "pkey"
+    assert l_route.calls.last.request.headers["appkey"] == "lkey"
+
+
+async def test_레이트리미터_모드는_서로_throttle하지_않는다():
+    """한 모드의 슬롯이 밀려도 다른 모드 첫 호출은 즉시 통과(독립 리미터)."""
+    from app.kis.client import _rate_gate
+
+    reset_rate_limiter()
+    await _rate_gate(0.2, "paper")  # paper 슬롯을 +0.2로 밀어둠
+    start = time.monotonic()
+    await _rate_gate(0.2, "live")  # live 첫 호출 → paper와 무관하게 대기 없음
+    assert time.monotonic() - start < 0.05
+    reset_rate_limiter()

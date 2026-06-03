@@ -28,7 +28,10 @@ def status() -> dict:
 @router.post("/start")
 async def start(conn: sqlite3.Connection = Depends(get_db)) -> dict:
     symbols = [row["symbol"] for row in watchlist_service.list_symbols(conn)]
-    await market_data_service.start(symbols)
+    if market_data_service.running:
+        await market_data_service.refresh(symbols)
+    else:
+        await market_data_service.start(symbols)
     return {"data": {"running": market_data_service.running, "symbols": symbols}}
 
 

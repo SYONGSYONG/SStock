@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import type { StockSearchResult, WatchItem } from "../types";
 
 interface WatchListProps {
   items: WatchItem[];
   onAdd: (symbol: string, name?: string) => void;
   onRemove: (symbol: string) => void;
-  onSelect?: (symbol: string) => void; // 행 클릭 → 차트 모달
+  onSelect?: (symbol: string, name?: string | null) => void;
   search: (q: string) => Promise<StockSearchResult[]>;
   error?: string | null;
 }
@@ -14,7 +14,7 @@ export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: W
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0); // 키보드 하이라이트 인덱스
+  const [active, setActive] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
 
@@ -40,7 +40,6 @@ export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: W
     };
   }, [query, search]);
 
-  // 하이라이트된 항목이 보이도록 스크롤
   useEffect(() => {
     if (!open || !listRef.current) return;
     const el = listRef.current.children[active] as HTMLElement | undefined;
@@ -56,9 +55,8 @@ export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: W
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || results.length === 0) {
-      return;
-    }
+    if (!open || results.length === 0) return;
+
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
@@ -126,13 +124,13 @@ export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: W
             <button
               type="button"
               className="watch-open"
-              onClick={() => onSelect?.(it.symbol)}
+              onClick={() => onSelect?.(it.symbol, it.name)}
               title="차트 보기"
             >
               <span className="code">{it.symbol}</span>
               <span className="name">{it.name ?? "-"}</span>
             </button>
-            <button className="link-danger" onClick={() => onRemove(it.symbol)}>
+            <button type="button" className="link-danger" onClick={() => onRemove(it.symbol)}>
               삭제
             </button>
           </li>

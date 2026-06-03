@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import sqlite3
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import get_settings
 from app.db.database import get_db
-from app.kis.orders import cancel_order
+from app.kis.orders import cancel_order, get_balance
 from app.services import audit_service, order_service
 from app.stocks.master import get_name
 
@@ -27,8 +28,12 @@ def list_orders(
 
 
 @router.get("/positions")
-def positions(conn: sqlite3.Connection = Depends(get_db)) -> dict:
-    data = order_service.compute_positions(conn)
+async def positions() -> dict:
+    settings = get_settings()
+    try:
+        data = await get_balance(settings)
+    except httpx.HTTPError:
+        data = []
     for d in data:
         d["name"] = get_name(d["symbol"])
     return {"data": data}

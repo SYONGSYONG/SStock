@@ -1,4 +1,4 @@
-"""자동매매 봇 파이프라인 테스트 (시세→전략→신호→가드→주문)."""
+"""자동매매 봇 테스트."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ async def _feed(bot: TradingBot, prices: list[float]) -> None:
         await bot.on_tick({"symbol": "005930", "price": p})
 
 
-async def test_골든크로스시_모의주문_집행(tmp_path):
+async def test_신호_주문_생성_및_체결동기화(tmp_path):
     path, settings = _setup(tmp_path)
     calls: list[tuple] = []
 
@@ -42,13 +42,27 @@ async def test_골든크로스시_모의주문_집행(tmp_path):
         calls.append((symbol, side, qty, price))
         return OrderResult(ok=True, kis_order_no="X1", message="ok")
 
+    async def fake_syncer(symbol, order_no):
+        return [
+            {
+                "odno": order_no,
+                "ord_qty": 1,
+                "tot_ccld_qty": 1,
+                "rmn_qty": 0,
+                "cncl_yn": "N",
+                "rjct_qty": 0,
+            }
+        ]
+
     bot = TradingBot(
         conn_factory=lambda: connect(path),
         settings=settings,
         order_placer=fake_placer,
+        order_syncer=fake_syncer,
     )
     await bot.start()
-    await _feed(bot, [10, 9, 8, 7, 6, 20])  # 마지막에 골든크로스
+    await _feed(bot, [10, 9, 8, 7, 6, 20])
+    await bot.sync_orders(force=True)
 
     assert len(calls) == 1
     assert calls[0][1] == "BUY"
@@ -56,10 +70,12 @@ async def test_골든크로스시_모의주문_집행(tmp_path):
     conn = connect(path)
     assert signal_service.list_signals(conn)[0]["side"] == "BUY"
     orders = order_service.list_orders(conn)
-    assert orders[0]["status"] == "requested"
-    assert orders[0]["kis_order_no"] == "X1"
+    assert orders[0]["status"] == "filled"
+    assert orders[0]["filled_qty"] == 1
+    assert orders[0]["remaining_qty"] == 0
     assert any(log["category"] == "ORDER" for log in audit_service.list_logs(conn))
     conn.close()
+    await bot.stop()
 
 
 async def test_봇_OFF면_주문없음(tmp_path):
@@ -71,7 +87,6 @@ async def test_봇_OFF면_주문없음(tmp_path):
         return OrderResult(ok=True, kis_order_no="X", message="ok")
 
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings, order_placer=fake_placer)
-    # start() 호출 안 함 → 기본 OFF
     await _feed(bot, [10, 9, 8, 7, 6, 20])
 
     assert calls == []
@@ -80,8 +95,7 @@ async def test_봇_OFF면_주문없음(tmp_path):
     conn.close()
 
 
-async def test_가드_위반시_주문거부_집행안함(tmp_path):
-    # 일일 금액 한도를 매우 작게 → 주문 거부
+async def test_가용_한도_초과면_거절(tmp_path):
     path, settings = _setup(tmp_path, daily_max_amount=10)
     calls: list[tuple] = []
 
@@ -93,9 +107,10 @@ async def test_가드_위반시_주문거부_집행안함(tmp_path):
     await bot.start()
     await _feed(bot, [10, 9, 8, 7, 6, 20])
 
-    assert calls == []  # 집행기 호출 안 됨
+    assert calls == []
     conn = connect(path)
     orders = order_service.list_orders(conn)
     assert orders[0]["status"] == "rejected"
     assert any(log["category"] == "RISK" for log in audit_service.list_logs(conn))
     conn.close()
+    await bot.stop()

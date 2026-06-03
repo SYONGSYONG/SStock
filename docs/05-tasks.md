@@ -91,7 +91,7 @@
 | 6 | 감사 로그 (봇·주문·신호·리스크) | 로그 기록 테스트 + RISK/ORDER 카테고리 검증 | ✅ |
 
 > 검증: 백엔드 `pytest` **50건** 전부 통과. 봇 파이프라인(시세→전략→신호→가드→모의주문) 3종 시나리오(집행/OFF무시/가드거부) 테스트. TestClient로 `/api/bot/status`·`/api/orders`·`/api/positions`·`/api/audit` 확인(봇 기본 OFF).
-> **후속(Phase 5/보강)**: KIS 매수가능조회(`inquire-psbl-order`) 사전 점검, 실시간 체결통보(`H0STCNI`, AES-CBC) WS 수신, 주문 정정(취소와 동일 API). 현재 포지션은 로컬 주문 기반 + 잔고조회 API로 갱신.
+> **후속(Phase 5/보강)**: KIS 매수가능조회(`inquire-psbl-order`) 사전 점검, 실시간 체결통보(`H0STCNI`, AES-CBC) WS 수신, 주문 정정(취소와 동일 API). 현재 포지션은 KIS `inquire-balance` 기준으로 조회하고, 로컬 주문 체결 상태는 `inquire-daily-ccld` 결과로 보정한다.
 
 ---
 
@@ -102,7 +102,7 @@
 | # | 단계 | 검증 | 상태 |
 |---|------|------|------|
 | 1 | 모드 배너 + 봇 토글 + 연결 상태 | ModeBanner·BotControl 테스트 통과 | ✅ |
-| 2 | 포지션·손익 표 | PositionTable 렌더(현재가 병합) | ✅ |
+| 2 | 포지션·손익 표 | PositionTable 렌더(평단·현재가·평가금액·손익·손익률) | ✅ |
 | 3 | 신호/주문/시스템 로그 뷰어 | SignalLog·OrderLog·AuditLogView 추가 | ✅ |
 | 4 | 실전 전환 확인 절차 (env + 대시보드 확인) | 백엔드 live-가드 409 테스트 + 프론트 2단계 확인 테스트 통과 | ✅ |
 | 5 | 전체 테스트 + 문서 동기화 | 백엔드 52 + 프론트 10 전부 통과, docs 갱신, `.gitattributes` 추가 | ✅ |
@@ -150,7 +150,7 @@
 | 4 | 추천 라우터 (`/api/recommend/themes`, `/{theme}`) | TestClient 종단(200/404/정렬) 4건 | ✅ |
 | 5 | 프론트 추천 페이지 + 테마 선택 + 카드 (탭) | Vitest 5건 + tsc + vite build 통과 | ✅ |
 | 6 | 추천→관심종목 수동 연동 + 면책 표기 | 관심종목 추가 버튼·면책 문구 테스트 | ✅ |
-| 7 | 카드 현재가·등락률 + 종목 클릭→차트(기존 ChartModal 재사용) | RecommendPage 신규 3건(현재가·클릭 onSelect·버튼 분리) + 전체 44건 통과 | ✅ (feat/recommend-page) |
+| 7 | 카드 현재가·등락률 + 종목 클릭→차트(기존 ChartModal 재사용) | RecommendPage 신규 3건(현재가·클릭 onSelect(symbol, name)·버튼 분리) + 전체 44건 통과 | ✅ (feat/recommend-page) |
 
 > 검증: 백엔드 `pytest` **86건** 전부 통과(기존 66 + 신규 20). 파서는 실데이터로 오프셋
 > 검증(SK하이닉스=반도체, 현대차=자동차, ROE/기준일 정확). 모멘텀은 종목별 `inquire-price`,
@@ -172,6 +172,7 @@
 | 1 | `get_account_summary()` (output2 파싱) + `/api/account/balance` 라우터(graceful) | 파싱·dict허용·엔드포인트·KIS오류 graceful 4건 | ✅ |
 | 2 | 프론트 `AccountPanel` + 폴링 연동 + 스타일 | Vitest 4건 + tsc + vite build 통과 | ✅ |
 | 3 | 칸막이 패널 **설정가능금액** 표기(주문가능현금 − Σ칸막이 가용액, 표시+경고만) | Vitest 3건 + tsc + build 통과 | ✅ |
+| 4 | 잔고 지연 개선 — 토큰 프리워밍(기동) + 로딩 상태 분리("불러오는 중…") | 백엔드 2건 + 프론트 로딩 테스트 + build | ✅ |
 
 > 검증: 백엔드 `pytest` 신규 4건 추가(전체 90건 통과), 프론트 `vitest` 신규 7건 추가(전체 33건 통과).
 > 라이브: 토큰 갱신 후 모의계좌 실데이터(예수금 10,000,000원) 정상 표시 확인. KIS 토큰
@@ -214,7 +215,7 @@
 | **MVP 소계 (0~5)** | **32** | **32** | **100% 🎉** |
 | Phase 6 — 후속 보강 | 6 | 1 | 17% ⬜ (#1 차트는 Phase 9에서 완료, 나머지 선택 진행) |
 | Phase 7 — 분야별 추천 종목 | 6 | 6 | 100% ✅ (코드리뷰 반영 완료) |
-| Phase 8 — 계좌 잔고 + 칸막이 설정가능금액 | 3 | 3 | 100% ✅ |
+| Phase 8 — 계좌 잔고 + 칸막이 설정가능금액 | 4 | 4 | 100% ✅ |
 | Phase 9 — 종목 차트(일봉/분봉 모달) | 3 | 3 | 100% ✅ |
 
 > MVP(Phase 0~5)는 완료. Phase 6은 선택적 보강 항목. Phase 7은 백엔드+프론트 구현 완료

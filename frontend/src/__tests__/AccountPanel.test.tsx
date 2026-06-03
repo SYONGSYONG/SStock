@@ -29,17 +29,19 @@ describe("AccountPanel", () => {
     expect(screen.getByText(/\+20,000/)).toBeInTheDocument();
   });
 
-  test("조회 불가(available=false)면 안내와 - 표시", () => {
+  test("조회 불가(available=false)면 조회 불가 안내", () => {
     render(
       <AccountPanel
         balance={{ ...balance, available: false, deposit: null, orderable_cash: null }}
       />,
     );
     expect(screen.getByText("조회 불가")).toBeInTheDocument();
+    expect(screen.queryByText("불러오는 중…")).not.toBeInTheDocument();
   });
 
-  test("balance가 null이면 조회 불가 안내", () => {
+  test("balance가 null이면(초기 로딩) 불러오는 중 안내", () => {
     render(<AccountPanel balance={null} />);
-    expect(screen.getByText("조회 불가")).toBeInTheDocument();
+    expect(screen.getByText("불러오는 중…")).toBeInTheDocument();
+    expect(screen.queryByText("조회 불가")).not.toBeInTheDocument();
   });
 });

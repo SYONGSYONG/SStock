@@ -76,6 +76,11 @@ export interface Position {
   symbol: string;
   name?: string | null;
   qty: number;
+  avg_price?: number | null;
+  price?: number | null;
+  eval_amount?: number | null;
+  pl_amount?: number | null;
+  pl_rate?: number | null;
 }
 
 export interface AuditLog {

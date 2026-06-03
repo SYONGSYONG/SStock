@@ -94,6 +94,17 @@ def test_잔고_엔드포인트_정상(tmp_path):
         app.dependency_overrides.clear()
 
 
+def test_토큰_프리워밍_테스트환경에서_꺼짐():
+    """conftest가 KIS_TOKEN_PREWARM=0으로 끈다(TestClient 기동 시 실KIS 호출 방지)."""
+    assert get_settings().kis_token_prewarm is False
+
+
+def test_토큰_프리워밍_기본값은_켜짐(monkeypatch):
+    """환경변수가 없으면 기본값은 True(실서버 기동 시 프리워밍)."""
+    monkeypatch.delenv("KIS_TOKEN_PREWARM", raising=False)
+    assert Settings(_env_file=None).kis_token_prewarm is True
+
+
 @respx.mock
 def test_잔고_엔드포인트_KIS오류시_graceful(tmp_path):
     """KIS가 5xx여도 500 대신 available=false로 응답한다."""

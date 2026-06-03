@@ -1,8 +1,4 @@
-"""실시간 시세 수집 서비스.
-
-KIS 웹소켓에서 받은 체결가를 대시보드 허브로 브로드캐스트한다.
-asyncio 백그라운드 태스크로 구동되며, 안전을 위해 기본은 정지 상태다.
-"""
+"""실시간 시세 수집 서비스."""
 
 from __future__ import annotations
 
@@ -40,9 +36,16 @@ class MarketDataService:
         self._task = asyncio.create_task(self._client.run(self._symbols, self._on_tick))
         logger.info("MarketDataService 시작: %s", self._symbols)
 
+    async def refresh(self, symbols: list[str]) -> None:
+        """현재 관심종목 목록으로 실시간 구독을 다시 맞춘다."""
+        if self.running:
+            await self.stop()
+            await self.start(symbols)
+        else:
+            self._symbols = list(symbols)
+
     async def _on_tick(self, tick: dict[str, Any]) -> None:
         await hub.broadcast({"type": "tick", "data": tick})
-        # 자동매매 봇에도 체결을 전달(봇이 OFF면 무시됨)
         from app.bot.trading_bot import trading_bot
 
         await trading_bot.on_tick(tick)
@@ -61,5 +64,4 @@ class MarketDataService:
         logger.info("MarketDataService 정지")
 
 
-# 앱 전역 단일 서비스
 market_data_service = MarketDataService()

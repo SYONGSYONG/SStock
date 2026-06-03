@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS orders (
   symbol       TEXT NOT NULL,
   side         TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
   qty          INTEGER NOT NULL,
+  filled_qty   INTEGER NOT NULL DEFAULT 0,
+  remaining_qty INTEGER NOT NULL DEFAULT 0,
   price        REAL,
   mode         TEXT NOT NULL CHECK(mode IN ('paper','live')),
   kis_order_no TEXT,
@@ -69,6 +71,35 @@ CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_logs(category);
 """
 
 
+def _ensure_order_columns(conn: sqlite3.Connection) -> None:
+    """기존 DB에 체결 추적 컬럼이 없으면 추가하고 기본값을 맞춘다."""
+    columns = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(orders)").fetchall()
+    }
+    if "filled_qty" not in columns:
+        conn.execute("ALTER TABLE orders ADD COLUMN filled_qty INTEGER NOT NULL DEFAULT 0")
+    if "remaining_qty" not in columns:
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN remaining_qty INTEGER NOT NULL DEFAULT 0"
+        )
+
+    conn.execute(
+        """
+        UPDATE orders
+           SET filled_qty = CASE
+                                WHEN status = 'filled' THEN qty
+                                ELSE COALESCE(filled_qty, 0)
+                             END,
+               remaining_qty = CASE
+                                  WHEN status = 'filled' THEN 0
+                                  WHEN status IN ('rejected', 'cancelled') THEN 0
+                                  ELSE COALESCE(remaining_qty, qty)
+                                END
+        """
+    )
+
+
 def init_db(database_path: str) -> None:
     """DB 파일과 테이블을 생성하고 WAL 모드를 활성화한다."""
     path = Path(database_path)
@@ -78,6 +109,7 @@ def init_db(database_path: str) -> None:
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.executescript(SCHEMA)
+        _ensure_order_columns(conn)
         conn.commit()
     finally:
         conn.close()

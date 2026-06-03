@@ -73,7 +73,7 @@ export function App() {
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [account, setAccount] = useState<AccountBalance | null>(null);
-  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [chartTarget, setChartTarget] = useState<{ symbol: string; name?: string | null } | null>(null);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
@@ -207,7 +207,7 @@ export function App() {
           fetchThemes={getThemes}
           fetchRecommend={getRecommend}
           onAdd={handleAddWatch}
-          onSelect={setChartSymbol}
+          onSelect={(symbol, name) => setChartTarget({ symbol, name })}
         />
       ) : (
       <main className="layout">
@@ -216,7 +216,7 @@ export function App() {
             items={items}
             onAdd={handleAddWatch}
             onRemove={handleRemoveWatch}
-            onSelect={setChartSymbol}
+            onSelect={(symbol, name) => setChartTarget({ symbol, name })}
             search={searchStocks}
             error={watchError}
           />
@@ -259,13 +259,13 @@ export function App() {
         </div>
       </main>
       )}
-      {chartSymbol && (
+      {chartTarget && (
         <Suspense fallback={null}>
           <ChartModal
-            symbol={chartSymbol}
-            name={items.find((it) => it.symbol === chartSymbol)?.name}
+            symbol={chartTarget.symbol}
+            name={chartTarget.name ?? items.find((it) => it.symbol === chartTarget.symbol)?.name}
             fetchChart={getChart}
-            onClose={() => setChartSymbol(null)}
+            onClose={() => setChartTarget(null)}
           />
         </Suspense>
       )}

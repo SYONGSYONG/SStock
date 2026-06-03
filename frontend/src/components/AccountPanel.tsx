@@ -7,7 +7,9 @@ interface AccountPanelProps {
 
 /** 계좌 잔고 요약 — KIS 주식잔고조회(output2) 기반 예수금/주문가능/총평가/평가손익/순자산. */
 export function AccountPanel({ balance }: AccountPanelProps) {
-  const unavailable = !balance || !balance.available;
+  // balance === null: 아직 첫 조회 전(로딩 중). available === false: KIS 오류(조회 불가).
+  const loading = balance === null;
+  const unavailable = balance !== null && !balance.available;
 
   return (
     <section className="panel account-panel">
@@ -16,6 +18,7 @@ export function AccountPanel({ balance }: AccountPanelProps) {
         {balance && <span className={`badge ${balance.mode === "live" ? "cat-error" : "cat-mode"}`}>
           {balance.mode === "live" ? "실전" : "모의"}
         </span>}
+        {loading && <span className="muted account-note">불러오는 중…</span>}
         {unavailable && <span className="muted account-note">조회 불가</span>}
       </div>
       <div className="account-grid">

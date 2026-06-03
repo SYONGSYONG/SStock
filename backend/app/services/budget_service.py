@@ -1,24 +1,16 @@
-"""종목별 자본 칸막이(capital envelope) 서비스.
-
-칸막이 한도 = 원금(principal) + 실현손익(realized P&L, 평균원가 기준).
-매수는 보유원가 + 주문금액 <= 한도 일 때만 허용한다(가드는 risk_guard에서).
-실현손익은 매도로 확정된 손익만 반영하며, 손실이면 한도도 줄어든다.
-"""
+"""자금/포지션 계산."""
 
 from __future__ import annotations
 
 import sqlite3
 from typing import Any
 
-# 포지션/원가에 반영하지 않는 주문 상태
-_INACTIVE = ("rejected", "cancelled")
-
 
 def compute_symbol_state(conn: sqlite3.Connection, symbol: str) -> dict[str, float]:
-    """주문 이력으로 종목의 보유수량·보유원가·실현손익을 평균원가법으로 계산한다."""
+    """주문 이력으로 실제 보유수량/보유원가/실현손익을 계산한다."""
     rows = conn.execute(
-        "SELECT side, qty, price FROM orders "
-        "WHERE symbol = ? AND status NOT IN ('rejected','cancelled') ORDER BY id",
+        "SELECT side, filled_qty, price FROM orders "
+        "WHERE symbol = ? AND status NOT IN ('rejected') ORDER BY id",
         (symbol,),
     ).fetchall()
 
@@ -26,14 +18,14 @@ def compute_symbol_state(conn: sqlite3.Connection, symbol: str) -> dict[str, flo
     holding_cost = 0.0
     realized = 0.0
     for r in rows:
-        qty = int(r["qty"])
+        qty = int(r["filled_qty"] or 0)
         price = float(r["price"] or 0)
         if r["side"] == "BUY":
             holding_qty += qty
             holding_cost += qty * price
         else:  # SELL
             if holding_qty <= 0:
-                continue  # 보유분 없는 매도는 원가 계산에서 제외
+                continue
             avg = holding_cost / holding_qty
             sell_qty = min(qty, holding_qty)
             realized += (price - avg) * sell_qty
@@ -73,7 +65,7 @@ def delete_principal(conn: sqlite3.Connection, symbol: str) -> bool:
 
 
 def envelope_status(conn: sqlite3.Connection, symbol: str) -> dict[str, Any] | None:
-    """칸막이가 설정된 종목의 한도/가용 현황. 미설정이면 None."""
+    """설정된 종목의 자금 한도 상태를 반환한다. 미설정이면 None."""
     principal = get_principal(conn, symbol)
     if principal is None:
         return None

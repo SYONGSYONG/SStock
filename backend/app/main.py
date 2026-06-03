@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,6 +12,10 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.db.database import init_db
+
+logger = logging.getLogger(__name__)
+
+_TOKEN_PREWARM_TIMEOUT_SEC = 8.0
 from app.routers import (
     account,
     audit,
@@ -43,7 +49,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         backfill_names(conn, get_name)
     finally:
         conn.close()
+
+    # KIS 접근토큰 프리워밍: 첫 시세/잔고 호출이 토큰 발급 왕복을 부담하지 않도록
+    # 기동 시 미리 확보한다. 토큰 파일이 유효하면 네트워크 없이 끝나고, 만료/없을 때만
+    # 1회 발급한다. KIS 장애 시에도 기동은 계속(실패 무시).
+    if settings.kis_token_prewarm:
+        await _prewarm_kis_token(settings)
+
     yield
+
+
+async def _prewarm_kis_token(settings) -> None:
+    from app.kis.auth import KisAuth
+
+    try:
+        await asyncio.wait_for(
+            KisAuth(settings).get_access_token(), timeout=_TOKEN_PREWARM_TIMEOUT_SEC
+        )
+        logger.info("KIS 토큰 프리워밍 완료")
+    except Exception as exc:  # 기동 차단 방지(네트워크/타임아웃/인증 오류 모두 무시)
+        logger.warning("KIS 토큰 프리워밍 실패(무시): %s", exc)
 
 
 def create_app() -> FastAPI:

@@ -1,4 +1,4 @@
-"""KIS 주문/잔고 API 테스트 (HTTP는 respx로 mock)."""
+"""KIS 주문/잔고 API 테스트(HTTP는 respx로 mock)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import httpx
 import respx
 
 from app.config import Settings
-from app.kis.orders import cancel_order, get_balance, place_order
+from app.kis.orders import cancel_order, get_balance, get_daily_ccld, place_order
 
 
 def _settings(tmp_path) -> Settings:
@@ -35,7 +35,6 @@ async def test_매수주문_성공(tmp_path):
 
     assert result.ok is True
     assert result.kis_order_no == "0001"
-    # 모의투자 매수 TR_ID(VTTC0012U) 확인
     assert route.calls[0].request.headers["tr_id"] == "VTTC0012U"
 
 
@@ -57,7 +56,7 @@ async def test_주문취소(tmp_path):
 
 
 @respx.mock
-async def test_잔고조회_파싱(tmp_path):
+async def test_잔고조회_성공(tmp_path):
     s = _settings(tmp_path)
     respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
         return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
@@ -78,7 +77,7 @@ async def test_잔고조회_파싱(tmp_path):
                         "evlu_pfls_amt": "20000",
                         "evlu_pfls_rt": "2.94",
                     },
-                    {"pdno": "000660", "hldg_qty": "0"},  # 수량 0은 제외
+                    {"pdno": "000660", "hldg_qty": "0"},
                 ],
             },
         )
@@ -89,3 +88,35 @@ async def test_잔고조회_파싱(tmp_path):
     assert holdings[0]["symbol"] == "005930"
     assert holdings[0]["qty"] == 10
     assert holdings[0]["pl_amount"] == 20000
+
+
+@respx.mock
+async def test_당일체결내역_조회(tmp_path):
+    s = _settings(tmp_path)
+    respx.post(f"{s.rest_base}/oauth2/tokenP").mock(
+        return_value=httpx.Response(200, json={"access_token": "T", "expires_in": 86400})
+    )
+    route = respx.get(f"{s.rest_base}/uapi/domestic-stock/v1/trading/inquire-daily-ccld").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "rt_cd": "0",
+                "output1": [
+                    {
+                        "odno": "0001",
+                        "pdno": "005930",
+                        "ord_qty": "10",
+                        "tot_ccld_qty": "4",
+                        "rmn_qty": "6",
+                        "cncl_yn": "N",
+                        "rjct_qty": "0",
+                    }
+                ],
+            },
+        )
+    )
+    rows = await get_daily_ccld("0001", "005930", s)
+
+    assert len(rows) == 1
+    assert rows[0]["tot_ccld_qty"] == 4
+    assert route.calls[0].request.headers["tr_id"] == "VTTC0081R"

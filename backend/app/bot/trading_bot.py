@@ -1,13 +1,8 @@
-"""자동매매 봇 엔진.
-
-파이프라인: 실시간 체결(tick) → 종가 누적 → 활성 전략 평가 → 신호 →
-            안전 가드 → 모의 주문 집행 → 감사 로그/대시보드 브로드캐스트.
-
-안전을 위해 기본은 정지(OFF) 상태이며, 시작해야만 주문을 집행한다.
-"""
+"""자동매매 봇."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 from collections.abc import Awaitable, Callable
@@ -15,7 +10,7 @@ from typing import Any
 
 from app.config import Settings, get_settings
 from app.db.database import connect
-from app.kis.orders import OrderResult, place_order
+from app.kis.orders import OrderResult, get_daily_ccld, place_order
 from app.services import audit_service, order_service, signal_service, strategy_service
 from app.services.risk_guard import OrderIntent, RiskError, check_order
 from app.strategies.registry import build_strategy
@@ -24,10 +19,13 @@ logger = logging.getLogger(__name__)
 
 ConnFactory = Callable[[], sqlite3.Connection]
 OrderPlacer = Callable[[str, str, int, float | None], Awaitable[OrderResult]]
+OrderSyncer = Callable[[str, str], Awaitable[list[dict[str, Any]]]]
 Broadcaster = Callable[[dict[str, Any]], Awaitable[None]]
 
 _DEFAULT_QTY = 1
 _HISTORY_SIZE = 300
+_SYNC_INTERVAL_SEC = 3.0
+_FINAL_STATUSES = {"rejected"}
 
 
 class TradingBot:
@@ -36,16 +34,19 @@ class TradingBot:
         conn_factory: ConnFactory | None = None,
         settings: Settings | None = None,
         order_placer: OrderPlacer | None = None,
+        order_syncer: OrderSyncer | None = None,
         broadcaster: Broadcaster | None = None,
         default_qty: int = _DEFAULT_QTY,
     ) -> None:
         self._settings = settings or get_settings()
         self._conn_factory = conn_factory or (lambda: connect(self._settings.database_path))
         self._order_placer = order_placer
+        self._order_syncer = order_syncer
         self._broadcaster = broadcaster
         self._history: dict[str, list[float]] = {}
         self._running = False
         self._default_qty = default_qty
+        self._sync_task: asyncio.Task[None] | None = None
 
     @property
     def running(self) -> bool:
@@ -53,10 +54,19 @@ class TradingBot:
 
     async def start(self) -> None:
         self._running = True
+        if self._sync_task is None or self._sync_task.done():
+            self._sync_task = asyncio.create_task(self._sync_loop())
         self._audit("BOT", "자동매매 봇 시작")
 
     async def stop(self) -> None:
         self._running = False
+        if self._sync_task is not None:
+            self._sync_task.cancel()
+            try:
+                await self._sync_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
+            self._sync_task = None
         self._audit("BOT", "자동매매 봇 정지")
 
     async def on_tick(self, tick: dict[str, Any]) -> None:
@@ -83,6 +93,103 @@ class TradingBot:
         finally:
             conn.close()
 
+    async def sync_orders(self, force: bool = False) -> list[dict[str, Any]]:
+        """KIS 주문체결내역과 로컬 주문 상태를 맞춘다."""
+        conn = self._conn_factory()
+        updates: list[dict[str, Any]] = []
+        try:
+            rows = conn.execute(
+                """
+                SELECT id, symbol, kis_order_no, qty, filled_qty, remaining_qty, status
+                FROM orders
+                WHERE kis_order_no IS NOT NULL AND status NOT IN ('rejected', 'filled')
+                ORDER BY id
+                """
+            ).fetchall()
+            for row in rows:
+                order_no = row["kis_order_no"]
+                if not order_no:
+                    continue
+                snapshots = await self._fetch_order_snapshots(row["symbol"], order_no)
+                if not snapshots:
+                    continue
+                snapshot = self._select_snapshot(snapshots, order_no)
+                if snapshot is None:
+                    continue
+                status = self._derive_status(row, snapshot)
+                filled_qty = int(snapshot["tot_ccld_qty"])
+                remaining_qty = int(snapshot["rmn_qty"])
+                if (
+                    status == row["status"]
+                    and filled_qty == int(row["filled_qty"] or 0)
+                    and remaining_qty == int(row["remaining_qty"] or 0)
+                ):
+                    continue
+                changed = order_service.update_execution(
+                    conn,
+                    int(row["id"]),
+                    status,
+                    filled_qty,
+                    remaining_qty,
+                    kis_order_no=order_no,
+                )
+                if changed:
+                    updated = conn.execute(
+                        "SELECT id, signal_id, symbol, side, qty, filled_qty, remaining_qty, price, mode, kis_order_no, status, created_at "
+                        "FROM orders WHERE id = ?",
+                        (row["id"],),
+                    ).fetchone()
+                    if updated is not None:
+                        payload = dict(updated)
+                        updates.append(payload)
+                        await self._broadcast({"type": "order", "data": payload})
+            return updates
+        finally:
+            conn.close()
+
+    async def _sync_loop(self) -> None:
+        while self._running:
+            try:
+                await self.sync_orders()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("주문 동기화 실패: %s", exc)
+            await asyncio.sleep(_SYNC_INTERVAL_SEC)
+
+    async def _fetch_order_snapshots(self, symbol: str, order_no: str) -> list[dict[str, Any]]:
+        if self._order_syncer is not None:
+            return await self._order_syncer(symbol, order_no)
+        return await get_daily_ccld(order_no, symbol, self._settings)
+
+    @staticmethod
+    def _select_snapshot(
+        snapshots: list[dict[str, Any]],
+        order_no: str,
+    ) -> dict[str, Any] | None:
+        for snapshot in snapshots:
+            if str(snapshot.get("odno") or "") == str(order_no):
+                return snapshot
+        return snapshots[0] if snapshots else None
+
+    @staticmethod
+    def _derive_status(order_row: sqlite3.Row, snapshot: dict[str, Any]) -> str:
+        ord_qty = int(snapshot.get("ord_qty") or order_row["qty"] or 0)
+        filled_qty = int(snapshot.get("tot_ccld_qty") or 0)
+        remaining_qty = int(snapshot.get("rmn_qty") or 0)
+        cncl_yn = str(snapshot.get("cncl_yn") or "").upper()
+        rjct_qty = int(snapshot.get("rjct_qty") or 0)
+
+        if rjct_qty > 0:
+            return "rejected"
+        if cncl_yn == "Y":
+            return "filled" if filled_qty >= ord_qty and remaining_qty <= 0 else "cancelled"
+        if filled_qty <= 0 and remaining_qty <= 0:
+            return order_row["status"]
+        if remaining_qty <= 0 or filled_qty >= ord_qty:
+            return "filled"
+        if filled_qty > 0:
+            return "partial"
+        return "requested"
+
     async def _handle_signal(self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]) -> None:
         saved = signal_service.save_signal(
             conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason
@@ -103,10 +210,16 @@ class TradingBot:
         try:
             check_order(conn, self._settings, intent)
         except RiskError as exc:
-            audit_service.log(conn, "RISK", f"{signal.symbol} {signal.side} 주문 거부: {exc.message}")
+            audit_service.log(conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}")
             order = order_service.save_order(
-                conn, signal.symbol, signal.side, qty, signal.price, mode,
-                status="rejected", signal_id=saved["id"],
+                conn,
+                signal.symbol,
+                signal.side,
+                qty,
+                signal.price,
+                mode,
+                status="rejected",
+                signal_id=saved["id"],
             )
             await self._broadcast({"type": "order", "data": order})
             return
@@ -114,14 +227,24 @@ class TradingBot:
         result = await self._place(signal.symbol, signal.side, qty, signal.price)
         status = "requested" if result.ok else "rejected"
         order = order_service.save_order(
-            conn, signal.symbol, signal.side, qty, signal.price, mode,
-            status=status, signal_id=saved["id"], kis_order_no=result.kis_order_no,
+            conn,
+            signal.symbol,
+            signal.side,
+            qty,
+            signal.price,
+            mode,
+            status=status,
+            signal_id=saved["id"],
+            kis_order_no=result.kis_order_no,
         )
         audit_service.log(
-            conn, "ORDER",
+            conn,
+            "ORDER",
             f"[{mode}] {signal.symbol} {signal.side} {qty}주 {status} ({result.message or ''})",
         )
         await self._broadcast({"type": "order", "data": order})
+        if result.ok:
+            await self.sync_orders(force=True)
 
     async def _place(self, symbol: str, side: str, qty: int, price: float | None) -> OrderResult:
         if self._order_placer is not None:
@@ -149,5 +272,4 @@ def _default_broadcaster() -> Broadcaster:
     return _b
 
 
-# 앱 전역 단일 봇 (대시보드 허브로 브로드캐스트)
 trading_bot = TradingBot(broadcaster=_default_broadcaster())

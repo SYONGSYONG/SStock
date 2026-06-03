@@ -5,9 +5,11 @@ interface QuoteTableProps {
   items: WatchItem[];
   quotes: Record<string, Quote>;
   strategySymbols: Set<string>;
+  /** 종목코드 클릭 → 전략 폼에 채우기 */
+  onPickSymbol?: (symbol: string) => void;
 }
 
-export function QuoteTable({ items, quotes, strategySymbols }: QuoteTableProps) {
+export function QuoteTable({ items, quotes, strategySymbols, onPickSymbol }: QuoteTableProps) {
   return (
     <section className="panel">
       <h2>실시간 시세</h2>
@@ -30,10 +32,15 @@ export function QuoteTable({ items, quotes, strategySymbols }: QuoteTableProps) 
             return (
               <tr key={it.symbol} className={hasStrategy ? "with-strategy" : ""}>
                 <td>
-                  <span className={`code ${hasStrategy ? "with-strategy" : ""}`} title={hasStrategy ? "전략 등록됨" : undefined}>
+                  <button
+                    type="button"
+                    className={`quote-code-btn code ${hasStrategy ? "with-strategy" : ""}`}
+                    title={hasStrategy ? "전략 등록됨 · 클릭하면 전략 종목코드로 복사" : "클릭하면 전략 종목코드로 복사"}
+                    onClick={() => onPickSymbol?.(it.symbol)}
+                  >
                     {it.symbol}
                     {hasStrategy && <span className="strategy-marker" aria-label="전략 등록됨">•</span>}
-                  </span>{" "}
+                  </button>{" "}
                   <span className="name">{it.name ?? ""}</span>
                 </td>
                 <td className={`num ${dir}`}>{fmt(q?.price)}</td>

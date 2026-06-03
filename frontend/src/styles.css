@@ -1130,8 +1130,50 @@ body {
 .panel-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 12px; /* 기존 .panel h2 하단 여백 유지 */
+}
+/* 전략 선택 드롭박스(헤더 '전략 비교' 옆) */
+.strategy-head-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  max-width: 100%;
+}
+/* 종목코드 입력 + 종목명 표시 줄 */
+.strategy-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.strategy-symbol-row input {
+  flex: 0 0 auto;
+  width: 130px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.strategy-symbol-row .symbol-name {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 실시간 시세 종목코드: 클릭 가능한 버튼(밑줄 hover) */
+.quote-code-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.quote-code-btn:hover {
+  text-decoration: underline;
 }
 .panel-head h2 {
   margin: 0;

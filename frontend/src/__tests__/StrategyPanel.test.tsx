@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { StrategyPanel } from "../components/StrategyPanel";
 import { describeStrategy } from "../lib/strategy";
-import type { Budget, StrategyConfig } from "../types";
+import type { Budget, StrategyConfig, WatchItem } from "../types";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -39,6 +39,23 @@ describe("StrategyPanel", () => {
     );
     expect(screen.getByText("이동평균 크로스 · 50틱봉 · 단기 5 / 장기 20")).toBeInTheDocument();
     expect(screen.queryByText(/\{"short"/)).toBeNull();
+  });
+
+  test("종목코드 입력 시 옆에 종목명을 표시", () => {
+    const items: WatchItem[] = [{ id: 1, symbol: "005930", name: "삼성전자", created_at: "" }];
+    render(
+      <StrategyPanel items={items} budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
+    expect(screen.getByText("삼성전자")).toBeInTheDocument();
+  });
+
+  test("presetSymbol(n 변화)로 종목코드가 채워진다(시세 클릭 복사)", () => {
+    const common = { budgets: [], configs: [], onAdd: () => {}, onToggle: () => {}, onRemove: () => {}, onSetBudget: () => {} };
+    const { rerender } = render(<StrategyPanel presetSymbol={{ value: "", n: 0 }} {...common} />);
+    expect((screen.getByLabelText("전략 종목코드") as HTMLInputElement).value).toBe("");
+    rerender(<StrategyPanel presetSymbol={{ value: "000660", n: 1 }} {...common} />);
+    expect((screen.getByLabelText("전략 종목코드") as HTMLInputElement).value).toBe("000660");
   });
 
   test("전략 목록에 종목번호와 종목명을 함께 표기", () => {

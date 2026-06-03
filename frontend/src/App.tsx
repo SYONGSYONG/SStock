@@ -71,6 +71,7 @@ export function App() {
   const [botPaper, setBotPaper] = useState<BotStatus>({ running: false, market_running: false, mode: "paper" });
   const [botLive, setBotLive] = useState<BotStatus>({ running: false, market_running: false, mode: "live" });
   const [strategies, setStrategies] = useState<StrategyConfig[]>([]);
+  const [symbolPreset, setSymbolPreset] = useState<{ value: string; n: number }>({ value: "", n: 0 });
   const [signals, setSignals] = useState<Signal[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -161,6 +162,16 @@ export function App() {
     } catch (e) {
       setStrategyError(e instanceof ApiError ? e.message : "전략 추가 실패");
     }
+  };
+
+  // 실시간 시세에서 종목코드 클릭 → 전략 폼에 채운다. 이미 전략이 있으면 알림만.
+  const handlePickSymbol = (sym: string) => {
+    const existing = strategies.find((s) => s.symbol === sym);
+    if (existing) {
+      window.alert(`${sym}${existing.name ? ` ${existing.name}` : ""} — 이미 전략이 등록된 종목입니다.`);
+      return;
+    }
+    setSymbolPreset((p) => ({ value: sym, n: p.n + 1 }));
   };
 
   const handleToggleStrategy = async (id: number, enabled: boolean) => {
@@ -270,6 +281,8 @@ export function App() {
             <StrategyPanel
               configs={strategies}
               budgets={budgets}
+              items={items}
+              presetSymbol={symbolPreset}
               onAdd={handleAddStrategy}
               onSetBudget={handleSetBudget}
               onToggle={handleToggleStrategy}
@@ -295,7 +308,12 @@ export function App() {
         </aside>
         <div className="content">
           <AccountPanel balance={account} />
-          <QuoteTable items={items} quotes={quotes} strategySymbols={strategySymbols} />
+          <QuoteTable
+            items={items}
+            quotes={quotes}
+            strategySymbols={strategySymbols}
+            onPickSymbol={handlePickSymbol}
+          />
           <PositionTable positions={positions} quotes={quotes} />
           <OrderLog orders={orders} />
           <SignalLog signals={signals} />

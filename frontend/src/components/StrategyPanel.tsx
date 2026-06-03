@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { Budget, StrategyConfig, StrategyName } from "../types";
+import { useEffect, useState } from "react";
+import type { Budget, StrategyConfig, StrategyName, WatchItem } from "../types";
 import { fmt } from "../lib/format";
 import {
   describeStrategy,
@@ -18,6 +18,10 @@ interface StrategyPanelProps {
   configs: StrategyConfig[];
   /** 종목별 자본 칸막이 현황(전략 항목 아래 가용/한도 표기용) */
   budgets: Budget[];
+  /** 관심종목(종목코드→종목명 표시용) */
+  items?: WatchItem[];
+  /** 외부(실시간 시세 클릭)에서 종목코드를 채워넣을 때. n이 바뀌면 value로 설정. */
+  presetSymbol?: { value: string; n: number };
   onAdd: (body: {
     symbol: string;
     strategy: StrategyName;
@@ -170,6 +174,8 @@ function AmountSteppers({
 export function StrategyPanel({
   configs,
   budgets,
+  items = [],
+  presetSymbol,
   onAdd,
   onSetBudget,
   onToggle,
@@ -179,6 +185,18 @@ export function StrategyPanel({
   budgetError,
 }: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
+
+  // 실시간 시세에서 종목코드를 클릭하면 폼에 채운다(presetSymbol.n 변화 감지).
+  useEffect(() => {
+    if (presetSymbol && presetSymbol.value) setSymbol(presetSymbol.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetSymbol?.n]);
+
+  // 종목코드 → 종목명(관심종목·등록된 전략에서 해석)
+  const nameOf = (sym: string) =>
+    items.find((it) => it.symbol === sym)?.name ??
+    configs.find((c) => c.symbol === sym)?.name ??
+    "";
   const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
   // 선택 전략의 기본값으로 채워둔 편집 가능한 파라미터
   const [params, setParams] = useState<Record<string, number>>({
@@ -297,9 +315,18 @@ export function StrategyPanel({
         <button type="button" className="link-action" onClick={() => setCompareOpen(true)}>
           전략 비교
         </button>
+        <select
+          aria-label="전략 선택"
+          className="strategy-head-select"
+          value={strategy}
+          onChange={(e) => changeStrategy(e.target.value as StrategyName)}
+        >
+          <option value="ma_cross">이동평균 크로스</option>
+          <option value="rsi_ma">RSI + MA 필터</option>
+        </select>
       </div>
       <form className="strategy-form" onSubmit={submit}>
-        <div className="strategy-form-row">
+        <div className="strategy-symbol-row">
           <input
             aria-label="전략 종목코드"
             placeholder="종목코드"
@@ -307,14 +334,9 @@ export function StrategyPanel({
             maxLength={6}
             onChange={(e) => setSymbol(e.target.value.replace(/\D/g, ""))}
           />
-          <select
-            aria-label="전략 선택"
-            value={strategy}
-            onChange={(e) => changeStrategy(e.target.value as StrategyName)}
-          >
-            <option value="ma_cross">이동평균 크로스</option>
-            <option value="rsi_ma">RSI + MA 필터</option>
-          </select>
+          {validSymbol && nameOf(symbol) && (
+            <span className="symbol-name">{nameOf(symbol)}</span>
+          )}
         </div>
 
         <StrategyParamInputs strategy={strategy} params={params} onChange={changeParam} />

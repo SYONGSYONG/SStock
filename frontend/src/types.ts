@@ -30,7 +30,7 @@ export interface MarketStatus {
 
 export type TradingMode = "paper" | "live";
 
-export type StrategyName = "ma_cross" | "rsi" | "rsi_ma";
+export type StrategyName = "ma_cross" | "rsi_ma";
 
 export interface StrategyConfig {
   id: number;

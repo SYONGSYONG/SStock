@@ -5,6 +5,7 @@ import {
   describeStrategy,
   explainParams,
   getStrategyHelp,
+  STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
   STRATEGY_LABEL,
   STRATEGY_PARAM_FIELDS,
@@ -62,6 +63,30 @@ function StrategyParamInputs({
         </label>
       ))}
     </div>
+  );
+}
+
+/** 이동평균 크로스 vs RSI + MA 필터 비교표 */
+function StrategyCompareTable() {
+  return (
+    <table className="strategy-compare">
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>이동평균 크로스</th>
+          <th>RSI + MA 필터</th>
+        </tr>
+      </thead>
+      <tbody>
+        {STRATEGY_COMPARISON.map((row) => (
+          <tr key={row.label}>
+            <th>{row.label}</th>
+            <td>{row.ma_cross}</td>
+            <td>{row.rsi_ma}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -132,6 +157,8 @@ export function StrategyPanel({
   // 자본 칸막이(원금) 수정 모달
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [editPrincipal, setEditPrincipal] = useState("");
+  // 전략 비교 팝업
+  const [compareOpen, setCompareOpen] = useState(false);
 
   const budgetOf = (sym: string) => budgets.find((b) => b.symbol === sym) ?? null;
 
@@ -231,6 +258,9 @@ export function StrategyPanel({
         <HelpPopover label={`${STRATEGY_LABEL[strategy]} 도움말`}>
           <StrategyHelpBody strategy={strategy} params={params} />
         </HelpPopover>
+        <button type="button" className="link-action" onClick={() => setCompareOpen(true)}>
+          전략 비교
+        </button>
       </div>
       <form className="strategy-form" onSubmit={submit}>
         <div className="strategy-form-row">
@@ -247,7 +277,6 @@ export function StrategyPanel({
             onChange={(e) => changeStrategy(e.target.value as StrategyName)}
           >
             <option value="ma_cross">이동평균 크로스</option>
-            <option value="rsi">RSI</option>
             <option value="rsi_ma">RSI + MA 필터</option>
           </select>
         </div>
@@ -399,6 +428,12 @@ export function StrategyPanel({
               저장
             </button>
           </div>
+        </Modal>
+      )}
+
+      {compareOpen && (
+        <Modal title="전략 비교 — 이동평균 크로스 vs RSI + MA 필터" onClose={() => setCompareOpen(false)}>
+          <StrategyCompareTable />
         </Modal>
       )}
     </div>

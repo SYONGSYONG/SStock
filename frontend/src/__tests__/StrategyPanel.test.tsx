@@ -9,15 +9,9 @@ afterEach(() => {
 });
 
 describe("describeStrategy", () => {
-  test("이동평균 크로스는 단기/장기로 표기", () => {
-    expect(describeStrategy("ma_cross", { short: 5, long: 20 })).toBe(
-      "이동평균 크로스 · 단기 5 / 장기 20",
-    );
-  });
-
-  test("RSI는 기간/과매도/과매수로 표기", () => {
-    expect(describeStrategy("rsi", { period: 14, low: 30, high: 70 })).toBe(
-      "RSI · 기간 14 · 과매도 30 / 과매수 70",
+  test("이동평균 크로스는 틱봉/단기/장기로 표기", () => {
+    expect(describeStrategy("ma_cross", { short: 5, long: 20, bar_ticks: 50 })).toBe(
+      "이동평균 크로스 · 50틱봉 · 단기 5 / 장기 20",
     );
   });
 
@@ -31,7 +25,7 @@ describe("describeStrategy", () => {
 describe("StrategyPanel", () => {
   test("원시 JSON이 아니라 한글 라벨로 렌더링", () => {
     const configs: StrategyConfig[] = [
-      { id: 1, symbol: "077360", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: 10, max_amount: null },
+      { id: 1, symbol: "077360", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: 10, max_amount: null },
     ];
     render(
       <StrategyPanel
@@ -43,7 +37,7 @@ describe("StrategyPanel", () => {
         onSetBudget={() => {}}
       />,
     );
-    expect(screen.getByText("이동평균 크로스 · 단기 5 / 장기 20")).toBeInTheDocument();
+    expect(screen.getByText("이동평균 크로스 · 50틱봉 · 단기 5 / 장기 20")).toBeInTheDocument();
     expect(screen.queryByText(/\{"short"/)).toBeNull();
   });
 
@@ -85,7 +79,7 @@ describe("StrategyPanel", () => {
   test("수정 버튼 → 모달에서 파라미터를 고쳐 저장하면 enabled 유지하며 onAdd 호출", () => {
     const onAdd = vi.fn();
     const configs: StrategyConfig[] = [
-      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
     ];
     render(
       <StrategyPanel budgets={[]} configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
@@ -102,7 +96,7 @@ describe("StrategyPanel", () => {
     expect(onAdd).toHaveBeenCalledWith({
       symbol: "005930",
       strategy: "ma_cross",
-      params: { short: 5, long: 60 },
+      params: { short: 5, long: 60, bar_ticks: 50 },
       enabled: true,
     });
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -174,10 +168,10 @@ describe("StrategyPanel", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("골든크로스");
-    expect(dialog).toHaveTextContent("시세(틱) 단위");
+    expect(dialog).toHaveTextContent("틱봉");
     // 설정값(5/20)의 의미 설명
-    expect(dialog).toHaveTextContent("단기 5 = 최근 5개");
-    expect(dialog).toHaveTextContent("장기 20 = 최근 20개");
+    expect(dialog).toHaveTextContent("단기 5 = 틱봉 5개");
+    expect(dialog).toHaveTextContent("장기 20 = 틱봉 20개");
   });
 
   test("배경 클릭으로 도움말 모달이 닫힌다", () => {
@@ -191,18 +185,15 @@ describe("StrategyPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  test("RSI 선택 시 도움말도 RSI 설명·14/30/70 의미로 바뀐다", () => {
+  test("전략 비교 버튼을 누르면 비교표 팝업이 뜬다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi" } });
-    fireEvent.click(screen.getByRole("button", { name: "RSI 도움말" }));
-
+    fireEvent.click(screen.getByRole("button", { name: "전략 비교" }));
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("상대강도지수");
-    expect(dialog).toHaveTextContent("기간 14 = 최근 14개");
-    expect(dialog).toHaveTextContent("과매도 30");
-    expect(dialog).toHaveTextContent("과매수 70");
+    expect(dialog).toHaveTextContent("추세 전환 / 추세 추종");
+    expect(dialog).toHaveTextContent("추세 필터 + 눌림목 반등");
+    expect(dialog).toHaveTextContent("횡보장에서 가짜 신호 많음");
   });
 
   test("파라미터 입력이 기본값으로 채워져 있다(단기 5 / 장기 20)", () => {
@@ -234,14 +225,17 @@ describe("StrategyPanel", () => {
     expect(dialog).toHaveTextContent("틱봉 50");
   });
 
-  test("RSI로 바꾸면 파라미터 입력도 RSI 기본값으로 초기화", () => {
+  test("RSI+MA로 바꾸면 파라미터 입력도 RSI+MA 기본값으로 초기화", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi" } });
-    expect((screen.getByLabelText("기간") as HTMLInputElement).value).toBe("14");
-    expect((screen.getByLabelText("과매도") as HTMLInputElement).value).toBe("30");
-    expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("70");
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi_ma" } });
+    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("14");
+    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("50");
+    // 이동평균 크로스로 되돌리면 다시 단기/장기/틱봉
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
+    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("5");
+    expect((screen.getByLabelText("틱봉") as HTMLInputElement).value).toBe("50");
   });
 
   test("잘못된 파라미터(단기≥장기)면 오류 표시 + 추가 비활성화", () => {
@@ -271,7 +265,7 @@ describe("StrategyPanel", () => {
     expect(onAdd).toHaveBeenCalledWith({
       symbol: "005930",
       strategy: "ma_cross",
-      params: { short: 3, long: 10 },
+      params: { short: 3, long: 10, bar_ticks: 50 }, // 틱봉 기본 50 포함
       enabled: false, // 기본 OFF
     });
     expect(onSetBudget).toHaveBeenCalledWith("005930", 1000000);

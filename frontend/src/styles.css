@@ -330,6 +330,33 @@ body {
   border-radius: 14px;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
 }
+/* 전략 비교표가 들어가면 모달을 넓힌다 */
+.edit-modal:has(.strategy-compare) {
+  width: 600px;
+}
+.strategy-compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.strategy-compare th,
+.strategy-compare td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.strategy-compare thead th {
+  background: #eef2f7;
+  font-size: 12px;
+}
+.strategy-compare tbody th {
+  background: #f8fafc;
+  color: var(--muted);
+  white-space: nowrap;
+  font-weight: 600;
+}
 .edit-modal-head {
   display: flex;
   align-items: center;

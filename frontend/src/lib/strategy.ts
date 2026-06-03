@@ -1,14 +1,12 @@
 // 전략 식별자 → 사람이 읽는 라벨 (전략 패널 / 매매 신호 공통)
 export const STRATEGY_LABEL: Record<string, string> = {
   ma_cross: "이동평균 크로스",
-  rsi: "RSI",
   rsi_ma: "RSI + MA 필터",
 };
 
 /** 전략별 기본 파라미터 값(단일 진실 공급원). */
 export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
-  ma_cross: { short: 5, long: 20 },
-  rsi: { period: 14, low: 30, high: 70 },
+  ma_cross: { short: 5, long: 20, bar_ticks: 50 },
   rsi_ma: { rsi_period: 14, low: 30, high: 70, ma_period: 50, bar_ticks: 50 },
 };
 
@@ -24,11 +22,7 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
   ma_cross: [
     { key: "short", label: "단기", min: 1, max: 999 },
     { key: "long", label: "장기", min: 2, max: 999 },
-  ],
-  rsi: [
-    { key: "period", label: "기간", min: 2, max: 999 },
-    { key: "low", label: "과매도", min: 1, max: 99 },
-    { key: "high", label: "과매수", min: 1, max: 99 },
+    { key: "bar_ticks", label: "틱봉", min: 1, max: 200 },
   ],
   rsi_ma: [
     { key: "rsi_period", label: "RSI 기간", min: 2, max: 999 },
@@ -45,8 +39,8 @@ export function validateParams(
   params: Record<string, number>,
 ): string | null {
   if (strategy === "ma_cross") {
-    if (!Number.isFinite(params.short) || !Number.isFinite(params.long)) {
-      return "단기·장기 값을 입력하세요";
+    if (![params.short, params.long, params.bar_ticks].every(Number.isFinite)) {
+      return "단기·장기·틱봉 값을 입력하세요";
     }
     if (params.short < 1 || params.long < 2) {
       return "단기는 1 이상, 장기는 2 이상이어야 합니다";
@@ -54,17 +48,8 @@ export function validateParams(
     if (params.short >= params.long) {
       return "단기는 장기보다 작아야 합니다";
     }
-  }
-  if (strategy === "rsi") {
-    const { period, low, high } = params;
-    if (![period, low, high].every(Number.isFinite)) {
-      return "기간·과매도·과매수 값을 입력하세요";
-    }
-    if (period < 2) {
-      return "기간은 2 이상이어야 합니다";
-    }
-    if (!(low > 0 && low < high && high < 100)) {
-      return "0 < 과매도 < 과매수 < 100 이어야 합니다";
+    if (params.bar_ticks < 1) {
+      return "틱봉은 1 이상이어야 합니다";
     }
   }
   if (strategy === "rsi_ma") {
@@ -110,18 +95,7 @@ export const STRATEGY_HELP: Record<string, StrategyHelp> = {
       "데드크로스: 단기선이 장기선을 위→아래로 이탈 → 매도(하락 전환)",
       "두 선이 ‘교차하는 그 순간’에만 신호가 나며, 한쪽이 위에 머무는 동안에는 신호가 없습니다.",
     ],
-    note: "중요 — 이 봇은 ‘일(日)’이 아니라 수신한 실시간 시세(틱) 단위로 평균을 냅니다. 즉 ‘5일선/20일선’이 아니라 ‘최근 5틱/20틱 평균선’이며, 활발한 장에서는 20틱이 수 초~수십 초에 불과해 일봉보다 훨씬 민감합니다. 그래서 횡보장에서는 매수·매도가 번갈아 잦게 나고(휩쏘), 강한 추세에서는 한 번 교차 후 한참 신호가 없습니다. 최소 (장기+1)개의 시세가 쌓여야 평가가 시작되고, 봇을 재시작하면 다시 0부터 누적합니다.",
-  },
-  rsi: {
-    title: "RSI (상대강도지수)",
-    summary:
-      "RSI는 최근 일정 기간의 상승 폭과 하락 폭을 비교해 0~100 사이 값으로 ‘과열(많이 올랐다)’과 ‘침체(많이 내렸다)’를 나타내는 지표입니다. 보통 70 이상이면 과매수, 30 이하이면 과매도로 봅니다.",
-    rules: [
-      "과매도선(low)을 아래→위로 돌파 → 매수(바닥 탈출)",
-      "과매수선(high)을 위→아래로 이탈 → 매도(고점 꺾임)",
-      "단순히 구간 안에 있는 게 아니라 ‘경계선을 넘나드는 순간’에 신호가 납니다.",
-    ],
-    note: "이동평균 크로스와 동일하게 수신한 시세(틱) 단위로 계산합니다. 최소 (기간+2)개의 시세가 쌓여야 평가가 시작됩니다.",
+    note: "이동평균은 Rolling SMA(러닝 합계)로 가볍게 계산하며, 원시 틱이 아니라 ‘틱봉’ 단위로 평균을 냅니다(틱봉 50 → 50틱봉). 틱봉이 클수록 노이즈가 줄지만 워밍업이 길어집니다 — 50틱봉×장기20이면 첫 신호까지 약 1,050틱 필요, 봇 재시작 시 다시 누적합니다.",
   },
   rsi_ma: {
     title: "RSI + MA 필터",
@@ -146,20 +120,12 @@ export function explainParams(strategy: string, params: Record<string, number>):
   if (strategy === "ma_cross") {
     const short = params.short ?? "-";
     const long = params.long ?? "-";
+    const bt = params.bar_ticks ?? "-";
     return [
-      `단기 ${short} = 최근 ${short}개 시세의 평균선(MA${short}) — 빠르게 반응`,
-      `장기 ${long} = 최근 ${long}개 시세의 평균선(MA${long}) — 느리게 반응(추세)`,
+      `틱봉 ${bt} = 원시 틱 ${bt}개를 한 봉으로 묶어 그 종가로 계산(클수록 노이즈↓)`,
+      `단기 ${short} = 틱봉 ${short}개의 평균선(MA${short}) — 빠르게 반응`,
+      `장기 ${long} = 틱봉 ${long}개의 평균선(MA${long}) — 느리게 반응(추세)`,
       `MA${short}가 MA${long}을 위로 뚫으면 매수, 아래로 뚫으면 매도`,
-    ];
-  }
-  if (strategy === "rsi") {
-    const period = params.period ?? "-";
-    const low = params.low ?? "-";
-    const high = params.high ?? "-";
-    return [
-      `기간 ${period} = 최근 ${period}개 시세로 상승/하락 강도 계산`,
-      `과매도 ${low} = RSI가 이 값 아래로 갔다가 회복하면 매수`,
-      `과매수 ${high} = RSI가 이 값 위로 갔다가 꺾이면 매도`,
     ];
   }
   if (strategy === "rsi_ma") {
@@ -182,13 +148,41 @@ export function explainParams(strategy: string, params: Record<string, number>):
 /** 전략 + 파라미터를 한 줄 설명으로 변환한다. */
 export function describeStrategy(strategy: string, params: Record<string, number>): string {
   if (strategy === "ma_cross") {
-    return `이동평균 크로스 · 단기 ${params.short ?? "-"} / 장기 ${params.long ?? "-"}`;
-  }
-  if (strategy === "rsi") {
-    return `RSI · 기간 ${params.period ?? "-"} · 과매도 ${params.low ?? "-"} / 과매수 ${params.high ?? "-"}`;
+    return `이동평균 크로스 · ${params.bar_ticks ?? "-"}틱봉 · 단기 ${params.short ?? "-"} / 장기 ${params.long ?? "-"}`;
   }
   if (strategy === "rsi_ma") {
     return `RSI + MA · ${params.bar_ticks ?? "-"}틱봉 · RSI ${params.rsi_period ?? "-"} · 과매도 ${params.low ?? "-"} / 과매수 ${params.high ?? "-"} · MA ${params.ma_period ?? "-"}`;
   }
   return strategyLabel(strategy);
 }
+
+/** 전략 비교표 한 행(구분 + 두 전략 설명). */
+export interface StrategyCompareRow {
+  label: string;
+  ma_cross: string;
+  rsi_ma: string;
+}
+
+/** 이동평균 크로스 vs RSI + MA 필터 비교(도움말 옆 '전략 비교' 팝업). */
+export const STRATEGY_COMPARISON: StrategyCompareRow[] = [
+  { label: "전략 성격", ma_cross: "추세 전환 / 추세 추종", rsi_ma: "추세 필터 + 눌림목 반등" },
+  {
+    label: "핵심 질문",
+    ma_cross: "“방금 추세가 위로 바뀌었나?”",
+    rsi_ma: "“상승 추세 중 잠깐 눌렸다가 회복하나?”",
+  },
+  {
+    label: "매수 신호",
+    ma_cross: "단기 MA가 장기 MA 상향 돌파",
+    rsi_ma: "MA 위에서 RSI가 과매도 회복",
+  },
+  {
+    label: "매도 신호",
+    ma_cross: "단기 MA가 장기 MA 하향 이탈",
+    rsi_ma: "RSI 과매수 이탈 또는 MA 이탈",
+  },
+  { label: "장점", ma_cross: "강한 추세 초입을 잡기 좋음", rsi_ma: "추격매수 줄이고 눌림목 진입에 좋음" },
+  { label: "단점", ma_cross: "횡보장에서 가짜 신호 많음", rsi_ma: "강한 급등 초입은 놓칠 수 있음" },
+  { label: "잘 맞는 장", ma_cross: "강한 상승장, 추세장", rsi_ma: "상승장 눌림목, 완만한 우상향" },
+  { label: "약한 장", ma_cross: "횡보장", rsi_ma: "급등장, 강한 하락장" },
+];

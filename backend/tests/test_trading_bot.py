@@ -29,8 +29,8 @@ def _setup(tmp_path, **settings_kw):
     params = dict(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="k",
-        kis_app_secret="s",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
         daily_max_orders=10,
         daily_max_amount=10_000_000,
     )

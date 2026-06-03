@@ -130,6 +130,59 @@ KIS API의 초당 호출 제한(TPS) 및 일시적 네트워크 불안정에 대
 
 ---
 
+## 지표 계산 · 전략 엔진 성능 (현 구조 + 향후 전환 계획)
+
+### 현재 구조 (채택)
+
+전략은 **무상태(stateless)**다. 매 틱마다 `trading_bot.on_tick`이 다음을 수행한다.
+
+```
+틱 도착 → 종목 히스토리에 종가 append (최대 _HISTORY_SIZE=6000개 유지)
+        → build_strategy()로 전략 객체를 매 틱 새로 생성
+        → strategy.evaluate(symbol, 전체_히스토리)  ← 6000개를 통째로 전달
+```
+
+`evaluate` 내부에서 `to_tick_bars()`로 틱봉을 추출하고 `rolling_sma()`(러닝 합계
+add-new/subtract-old 단일 패스)로 이동평균을 구한다.
+
+- `rolling_sma` **함수 1회 호출**은 단일 패스라 O(m)(m=봉 개수)으로 효율적이다.
+- 그러나 **매 틱마다 전체 히스토리를 0부터 다시 계산**한다 → 틱당 비용은 O(n)
+  (n=히스토리 길이). 정작 쓰는 값은 마지막 두 봉의 크로스뿐이다.
+
+즉 이름은 "Rolling"이지만 **호출 간 상태를 잇는 증분형이 아니라**, 한 호출 안에서만
+러닝 합계를 쓰는 방식이다.
+
+### 왜 현 구조를 유지하는가
+
+현 규모(관심종목 수십 개, 틱 초당 수 회, 히스토리 6000개, 종목당 전략 2~3개)에서 틱당
+비용은 Python에서도 **1ms 미만**이라 실측 병목이 아니다. 무상태 구조는 전략 추가·삭제·
+파라미터 수정 시 상태 수명주기를 관리할 필요가 없어 단순하고 버그 표면이 작다
+(KISS·YAGNI). → **현 구조 유지.**
+
+### 향후 전환 계획 — 틱당 O(1) 상태유지(stateful) Rolling SMA
+
+아래 **트리거 중 하나라도** 발생해 `on_tick`이 실측으로 느려지면 전환한다.
+
+- 관심종목이 수백 개 규모로 증가
+- 틱 빈도가 크게 상승
+- `_HISTORY_SIZE`를 수만 단위로 확대해야 할 때
+
+**전환 방향** (사용자 제시 C# `RollingSma` 형태 = 큐 + running sum):
+
+| 항목 | 현재 | 전환 후 |
+|------|------|---------|
+| 상태 | 없음(매 틱 전략 재생성) | 봇 레벨에 **종목 × 전략 × 기간(short/long/ma_period)별** SMA 상태 유지 |
+| 갱신 | 전체 재순회 O(n) | 새 값 1개만 반영: enqueue + `running += new`, 창 초과 시 dequeue + `running -= old` → `SMA = running/count` **O(1)** |
+| 틱봉 | 매 틱 `to_tick_bars` 재추출 | bar_ticks개가 모이면 한 봉 확정하는 **stateful 누적기** |
+| RSI | pandas 전체 재계산 | Wilder 평활의 **증분형**으로 전환 |
+
+**수반 작업(봇 엔진 리팩터 범위):** 종목·전략·기간별 상태 인스턴스의 생성·폐기·재구성
+관리(전략 추가/삭제, params 수정 시), 봇 재기동 시 상태 워밍업. 산출값은 현재 `rolling_sma`/
+`sma`와 동일해야 하며(동치성 테스트로 고정), 전환은 신호 결과를 바꾸지 않는 **순수 성능
+최적화**여야 한다.
+
+---
+
 ## 데이터베이스 스키마 (초안)
 
 > WAL 모드 활성화. 상세는 구현 단계에서 마이그레이션으로 확정.
@@ -203,10 +256,14 @@ APP_ENV=development
 TRADING_MODE=paper
 
 # KIS 인증 (절대 git 커밋 금지)
-KIS_APP_KEY=
-KIS_APP_SECRET=
-KIS_ACCOUNT_NO=          # 종합계좌번호 8자리
-KIS_ACCOUNT_PRODUCT=01   # 계좌상품코드 2자리
+# 모의/실전은 각자 별도 앱키·시크릿·계좌(폴백 없음). 쓸 모드의 세트만 채운다.
+KIS_PAPER_APP_KEY=       # 모의투자 앱키
+KIS_PAPER_APP_SECRET=    # 모의투자 시크릿
+KIS_PAPER_ACCOUNT_NO=    # 모의 종합계좌번호 8자리
+KIS_LIVE_APP_KEY=        # 실전투자 앱키
+KIS_LIVE_APP_SECRET=     # 실전투자 시크릿
+KIS_LIVE_ACCOUNT_NO=     # 실전 종합계좌번호 8자리
+KIS_ACCOUNT_PRODUCT=01   # 계좌상품코드 2자리 (모의/실전 공용)
 KIS_TOKEN_PREWARM=true   # 기동 시 토큰 프리워밍(첫 시세/잔고 호출 지연↓). 테스트는 conftest가 off
 KIS_MIN_CALL_INTERVAL_SEC=  # KIS 호출 간 최소 간격(초). 비우면 모드별 기본(paper 0.45/live 0.06). 테스트는 0
 

@@ -18,9 +18,9 @@ def _settings(tmp_path) -> Settings:
     return Settings(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="k",
-        kis_app_secret="s",
-        kis_account_no="00000000",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
+        kis_paper_account_no="00000000",
         database_path=str(tmp_path / "sstock.db"),
     )
 
@@ -75,9 +75,9 @@ async def test_레이트리미터_호출간_최소간격_강제(tmp_path):
     s = Settings(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="k",
-        kis_app_secret="s",
-        kis_account_no="00000000",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
+        kis_paper_account_no="00000000",
         database_path=str(tmp_path / "sstock.db"),
         kis_min_call_interval_sec=0.1,
     )

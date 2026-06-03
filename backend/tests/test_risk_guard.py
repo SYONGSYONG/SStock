@@ -27,8 +27,8 @@ def _settings(**kw) -> Settings:
     base = dict(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="k",
-        kis_app_secret="s",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
         daily_max_orders=5,
         daily_max_amount=1_000_000,
     )

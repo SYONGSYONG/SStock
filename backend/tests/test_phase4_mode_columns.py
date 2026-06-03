@@ -23,8 +23,8 @@ def _settings() -> Settings:
     return Settings(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="k",
-        kis_app_secret="s",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
         daily_max_orders=999,
         daily_max_amount=10**12,
     )
@@ -360,8 +360,8 @@ class TestRiskGuardModeIsolation:
         settings = Settings(
             _env_file=None,
             trading_mode="paper",
-            kis_app_key="k",
-            kis_app_secret="s",
+            kis_paper_app_key="k",
+            kis_paper_app_secret="s",
             daily_max_orders=2,  # 일일 2건
             daily_max_amount=100_000,
         )
@@ -405,8 +405,8 @@ class TestRiskGuardModeIsolation:
         settings = Settings(
             _env_file=None,
             trading_mode="paper",
-            kis_app_key="k",
-            kis_app_secret="s",
+            kis_paper_app_key="k",
+            kis_paper_app_secret="s",
             daily_max_orders=999,
             daily_max_amount=100_000,  # 일일 10만원
         )

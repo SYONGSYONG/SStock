@@ -10,8 +10,8 @@ def _settings(mode: str) -> Settings:
     return Settings(
         _env_file=None,
         trading_mode=mode,
-        kis_app_key="dummy_key",
-        kis_app_secret="dummy_secret",
+        kis_paper_app_key="dummy_key",
+        kis_paper_app_secret="dummy_secret",
     )
 
 
@@ -45,10 +45,15 @@ def test_resolve_ws_tr_id_체결통보_모드별():
 
 
 def test_app_key_마스킹():
-    s = _settings("paper")
-    masked = s.masked_app_key()
-    assert "dummy_secret" not in masked
-    assert s.kis_app_key not in masked or len(s.kis_app_key) <= 8
+    # KisCredentials.masked_app_key()는 앞4·뒤4만 남기고 시크릿은 노출하지 않는다.
+    s = Settings(
+        _env_file=None,
+        kis_paper_app_key="ABCD1234EFGH5678",
+        kis_paper_app_secret="topsecret",
+    )
+    masked = s.kis_for("paper").masked_app_key()
+    assert masked == "ABCD…5678"
+    assert "topsecret" not in masked
 
 
 def _dual_settings() -> Settings:
@@ -77,17 +82,15 @@ def test_kis_for_모드별_자격증명_분리():
     assert paper.is_complete and live.is_complete
 
 
-def test_paper_레거시_단일세트로_폴백():
-    # 모드별 paper 값이 없으면 기존 kis_app_* 를 paper로 사용한다.
+def test_미설정_모드는_자격증명_불완전():
+    # 모드별 자격증명이 비면 해당 모드는 KIS 호출 불가(완전 분리, 폴백 없음).
     s = Settings(
         _env_file=None,
-        kis_app_key="legacy",
-        kis_app_secret="legacysecret",
-        kis_account_no="00000000",
+        kis_paper_app_key="paperkey",
+        kis_paper_app_secret="papersecret",
+        kis_paper_account_no="11111111",
     )
-    paper = s.kis_for("paper")
-    assert paper.app_key == "legacy" and paper.account_no == "00000000"
-    # live는 폴백하지 않는다(모의 키로 실전 도메인 호출 방지)
-    assert s.kis_for("live").app_key == ""
+    # paper만 설정 → paper는 가능, live는 불가
     assert s.has_kis_credentials("paper") is True
     assert s.has_kis_credentials("live") is False
+    assert s.kis_for("live").app_key == ""

@@ -55,11 +55,7 @@ class Settings(BaseSettings):
     # 거래 모드 — 기본값 paper(모의투자). live는 명시적 전환만.
     trading_mode: TradingMode = "paper"
 
-    # KIS 인증 (시크릿 — git 커밋 금지)
-    # 단일 세트(레거시): 모드별 값이 없을 때 paper 폴백으로 쓴다.
-    kis_app_key: str = ""
-    kis_app_secret: str = ""
-    kis_account_no: str = ""
+    # 계좌상품코드(2자리) — 모의/실전 공용.
     kis_account_product: str = "01"
 
     # 모드별 KIS 인증 (모의/실전 동시 운용). 시크릿 — git 커밋 금지.
@@ -121,17 +117,16 @@ class Settings(BaseSettings):
     def kis_for(self, mode: TradingMode) -> KisCredentials:
         """모드별 KIS 자격증명·도메인·호출간격을 묶어 반환한다.
 
-        paper는 모드별 값이 없으면 레거시 단일 세트(`kis_app_*`)로 폴백한다.
-        live는 폴백하지 않는다(모의 키로 실전 도메인 호출 방지).
+        모의/실전은 각자 별도 키·시크릿·계좌(`kis_paper_*` / `kis_live_*`)를 쓴다.
         """
         if mode == "live":
             app_key = self.kis_live_app_key
             app_secret = self.kis_live_app_secret
             account_no = self.kis_live_account_no
         else:
-            app_key = self.kis_paper_app_key or self.kis_app_key
-            app_secret = self.kis_paper_app_secret or self.kis_app_secret
-            account_no = self.kis_paper_account_no or self.kis_account_no
+            app_key = self.kis_paper_app_key
+            app_secret = self.kis_paper_app_secret
+            account_no = self.kis_paper_account_no
         return KisCredentials(
             mode=mode,
             app_key=app_key,
@@ -156,13 +151,6 @@ class Settings(BaseSettings):
         live를 쓰고, 아니면 paper(≈2/s)로 폴백한다. 주문이 아니라 안전하다.
         """
         return "live" if self.has_kis_credentials("live") else "paper"
-
-    def masked_app_key(self) -> str:
-        """로그 노출용 마스킹된 앱키."""
-        key = self.kis_app_key
-        if len(key) <= 8:
-            return "****"
-        return f"{key[:4]}…{key[-4:]}"
 
 
 @lru_cache

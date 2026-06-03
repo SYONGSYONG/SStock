@@ -18,8 +18,8 @@ def _settings(tmp_path) -> Settings:
     return Settings(
         _env_file=None,
         trading_mode="paper",
-        kis_app_key="dummy_key",
-        kis_app_secret="dummy_secret",
+        kis_paper_app_key="dummy_key",
+        kis_paper_app_secret="dummy_secret",
         database_path=str(tmp_path / "sstock.db"),
     )
 

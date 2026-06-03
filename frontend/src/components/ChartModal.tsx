@@ -140,7 +140,14 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
       height: el.clientHeight,
       layout: { background: { color: "#ffffff" }, textColor: "#1b1f24" },
       grid: { vertLines: { color: "#eef1f4" }, horzLines: { color: "#eef1f4" } },
-      timeScale: { timeVisible: tab === "minute", borderColor: "#e3e6ea" },
+      timeScale: {
+        timeVisible: tab === "minute",
+        borderColor: "#e3e6ea",
+        // 데이터 양 끝을 차트 가장자리에 고정 → 줌 아웃/스크롤해도 빈 공백이 생기지 않는다.
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
+      },
       rightPriceScale: { borderColor: "#e3e6ea" },
     });
 

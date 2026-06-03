@@ -188,6 +188,9 @@ body {
 .btn-start {
   background: #16a34a;
 }
+.btn-start-live {
+  background: #d97706;
+}
 .btn-stop {
   background: var(--up);
 }

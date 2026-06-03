@@ -12,6 +12,7 @@ interface RecommendPageProps {
   ) => Promise<RecommendResult>;
   onAdd: (symbol: string, name?: string) => void;
   onSelect?: (symbol: string, name?: string | null) => void;
+  watchedSymbols?: Set<string> | string[];
 }
 
 export function RecommendPage({
@@ -20,6 +21,7 @@ export function RecommendPage({
   fetchRecommend,
   onAdd,
   onSelect,
+  watchedSymbols = [],
 }: RecommendPageProps) {
   const [themes, setThemes] = useState<ThemeInfo[]>([]);
   const [active, setActive] = useState<string | null>(null);
@@ -30,6 +32,11 @@ export function RecommendPage({
   const [priceDate, setPriceDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // watchedSymbols을 Set으로 정규화 (빠른 조회)
+  const watchedSymbolsSet = watchedSymbols instanceof Set
+    ? watchedSymbols
+    : new Set(watchedSymbols);
 
   useEffect(() => {
     fetchThemes()
@@ -146,6 +153,7 @@ export function RecommendPage({
                 item={it}
                 onAdd={onAdd}
                 onSelect={onSelect}
+                isWatched={watchedSymbolsSet.has(it.symbol)}
               />
             ))}
           </div>
@@ -171,6 +179,7 @@ export function RecommendPage({
                 quote={quotes[cand.symbol] || null}
                 onAdd={onAdd}
                 onSelect={onSelect}
+                isWatched={watchedSymbolsSet.has(cand.symbol)}
               />
             ))}
           </div>
@@ -189,6 +198,7 @@ interface RecommendCardProps {
   item: RecommendItem;
   onAdd: (symbol: string, name?: string) => void;
   onSelect?: (symbol: string, name?: string | null) => void;
+  isWatched?: boolean;
 }
 
 function changeClass(rate: number | null): string {
@@ -196,7 +206,7 @@ function changeClass(rate: number | null): string {
   return rate > 0 ? "up" : "down";
 }
 
-function RecommendCard({ rank, item, onAdd, onSelect }: RecommendCardProps) {
+function RecommendCard({ rank, item, onAdd, onSelect, isWatched = false }: RecommendCardProps) {
   const clickable = onSelect != null;
   const openChart = () => onSelect?.(item.symbol, item.name);
 
@@ -252,12 +262,13 @@ function RecommendCard({ rank, item, onAdd, onSelect }: RecommendCardProps) {
       <button
         type="button"
         className="add-btn"
+        disabled={isWatched}
         onClick={(e) => {
           e.stopPropagation();
           onAdd(item.symbol, item.name);
         }}
       >
-        관심종목 추가
+        {isWatched ? "추가됨 ✓" : "관심종목 추가"}
       </button>
     </article>
   );
@@ -282,6 +293,7 @@ interface RecommendSkeletonCardProps {
   quote: RecommendQuote | null;
   onAdd: (symbol: string, name?: string) => void;
   onSelect?: (symbol: string, name?: string | null) => void;
+  isWatched?: boolean;
 }
 
 function RecommendSkeletonCard({
@@ -290,6 +302,7 @@ function RecommendSkeletonCard({
   quote,
   onAdd,
   onSelect,
+  isWatched = false,
 }: RecommendSkeletonCardProps) {
   const clickable = onSelect != null;
   const openChart = () => onSelect?.(candidate.symbol, candidate.name);
@@ -368,12 +381,13 @@ function RecommendSkeletonCard({
       <button
         type="button"
         className="add-btn"
+        disabled={isWatched}
         onClick={(e) => {
           e.stopPropagation();
           onAdd(candidate.symbol, candidate.name ?? undefined);
         }}
       >
-        관심종목 추가
+        {isWatched ? "추가됨 ✓" : "관심종목 추가"}
       </button>
     </article>
   );

@@ -44,6 +44,7 @@ _tmp/
 **/.playwright-mcp/
 sstock-*.png
 recommend-*.png
+company-*.png
 
 # ===== 실행 로그 =====
 logs/

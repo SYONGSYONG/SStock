@@ -22,6 +22,7 @@ from app.routers import (
     bot,
     budgets,
     charts,
+    company,
     health,
     market,
     orders,
@@ -87,6 +88,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(account.router)
     app.include_router(charts.router)
+    app.include_router(company.router)
     app.include_router(watchlist.router)
     app.include_router(stocks.router)
     app.include_router(quotes.router)

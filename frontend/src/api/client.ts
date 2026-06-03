@@ -5,6 +5,7 @@ import type {
   Budget,
   ChartData,
   ChartInterval,
+  CompanyOverview,
   MarketStatus,
   Order,
   Position,
@@ -104,6 +105,9 @@ export const getAccountBalance = () => api<AccountBalance>("/api/account/balance
 
 export const getChart = (symbol: string, interval: ChartInterval = "daily", signal?: AbortSignal) =>
   api<ChartData>(`/api/charts/${symbol}?interval=${interval}`, { signal });
+
+export const getCompanyOverview = (symbol: string) =>
+  api<CompanyOverview>(`/api/company/${symbol}/overview`);
 
 export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
 

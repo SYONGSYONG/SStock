@@ -35,15 +35,52 @@ const DAILY: ChartData = {
 afterEach(() => vi.clearAllMocks());
 
 describe("ChartModal", () => {
-  test("일봉/주봉/분봉 토글을 보여준다", async () => {
+  test("기업개요/일봉/주봉/분봉 탭을 보여주고 일봉 클릭 시 차트를 조회한다", async () => {
     const fetchChart = vi.fn().mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" name="삼성전자" fetchChart={fetchChart} onClose={() => {}} />);
     expect(screen.getByText("005930")).toBeInTheDocument();
     expect(screen.getByText("삼성전자")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "기업개요" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "일봉" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "주봉" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "분봉" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
     await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
+  });
+
+  test("기업개요 탭을 누르면 회사 개요를 보여준다", async () => {
+    const fetchChart = vi.fn().mockResolvedValue(DAILY);
+    const fetchOverview = vi.fn().mockResolvedValue({
+      symbol: "005930",
+      base_date: "2026.06.02",
+      summary: ["1969년 설립된 글로벌 전자 기업", "DX/DS/SDC/Harman 부문 운영"],
+      price: [{ label: "시가총액", value: "21,075,834억원" }],
+      shareholders: [{ name: "삼성생명보험 외 15인", shares: "1,151,513,080", pct: "19.70" }],
+      products: [{ name: "DS", pct: "61.04" }],
+      history: [{ date: "2025/12", detail: "6세대 D램 양산" }],
+    });
+    render(
+      <ChartModal
+        symbol="005930"
+        fetchChart={fetchChart}
+        fetchOverview={fetchOverview}
+        onClose={() => {}}
+      />,
+    );
+    // 기업개요가 기본(첫) 탭이라 클릭 없이 표시된다
+    expect(screen.getByRole("tab", { name: "기업개요" })).toBeInTheDocument();
+
+    expect(await screen.findByText("1969년 설립된 글로벌 전자 기업")).toBeInTheDocument();
+    expect(screen.getByText("기준: 2026.06.02")).toBeInTheDocument();
+    // 시세·주주현황·매출구성·연혁 표
+    expect(screen.getByText("시가총액")).toBeInTheDocument();
+    expect(screen.getByText("삼성생명보험 외 15인")).toBeInTheDocument();
+    expect(screen.getByText("19.70%")).toBeInTheDocument();
+    expect(screen.getByText("주요제품 매출구성")).toBeInTheDocument();
+    expect(screen.getByText("61.04%")).toBeInTheDocument();
+    expect(screen.getByText("최근연혁")).toBeInTheDocument();
+    expect(screen.getByText("6세대 D램 양산")).toBeInTheDocument();
+    expect(fetchOverview).toHaveBeenCalledWith("005930");
   });
 
   test("주봉 탭을 누르면 weekly로 재조회한다", async () => {
@@ -51,7 +88,6 @@ describe("ChartModal", () => {
       .fn()
       .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
     fireEvent.click(screen.getByRole("tab", { name: "주봉" }));
     await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "weekly", expect.any(AbortSignal)));
   });
@@ -61,7 +97,6 @@ describe("ChartModal", () => {
       .fn()
       .mockImplementation((_s: string, iv: ChartInterval) => Promise.resolve({ ...DAILY, interval: iv }));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
-    await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "daily", expect.any(AbortSignal)));
     fireEvent.click(screen.getByRole("tab", { name: "분봉" }));
     await waitFor(() => expect(fetchChart).toHaveBeenCalledWith("005930", "minute", expect.any(AbortSignal)));
   });
@@ -85,6 +120,7 @@ describe("ChartModal", () => {
   test("빈 캔들이면 데이터 없음 안내를 보여준다", async () => {
     const fetchChart = vi.fn().mockResolvedValue({ ...DAILY, candles: [] });
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
     await waitFor(
       () => expect(screen.getByText("차트 데이터가 없습니다")).toBeInTheDocument(),
       { timeout: 4000 },
@@ -98,6 +134,7 @@ describe("ChartModal", () => {
       .mockResolvedValueOnce({ ...DAILY, candles: [] })
       .mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
     await waitFor(() => expect(fetchChart).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
     expect(screen.queryByText("차트 데이터를 불러올 수 없습니다")).not.toBeInTheDocument();
@@ -109,6 +146,7 @@ describe("ChartModal", () => {
       .mockRejectedValueOnce(new Error("503"))
       .mockResolvedValue(DAILY);
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
     await waitFor(() => expect(fetchChart).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(screen.queryByText("차트 데이터를 불러올 수 없습니다")).not.toBeInTheDocument();
     expect(screen.queryByText("차트 데이터가 없습니다")).not.toBeInTheDocument();
@@ -117,6 +155,7 @@ describe("ChartModal", () => {
   test("연속 실패 시 오류 안내를 보여준다", async () => {
     const fetchChart = vi.fn().mockRejectedValue(new Error("fail"));
     render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("tab", { name: "일봉" }));
     await waitFor(
       () => expect(screen.getByText("차트 데이터를 불러올 수 없습니다")).toBeInTheDocument(),
       { timeout: 4000 },

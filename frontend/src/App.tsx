@@ -7,6 +7,7 @@ import {
   deleteStrategy,
   getAccountBalance,
   getChart,
+  getCompanyOverview,
   getAudit,
   getBotStatus,
   getBudgets,
@@ -210,6 +211,7 @@ export function App() {
           fetchRecommend={getRecommend}
           onAdd={handleAddWatch}
           onSelect={(symbol, name) => setChartTarget({ symbol, name })}
+          watchedSymbols={new Set(items.map((it) => it.symbol))}
         />
       ) : (
       <main className="layout">
@@ -267,6 +269,7 @@ export function App() {
             symbol={chartTarget.symbol}
             name={chartTarget.name ?? items.find((it) => it.symbol === chartTarget.symbol)?.name}
             fetchChart={getChart}
+            fetchOverview={getCompanyOverview}
             onClose={() => setChartTarget(null)}
           />
         </Suspense>

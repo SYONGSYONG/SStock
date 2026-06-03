@@ -172,3 +172,34 @@ export interface RecommendQuote {
   change_rate: number | null;
   volume: number | null;
 }
+
+export interface CompanyPriceItem {
+  label: string;
+  value: string;
+}
+
+export interface CompanyShareholder {
+  name: string;
+  shares: string | null;
+  pct: string | null;
+}
+
+export interface CompanyHistoryItem {
+  date: string;
+  detail: string;
+}
+
+export interface CompanyProduct {
+  name: string;
+  pct: string;
+}
+
+export interface CompanyOverview {
+  symbol: string;
+  base_date: string | null;
+  summary: string[];
+  price?: CompanyPriceItem[];
+  shareholders?: CompanyShareholder[];
+  history?: CompanyHistoryItem[];
+  products?: CompanyProduct[];
+}

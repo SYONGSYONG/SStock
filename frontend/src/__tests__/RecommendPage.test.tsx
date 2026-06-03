@@ -75,7 +75,10 @@ function createMockSubscribeRecommend(
 }
 
 function setup(
-  options: { subscribeRecommend?: ReturnType<typeof createMockSubscribeRecommend> } = {},
+  options: {
+    subscribeRecommend?: ReturnType<typeof createMockSubscribeRecommend>;
+    watchedSymbols?: Set<string> | string[];
+  } = {},
 ) {
   const fetchThemes = vi.fn(async () => THEMES);
   const subscribeRecommend = options.subscribeRecommend ?? createMockSubscribeRecommend();
@@ -87,6 +90,7 @@ function setup(
       subscribeRecommend={subscribeRecommend}
       onAdd={onAdd}
       onSelect={onSelect}
+      watchedSymbols={options.watchedSymbols ?? []}
     />,
   );
   return { fetchThemes, subscribeRecommend, onAdd, onSelect };
@@ -234,5 +238,53 @@ describe("RecommendPage", () => {
         screen.getByText(/반도체 불러오는 중\.\.\. \([12]\/2\)/),
       ).toBeInTheDocument(),
     );
+  });
+
+  test("이미 추가된 종목의 버튼은 비활성화되고 '추가됨 ✓'으로 표시된다", async () => {
+    setup({ watchedSymbols: new Set(["000660"]) });
+    fireEvent.click(await screen.findByText("반도체"));
+    // result 이벤트로 최종 카드가 나타날 때까지 기다림
+    await waitFor(() => {
+      expect(screen.queryByText(/87\.4/)).toBeInTheDocument();
+    });
+
+    // SK하이닉스(000660)는 이미 추가됨 → 최종 카드에서 "추가됨 ✓" 표시
+    const addButtons = screen.getAllByRole("button", { name: /추가됨|관심종목 추가/ });
+    const addedBtn = addButtons.find((btn) => btn.textContent?.includes("추가됨"));
+    expect(addedBtn).toBeInTheDocument();
+    expect(addedBtn).toBeDisabled();
+  });
+
+  test("미등록 종목의 버튼은 '관심종목 추가'로 표시되고 활성화된다", async () => {
+    setup({ watchedSymbols: new Set() });
+    fireEvent.click(await screen.findByText("반도체"));
+    // result 이벤트로 최종 카드가 나타날 때까지 기다림
+    await waitFor(() => {
+      expect(screen.queryByText(/87\.4/)).toBeInTheDocument();
+    });
+
+    // 최종 카드(result)의 "관심종목 추가" 버튼 선택
+    const allAddButtons = screen.getAllByRole("button", {
+      name: /관심종목 추가|추가됨/,
+    });
+    // result 이벤트 후 최종 카드만 남으므로 하나의 "관심종목 추가" 버튼이어야 함
+    const unaddedBtn = allAddButtons.find(
+      (btn) => btn.textContent?.includes("관심종목 추가") && !btn.textContent?.includes("추가됨"),
+    );
+    expect(unaddedBtn).toBeInTheDocument();
+    expect(unaddedBtn).not.toBeDisabled();
+  });
+
+  test("미등록 종목의 추가 버튼을 클릭하면 onAdd를 호출한다", async () => {
+    const { onAdd } = setup({ watchedSymbols: new Set() });
+    fireEvent.click(await screen.findByText("반도체"));
+    // result 이벤트로 최종 카드가 나타날 때까지 기다림
+    await waitFor(() => {
+      expect(screen.queryByText(/87\.4/)).toBeInTheDocument();
+    });
+
+    const addBtn = screen.getAllByRole("button", { name: /관심종목 추가/ })[0];
+    fireEvent.click(addBtn);
+    expect(onAdd).toHaveBeenCalledWith("000660", "SK하이닉스");
   });
 });

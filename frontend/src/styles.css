@@ -217,6 +217,72 @@ body {
 }
 
 /* 전략 목록: 2단 레이아웃(종목+토글/삭제 / 전략 설명) */
+/* ── 전략 추가 폼(파라미터 편집) ── */
+.strategy-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.strategy-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.strategy-form-row input,
+.strategy-form-row select {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.strategy-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.param-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 64px;
+  min-width: 0;
+}
+.param-field .param-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.param-field input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.param-field .param-default {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.param-error {
+  margin: 0;
+}
+.strategy-add {
+  align-self: flex-start;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #fff;
+  background: var(--accent);
+}
+.strategy-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .strategy-list {
   list-style: none;
   margin: 0;

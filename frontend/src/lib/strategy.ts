@@ -4,6 +4,63 @@ export const STRATEGY_LABEL: Record<string, string> = {
   rsi: "RSI",
 };
 
+/** 전략별 기본 파라미터 값(단일 진실 공급원). */
+export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
+  ma_cross: { short: 5, long: 20 },
+  rsi: { period: 14, low: 30, high: 70 },
+};
+
+/** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
+export interface ParamField {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+}
+
+export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
+  ma_cross: [
+    { key: "short", label: "단기", min: 1, max: 999 },
+    { key: "long", label: "장기", min: 2, max: 999 },
+  ],
+  rsi: [
+    { key: "period", label: "기간", min: 2, max: 999 },
+    { key: "low", label: "과매도", min: 1, max: 99 },
+    { key: "high", label: "과매수", min: 1, max: 99 },
+  ],
+};
+
+/** 파라미터 유효성 검사. 통과하면 null, 위반하면 한국어 오류 메시지. */
+export function validateParams(
+  strategy: string,
+  params: Record<string, number>,
+): string | null {
+  if (strategy === "ma_cross") {
+    if (!Number.isFinite(params.short) || !Number.isFinite(params.long)) {
+      return "단기·장기 값을 입력하세요";
+    }
+    if (params.short < 1 || params.long < 2) {
+      return "단기는 1 이상, 장기는 2 이상이어야 합니다";
+    }
+    if (params.short >= params.long) {
+      return "단기는 장기보다 작아야 합니다";
+    }
+  }
+  if (strategy === "rsi") {
+    const { period, low, high } = params;
+    if (![period, low, high].every(Number.isFinite)) {
+      return "기간·과매도·과매수 값을 입력하세요";
+    }
+    if (period < 2) {
+      return "기간은 2 이상이어야 합니다";
+    }
+    if (!(low > 0 && low < high && high < 100)) {
+      return "0 < 과매도 < 과매수 < 100 이어야 합니다";
+    }
+  }
+  return null;
+}
+
 export function strategyLabel(strategy: string): string {
   return STRATEGY_LABEL[strategy] ?? strategy;
 }

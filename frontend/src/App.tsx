@@ -40,7 +40,6 @@ import { SignalLog } from "./components/SignalLog";
 import { PositionTable } from "./components/PositionTable";
 import { OrderLog } from "./components/OrderLog";
 import { AuditLogView } from "./components/AuditLogView";
-import { BudgetPanel } from "./components/BudgetPanel";
 import { AccountPanel } from "./components/AccountPanel";
 
 // 차트 라이브러리(lightweight-charts)는 무거우므로 모달을 열 때만 지연 로딩
@@ -271,12 +270,9 @@ export function App() {
               onSetBudget={handleSetBudget}
               onToggle={handleToggleStrategy}
               onRemove={handleRemoveStrategy}
-              error={strategyError}
-            />
-            <BudgetPanel
-              budgets={budgets}
               orderableCash={account?.orderable_cash ?? null}
-              error={budgetError}
+              error={strategyError}
+              budgetError={budgetError}
             />
           </section>
           <BotControl

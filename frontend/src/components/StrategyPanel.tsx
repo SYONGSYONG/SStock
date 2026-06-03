@@ -27,7 +27,11 @@ interface StrategyPanelProps {
   onSetBudget: (symbol: string, principal: number) => void;
   onToggle: (id: number, enabled: boolean) => void;
   onRemove: (id: number) => void;
+  /** 계좌 주문가능현금(원금 입력 아래 설정가능액 표시용) */
+  orderableCash?: number | null;
   error?: string | null;
+  /** 자본 칸막이 설정 오류 */
+  budgetError?: string | null;
 }
 
 /** 전략 파라미터 입력 필드(추가 폼·수정 모달 공용). */
@@ -109,7 +113,9 @@ export function StrategyPanel({
   onSetBudget,
   onToggle,
   onRemove,
+  orderableCash,
   error,
+  budgetError,
 }: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
   const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
@@ -133,6 +139,10 @@ export function StrategyPanel({
   const paramError = validateParams(strategy, params);
   const principalValue = Number(principal);
   const validPrincipal = /^\d+$/.test(principal) && principalValue >= 1;
+
+  // 설정가능금액 = 주문가능현금 − Σ(각 칸막이 가용액)
+  const committed = budgets.reduce((sum, b) => sum + b.available, 0);
+  const settable = orderableCash == null ? null : orderableCash - committed;
 
   const changeStrategy = (next: StrategyName) => {
     setStrategy(next);
@@ -255,7 +265,22 @@ export function StrategyPanel({
           <span className="param-default">전략과 함께 등록됩니다</span>
         </label>
 
+        <p className="budget-cash">
+          {orderableCash == null ? (
+            <span className="muted">주문가능현금 조회 불가</span>
+          ) : (
+            <>
+              주문가능현금 {fmt(orderableCash)}원 · 설정가능{" "}
+              <b className={settable != null && settable < 0 ? "down" : "up"}>{fmt(settable)}</b>원
+              {settable != null && settable < 0 && (
+                <span className="down"> (칸막이 합계가 현금 초과)</span>
+              )}
+            </>
+          )}
+        </p>
+
         {paramError && validSymbol && <p className="error param-error">{paramError}</p>}
+        {budgetError && <p className="error param-error">{budgetError}</p>}
 
         <button
           type="submit"

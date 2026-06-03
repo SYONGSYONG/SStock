@@ -253,6 +253,18 @@ describe("StrategyPanel", () => {
     expect(onSetBudget).toHaveBeenCalledWith("005930", 1000000);
   });
 
+  test("원금 입력 아래에 주문가능현금·설정가능을 표시", () => {
+    const budgets: Budget[] = [
+      { symbol: "005930", principal: 500000, realized_pnl: 0, holding_cost: 0, ceiling: 500000, available: 500000 },
+    ];
+    render(
+      <StrategyPanel budgets={budgets} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} orderableCash={1000000} />,
+    );
+    // 설정가능 = 1,000,000 − 가용 500,000 = 500,000
+    expect(screen.getByText(/주문가능현금/)).toBeInTheDocument();
+    expect(screen.getByText(/500,000/)).toBeInTheDocument();
+  });
+
   test("원금 미입력이면 추가 비활성화(전략·칸막이는 한 쌍)", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,

@@ -165,7 +165,8 @@ async def _get_period_chart(
     settings = settings or get_settings()
     client = kis_client or KisClient(settings)
     today = datetime.now(_KST).date()
-    start = today - timedelta(days=_LOOKBACK_DAYS)
+    lookback = _WEEKLY_LOOKBACK_DAYS if period_div_code == "W" else _LOOKBACK_DAYS
+    start = today - timedelta(days=lookback)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": symbol,

@@ -136,6 +136,40 @@ async def test_weekly_chart_parses(tmp_path):
 
 
 @respx.mock
+async def test_weekly_chart_uses_two_year_lookback(tmp_path):
+    """주봉은 일봉(~200일)보다 넓은 ~2년 범위를 조회해 100건 상한을 채운다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json=_WEEKLY_BODY))
+
+    await get_weekly_chart("005930", s)
+
+    params = route.calls.last.request.url.params
+    d1 = datetime.strptime(params["FID_INPUT_DATE_1"], "%Y%m%d")
+    d2 = datetime.strptime(params["FID_INPUT_DATE_2"], "%Y%m%d")
+    assert (d2 - d1).days >= 700  # 약 2년(~100주)
+
+
+@respx.mock
+async def test_daily_chart_uses_200day_lookback(tmp_path):
+    """일봉은 ~200일(≈100영업일) 범위를 유지한다."""
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json=_DAILY_BODY))
+
+    await get_daily_chart("005930", s)
+
+    params = route.calls.last.request.url.params
+    d1 = datetime.strptime(params["FID_INPUT_DATE_1"], "%Y%m%d")
+    d2 = datetime.strptime(params["FID_INPUT_DATE_2"], "%Y%m%d")
+    assert 150 <= (d2 - d1).days <= 260
+
+
+@respx.mock
 async def test_minute_chart_returns_unix_seconds(tmp_path):
     s = _settings(tmp_path)
     _token_mock(s)

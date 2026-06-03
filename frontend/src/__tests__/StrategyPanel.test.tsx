@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { StrategyPanel } from "../components/StrategyPanel";
 import { describeStrategy } from "../lib/strategy";
-import type { StrategyConfig } from "../types";
+import type { Budget, StrategyConfig } from "../types";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -29,6 +29,7 @@ describe("StrategyPanel", () => {
     ];
     render(
       <StrategyPanel
+        budgets={[]}
         configs={configs}
         onAdd={() => {}}
         onToggle={() => {}}
@@ -45,11 +46,34 @@ describe("StrategyPanel", () => {
       { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     const item = screen.getByText("005930").closest("li") as HTMLElement;
     expect(within(item).getByText("005930")).toBeInTheDocument();
     expect(within(item).getByText("삼성전자")).toBeInTheDocument();
+  });
+
+  test("전략 항목 아래 가용/한도 표기 + 칸막이 수정 모달", () => {
+    const onSetBudget = vi.fn();
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    const budgets: Budget[] = [
+      { symbol: "005930", principal: 1000000, realized_pnl: 0, holding_cost: 0, ceiling: 1000000, available: 1000000 },
+    ];
+    render(
+      <StrategyPanel budgets={budgets} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText(/가용/)).toBeInTheDocument();
+    expect(within(item).getByText(/1,000,000원/)).toBeInTheDocument();
+
+    fireEvent.click(within(item).getByRole("button", { name: "칸막이 수정" }));
+    const dialog = screen.getByRole("dialog");
+    expect((within(dialog).getByLabelText("칸막이 수정 원금") as HTMLInputElement).value).toBe("1000000");
+    fireEvent.change(within(dialog).getByLabelText("칸막이 수정 원금"), { target: { value: "2000000" } });
+    fireEvent.click(within(dialog).getByText("저장"));
+    expect(onSetBudget).toHaveBeenCalledWith("005930", 2000000);
   });
 
   test("수정 버튼 → 모달에서 파라미터를 고쳐 저장하면 enabled 유지하며 onAdd 호출", () => {
@@ -58,9 +82,9 @@ describe("StrategyPanel", () => {
       { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
     const dialog = screen.getByRole("dialog");
     // 현재 파라미터가 채워져 있다
     expect((within(dialog).getByLabelText("단기") as HTMLInputElement).value).toBe("5");
@@ -85,7 +109,7 @@ describe("StrategyPanel", () => {
       { id: 3, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
     expect(confirmSpy).toHaveBeenCalledTimes(1);
@@ -99,7 +123,7 @@ describe("StrategyPanel", () => {
       { id: 3, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
     expect(onToggle).not.toHaveBeenCalled();
@@ -112,7 +136,7 @@ describe("StrategyPanel", () => {
       { id: 3, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={onToggle} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.click(screen.getByRole("checkbox")); // ON → OFF
     expect(confirmSpy).not.toHaveBeenCalled();
@@ -125,9 +149,9 @@ describe("StrategyPanel", () => {
       { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("단기"), { target: { value: "30" } }); // 30 ≥ 20
     expect(within(dialog).getByText("저장")).toBeDisabled();
@@ -135,7 +159,7 @@ describe("StrategyPanel", () => {
 
   test("도움말 버튼을 누르면 중앙 모달로 전략 설명·5/20 의미가 뜬다", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     // 닫힌 상태에서는 모달이 없다
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -152,7 +176,7 @@ describe("StrategyPanel", () => {
 
   test("배경 클릭으로 도움말 모달이 닫힌다", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "이동평균 크로스 도움말" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -163,7 +187,7 @@ describe("StrategyPanel", () => {
 
   test("RSI 선택 시 도움말도 RSI 설명·14/30/70 의미로 바뀐다", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi" } });
     fireEvent.click(screen.getByRole("button", { name: "RSI 도움말" }));
@@ -177,7 +201,7 @@ describe("StrategyPanel", () => {
 
   test("파라미터 입력이 기본값으로 채워져 있다(단기 5 / 장기 20)", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("5");
     expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("20");
@@ -188,7 +212,7 @@ describe("StrategyPanel", () => {
 
   test("RSI로 바꾸면 파라미터 입력도 RSI 기본값으로 초기화", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi" } });
     expect((screen.getByLabelText("기간") as HTMLInputElement).value).toBe("14");
@@ -198,7 +222,7 @@ describe("StrategyPanel", () => {
 
   test("잘못된 파라미터(단기≥장기)면 오류 표시 + 추가 비활성화", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
     fireEvent.change(screen.getByLabelText("단기"), { target: { value: "30" } }); // 30 ≥ 20
@@ -211,7 +235,7 @@ describe("StrategyPanel", () => {
     const onSetBudget = vi.fn();
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(
-      <StrategyPanel configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
     fireEvent.change(screen.getByLabelText("단기"), { target: { value: "3" } });
@@ -231,7 +255,7 @@ describe("StrategyPanel", () => {
 
   test("원금 미입력이면 추가 비활성화(전략·칸막이는 한 쌍)", () => {
     render(
-      <StrategyPanel configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
     // 파라미터는 기본값으로 유효하지만 원금이 없으면 추가 불가
@@ -243,7 +267,7 @@ describe("StrategyPanel", () => {
     const onSetBudget = vi.fn();
     vi.spyOn(window, "confirm").mockReturnValue(false);
     render(
-      <StrategyPanel configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
+      <StrategyPanel budgets={[]} configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
     fireEvent.change(screen.getByLabelText("자본 칸막이 원금"), { target: { value: "1000000" } });

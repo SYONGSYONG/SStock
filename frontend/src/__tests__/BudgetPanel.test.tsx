@@ -1,65 +1,34 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, test } from "vitest";
 import { BudgetPanel } from "../components/BudgetPanel";
-import type { Budget, WatchItem } from "../types";
-
-const items: WatchItem[] = [
-  { id: 1, symbol: "005930", name: "삼성전자", created_at: "" },
-];
+import type { Budget } from "../types";
 
 const budgets: Budget[] = [
   { symbol: "005930", principal: 500000, realized_pnl: 5000, holding_cost: 100000, ceiling: 505000, available: 405000 },
 ];
 
-describe("BudgetPanel", () => {
-  test("칸막이 현황을 가용/한도로 표시", () => {
-    render(<BudgetPanel budgets={budgets} items={items} onSet={() => {}} onRemove={() => {}} />);
-    expect(screen.getByText("삼성전자")).toBeInTheDocument();
-    expect(screen.getByText(/405,000/)).toBeInTheDocument(); // 가용
-    expect(screen.getByText(/505,000원/)).toBeInTheDocument(); // 한도
-  });
-
-  test("빈 칸막이 안내", () => {
-    render(<BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} />);
-    expect(screen.getByText(/설정된 칸막이가 없습니다/)).toBeInTheDocument();
-  });
-
+describe("BudgetPanel (요약)", () => {
   test("설정가능금액 = 주문가능현금 − 가용액 합계", () => {
     // 주문가능현금 1,000,000 − 가용액 405,000 = 설정가능 595,000
-    render(
-      <BudgetPanel
-        budgets={budgets}
-        items={items}
-        onSet={() => {}}
-        onRemove={() => {}}
-        orderableCash={1000000}
-      />,
-    );
+    render(<BudgetPanel budgets={budgets} orderableCash={1000000} />);
     expect(screen.getByText(/주문가능현금/)).toBeInTheDocument();
     expect(screen.getByText(/595,000/)).toBeInTheDocument();
+    expect(screen.getByText(/설정된 칸막이 1종목/)).toBeInTheDocument();
   });
 
   test("주문가능현금 null이면 조회 불가 표기", () => {
-    render(
-      <BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} orderableCash={null} />,
-    );
+    render(<BudgetPanel budgets={[]} orderableCash={null} />);
     expect(screen.getByText("주문가능현금 조회 불가")).toBeInTheDocument();
   });
 
-  test("수정 버튼 → 모달에서 원금을 고쳐 저장하면 onSet 호출", () => {
-    const onSet = vi.fn();
-    render(<BudgetPanel budgets={budgets} items={items} onSet={onSet} onRemove={() => {}} />);
-    expect(screen.queryByRole("dialog")).toBeNull();
+  test("칸막이가 없으면 전략 추가 안내", () => {
+    render(<BudgetPanel budgets={[]} orderableCash={1000000} />);
+    expect(screen.getByText(/전략 추가 시 함께 등록됩니다/)).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "수정" }));
-    const dialog = screen.getByRole("dialog");
-    // 현재 원금이 채워져 있다
-    expect((within(dialog).getByLabelText("수정 원금") as HTMLInputElement).value).toBe("500000");
-
-    fireEvent.change(within(dialog).getByLabelText("수정 원금"), { target: { value: "700000" } });
-    fireEvent.click(within(dialog).getByText("저장"));
-
-    expect(onSet).toHaveBeenCalledWith("005930", 700000);
-    expect(screen.queryByRole("dialog")).toBeNull(); // 저장 후 닫힘
+  test("종목별 목록을 더 이상 중복 표기하지 않는다", () => {
+    render(<BudgetPanel budgets={budgets} orderableCash={1000000} />);
+    // 종목 코드/가용·한도 상세는 전략 목록에서만 표기
+    expect(screen.queryByText("005930")).toBeNull();
   });
 });

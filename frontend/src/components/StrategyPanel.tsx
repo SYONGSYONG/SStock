@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { StrategyConfig, StrategyName } from "../types";
+import type { Budget, StrategyConfig, StrategyName } from "../types";
+import { fmt } from "../lib/format";
 import {
   describeStrategy,
   explainParams,
@@ -14,13 +15,15 @@ import { Modal } from "./Modal";
 
 interface StrategyPanelProps {
   configs: StrategyConfig[];
+  /** 종목별 자본 칸막이 현황(전략 항목 아래 가용/한도 표기용) */
+  budgets: Budget[];
   onAdd: (body: {
     symbol: string;
     strategy: StrategyName;
     params: Record<string, number>;
     enabled: boolean;
   }) => void;
-  /** 전략과 함께 등록할 자본 칸막이(원금) 설정 */
+  /** 전략과 함께 등록할/수정할 자본 칸막이(원금) 설정 */
   onSetBudget: (symbol: string, principal: number) => void;
   onToggle: (id: number, enabled: boolean) => void;
   onRemove: (id: number) => void;
@@ -101,6 +104,7 @@ const toNumber = (raw: string): number => (raw === "" ? Number.NaN : Number(raw)
 
 export function StrategyPanel({
   configs,
+  budgets,
   onAdd,
   onSetBudget,
   onToggle,
@@ -116,9 +120,14 @@ export function StrategyPanel({
   // 전략과 함께 등록할 자본 칸막이 원금
   const [principal, setPrincipal] = useState("");
 
-  // 수정 모달 상태
+  // 전략 파라미터 수정 모달
   const [editing, setEditing] = useState<StrategyConfig | null>(null);
   const [editParams, setEditParams] = useState<Record<string, number>>({});
+  // 자본 칸막이(원금) 수정 모달
+  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [editPrincipal, setEditPrincipal] = useState("");
+
+  const budgetOf = (sym: string) => budgets.find((b) => b.symbol === sym) ?? null;
 
   const validSymbol = /^\d{6}$/.test(symbol);
   const paramError = validateParams(strategy, params);
@@ -173,6 +182,20 @@ export function StrategyPanel({
       enabled: editing.enabled,
     });
     setEditing(null);
+  };
+
+  const openEditBudget = (b: Budget) => {
+    setEditingBudget(b);
+    setEditPrincipal(String(b.principal));
+  };
+
+  const editPrincipalValue = Number(editPrincipal);
+  const editBudgetValid = /^\d+$/.test(editPrincipal) && editPrincipalValue >= 1;
+
+  const saveEditBudget = () => {
+    if (!editingBudget || !editBudgetValid) return;
+    onSetBudget(editingBudget.symbol, Math.floor(editPrincipalValue));
+    setEditingBudget(null);
   };
 
   // 활성화(ON) 인터락: 실수 방지를 위해 설정값을 팝업으로 확인한 뒤에만 켠다.
@@ -259,13 +282,35 @@ export function StrategyPanel({
                 {c.enabled ? "ON" : "OFF"}
               </label>
               <button className="link-action" onClick={() => openEdit(c)}>
-                수정
+                전략 수정
               </button>
               <button className="link-danger" onClick={() => onRemove(c.id)}>
                 삭제
               </button>
             </div>
             <div className="strategy-desc">{describeStrategy(c.strategy, c.params)}</div>
+            {(() => {
+              const b = budgetOf(c.symbol);
+              if (!b) {
+                return <div className="strategy-budget muted">자본 칸막이 미설정</div>;
+              }
+              return (
+                <div className="strategy-budget">
+                  가용 <b className={b.available < 0 ? "down" : undefined}>{fmt(b.available)}</b> /
+                  한도 {fmt(b.ceiling)}원
+                  {b.realized_pnl !== 0 && (
+                    <span className={b.realized_pnl > 0 ? "up" : "down"}>
+                      {" "}
+                      (실현 {b.realized_pnl > 0 ? "+" : ""}
+                      {fmt(b.realized_pnl)})
+                    </span>
+                  )}
+                  <button className="link-action budget-edit" onClick={() => openEditBudget(b)}>
+                    칸막이 수정
+                  </button>
+                </div>
+              );
+            })()}
           </li>
         ))}
         {configs.length === 0 && <li className="empty">등록된 전략이 없습니다</li>}
@@ -287,6 +332,38 @@ export function StrategyPanel({
               취소
             </button>
             <button type="button" className="strategy-add" disabled={!!editError} onClick={saveEdit}>
+              저장
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {editingBudget && (
+        <Modal
+          title={`${editingBudget.symbol} · 자본 칸막이 원금 수정`}
+          onClose={() => setEditingBudget(null)}
+        >
+          <label className="param-field">
+            <span className="param-label">원금(원)</span>
+            <input
+              type="text"
+              aria-label="칸막이 수정 원금"
+              inputMode="numeric"
+              value={editPrincipal}
+              onChange={(e) => setEditPrincipal(e.target.value.replace(/\D/g, ""))}
+            />
+            <span className="param-default">현재 {fmt(editingBudget.principal)}원</span>
+          </label>
+          <div className="edit-modal-actions">
+            <button type="button" className="btn-ghost" onClick={() => setEditingBudget(null)}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="strategy-add"
+              disabled={!editBudgetValid}
+              onClick={saveEditBudget}
+            >
               저장
             </button>
           </div>

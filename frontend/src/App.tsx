@@ -170,8 +170,15 @@ export function App() {
   };
 
   const handleRemoveStrategy = async (id: number) => {
+    const target = strategies.find((s) => s.id === id);
     await deleteStrategy(id).catch(() => {});
-    await refreshStrategies();
+    const fresh = await getStrategies(viewMode);
+    setStrategies(fresh);
+    // 전략·칸막이는 한 쌍 → 해당 종목에 남은 전략이 없으면 칸막이도 함께 정리
+    if (target && !fresh.some((s) => s.symbol === target.symbol)) {
+      await deleteBudget(target.symbol, viewMode).catch(() => {});
+    }
+    setBudgets(await getBudgets(viewMode));
   };
 
   const handleBotStart = async (confirmLive: boolean) => {
@@ -211,11 +218,6 @@ export function App() {
     } catch (e) {
       setBudgetError(e instanceof ApiError ? e.message : "칸막이 설정 실패");
     }
-  };
-
-  const handleRemoveBudget = async (symbol: string) => {
-    await deleteBudget(symbol, viewMode).catch(() => {});
-    setBudgets(await getBudgets(viewMode));
   };
 
   return (
@@ -264,6 +266,7 @@ export function App() {
           <section className="panel rules-panel">
             <StrategyPanel
               configs={strategies}
+              budgets={budgets}
               onAdd={handleAddStrategy}
               onSetBudget={handleSetBudget}
               onToggle={handleToggleStrategy}
@@ -272,9 +275,6 @@ export function App() {
             />
             <BudgetPanel
               budgets={budgets}
-              items={items}
-              onSet={handleSetBudget}
-              onRemove={handleRemoveBudget}
               orderableCash={account?.orderable_cash ?? null}
               error={budgetError}
             />

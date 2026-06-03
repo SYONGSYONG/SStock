@@ -784,15 +784,32 @@ body {
   color: #92400e;
 }
 
-/* ── 도움말 팝오버 ── */
+/* ── 전략 선택 + 도움말 한 셀 묶음 ── */
+.strategy-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0; /* grid 트랙이 줄어들 수 있게(오버플로 방지) */
+}
+.strategy-pick select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 도움말 팝오버 ──
+ * .watch-form button 등 폼 내부 버튼 규칙(흰 글자·패딩)을 이기도록
+ * .help-popover 로 한 단계 더 좁혀 specificity를 높인다. */
 .help-popover {
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
 }
-.help-btn {
+.help-popover .help-btn {
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
+  min-width: 0;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -805,8 +822,8 @@ body {
   cursor: pointer;
   transition: background 0.15s;
 }
-.help-btn:hover,
-.help-btn[aria-expanded="true"] {
+.help-popover .help-btn:hover,
+.help-popover .help-btn[aria-expanded="true"] {
   background: #2563eb;
   color: #fff;
 }

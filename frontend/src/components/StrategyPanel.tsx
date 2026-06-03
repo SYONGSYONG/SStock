@@ -61,17 +61,19 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           maxLength={6}
           onChange={(e) => setSymbol(e.target.value.replace(/\D/g, ""))}
         />
-        <select
-          aria-label="전략 선택"
-          value={strategy}
-          onChange={(e) => setStrategy(e.target.value as StrategyName)}
-        >
-          <option value="ma_cross">이동평균 크로스</option>
-          <option value="rsi">RSI</option>
-        </select>
-        <HelpPopover label={`${strategy === "rsi" ? "RSI" : "이동평균 크로스"} 도움말`}>
-          <StrategyHelpBody strategy={strategy} />
-        </HelpPopover>
+        <div className="strategy-pick">
+          <select
+            aria-label="전략 선택"
+            value={strategy}
+            onChange={(e) => setStrategy(e.target.value as StrategyName)}
+          >
+            <option value="ma_cross">이동평균 크로스</option>
+            <option value="rsi">RSI</option>
+          </select>
+          <HelpPopover label={`${strategy === "rsi" ? "RSI" : "이동평균 크로스"} 도움말`}>
+            <StrategyHelpBody strategy={strategy} />
+          </HelpPopover>
+        </div>
         <button type="submit" disabled={!/^\d{6}$/.test(symbol)}>
           추가
         </button>

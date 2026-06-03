@@ -227,6 +227,44 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
                         ))}
                       </ul>
                     )}
+                    {overview.history && overview.history.length > 0 && (
+                      <table className="overview-table history">
+                        <caption>최근연혁</caption>
+                        <tbody>
+                          {overview.history.map((h, i) => (
+                            <tr key={i}>
+                              <th>{h.date}</th>
+                              <td>{h.detail}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    {overview.products && overview.products.length > 0 && (
+                      <table className="overview-table products">
+                        <caption>주요제품 매출구성</caption>
+                        <thead>
+                          <tr>
+                            <th>제품</th>
+                            <th>구성비</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {overview.products.map((p, i) => {
+                            const w = Math.max(0, Math.min(100, parseFloat(p.pct) || 0));
+                            return (
+                              <tr key={i}>
+                                <td className="bar-cell">
+                                  <span className="bar-fill" style={{ width: `${w}%` }} />
+                                  <span className="bar-label">{p.name}</span>
+                                </td>
+                                <td className="num">{p.pct}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
                     {overview.price && overview.price.length > 0 && (
                       <table className="overview-table">
                         <caption>시세</caption>
@@ -256,38 +294,6 @@ export function ChartModal({ symbol, name, fetchChart, fetchOverview, onClose }:
                               <td>{s.name}</td>
                               <td className="num">{s.shares ?? "-"}</td>
                               <td className="num">{s.pct != null ? `${s.pct}%` : "-"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                    {overview.products && overview.products.length > 0 && (
-                      <table className="overview-table products">
-                        <caption>주요제품 매출구성</caption>
-                        <thead>
-                          <tr>
-                            <th>제품</th>
-                            <th>구성비</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {overview.products.map((p, i) => (
-                            <tr key={i}>
-                              <td>{p.name}</td>
-                              <td className="num">{p.pct}%</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                    {overview.history && overview.history.length > 0 && (
-                      <table className="overview-table history">
-                        <caption>최근연혁</caption>
-                        <tbody>
-                          {overview.history.map((h, i) => (
-                            <tr key={i}>
-                              <th>{h.date}</th>
-                              <td>{h.detail}</td>
                             </tr>
                           ))}
                         </tbody>

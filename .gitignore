@@ -45,6 +45,7 @@ _tmp/
 sstock-*.png
 recommend-*.png
 company-*.png
+minute-chart*.png
 
 # ===== 실행 로그 =====
 logs/

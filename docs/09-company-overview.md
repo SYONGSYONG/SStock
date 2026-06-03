@@ -44,7 +44,7 @@
 ## 4. 프론트 (`components/ChartModal.tsx`)
 
 - 탭 상태 `tab: "overview" | "daily" | "weekly" | "minute"`. **기업개요가 첫 탭이자 기본 선택**(모달 열면 기업개요부터 표시).
-- `tab === "overview"`이면 차트 대신 **개요 불릿 + 시세 + 주주현황 + 주요제품 매출구성 + 최근연혁 표**를 표시(기준일·출처 표기).
+- `tab === "overview"`이면 차트 대신 **개요 불릿 → 최근연혁 → 주요제품 매출구성 → 시세 → 주주현황 표** 순서로 표시(기준일·출처 표기).
 - `fetchOverview` prop 주입(`App`이 `getCompanyOverview` 전달, 테스트 주입 가능).
 - 차트 데이터 조회/렌더 effect는 `overview` 탭일 때 건너뛴다(불필요한 호출·렌더 방지).
 

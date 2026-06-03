@@ -24,7 +24,13 @@ _CHART_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 
 _KST = timezone(timedelta(hours=9))
+_KST_OFFSET_SEC = 9 * 3600  # 분봉 타임스탬프를 차트축에 KST 벽시계로 노출하기 위한 보정
 _LOOKBACK_DAYS = 200
+
+# 국내 정규장: 09:00 ~ 15:30 (KST)
+_MARKET_OPEN_MIN = 9 * 60
+_MARKET_CLOSE_MIN = 15 * 60 + 30
+_MARKET_CLOSE_HMS = "153000"
 
 
 def _ohlcv(oprc: Any, hgpr: Any, lwpr: Any, close: Any, vol: Any) -> dict[str, Any] | None:
@@ -91,7 +97,10 @@ def _parse_minute_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             )
         except ValueError:
             continue
-        candles.append({"time": int(dt_kst.astimezone(timezone.utc).timestamp()), **body})
+        ts_utc = int(dt_kst.astimezone(timezone.utc).timestamp())
+        # lightweight-charts는 유닉스 타임스탬프를 UTC로 표시하므로, KST 벽시계가
+        # 그대로 보이도록 +9h 보정한다(한국 주식 차트 축은 KST 기준).
+        candles.append({"time": ts_utc + _KST_OFFSET_SEC, **body})
     candles.sort(key=lambda c: c["time"])
     return candles
 
@@ -163,11 +172,19 @@ async def get_minute_chart(
 ) -> list[dict[str, Any]]:
     settings = settings or get_settings()
     client = kis_client or KisClient(settings)
-    now_hms = datetime.now(_KST).strftime("%H%M%S")
+    # KIS 분봉은 '지정 시각 기준 직전 30분'을 반환한다. 장 마감(15:30) 이후나 개장 전에
+    # 현재 시각으로 조회하면 장외 평탄 구간만 잡히므로, 정규장 밖이면 마감 시각으로 고정해
+    # 마지막 거래 세션의 실제 분봉을 가져온다.
+    now_kst = datetime.now(_KST)
+    minutes = now_kst.hour * 60 + now_kst.minute
+    if _MARKET_OPEN_MIN <= minutes <= _MARKET_CLOSE_MIN:
+        hour_1 = now_kst.strftime("%H%M%S")
+    else:
+        hour_1 = _MARKET_CLOSE_HMS
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": symbol,
-        "FID_INPUT_HOUR_1": now_hms,
+        "FID_INPUT_HOUR_1": hour_1,
         "FID_PW_DATA_INCU_YN": "Y",
         "FID_ETC_CLS_CODE": "",
     }

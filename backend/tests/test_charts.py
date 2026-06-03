@@ -150,9 +150,49 @@ async def test_minute_chart_returns_unix_seconds(tmp_path):
     assert isinstance(candles[0]["time"], int)
     assert candles[1]["close"] == 70050
 
+    # 분봉 타임스탬프는 KST 벽시계가 차트축(UTC 표시)에 그대로 보이도록 +9h 보정한다.
     kst = timezone(timedelta(hours=9))
-    expected = int(datetime(2026, 6, 3, 9, 0, 0, tzinfo=kst).astimezone(timezone.utc).timestamp())
-    assert candles[0]["time"] == expected
+    base = int(datetime(2026, 6, 3, 9, 0, 0, tzinfo=kst).astimezone(timezone.utc).timestamp())
+    assert candles[0]["time"] == base + 9 * 3600
+
+
+def _patch_now(monkeypatch, *, hour: int, minute: int) -> None:
+    """app.kis.charts의 datetime.now를 고정 KST 시각으로 대체한다."""
+
+    class _FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return datetime(2026, 6, 3, hour, minute, 0, tzinfo=tz)
+
+    monkeypatch.setattr("app.kis.charts.datetime", _FixedDateTime)
+
+
+@respx.mock
+async def test_minute_chart_uses_now_during_market_hours(tmp_path, monkeypatch):
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json=_MINUTE_BODY))
+    _patch_now(monkeypatch, hour=10, minute=15)
+
+    await get_minute_chart("005930", s)
+
+    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "101500"
+
+
+@respx.mock
+async def test_minute_chart_clamps_to_close_after_hours(tmp_path, monkeypatch):
+    s = _settings(tmp_path)
+    _token_mock(s)
+    route = respx.get(
+        f"{s.rest_base}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+    ).mock(return_value=httpx.Response(200, json=_MINUTE_BODY))
+    _patch_now(monkeypatch, hour=16, minute=49)
+
+    await get_minute_chart("005930", s)
+
+    assert route.calls.last.request.url.params["FID_INPUT_HOUR_1"] == "153000"
 
 
 @respx.mock

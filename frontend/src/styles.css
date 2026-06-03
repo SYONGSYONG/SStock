@@ -506,73 +506,165 @@ body {
   position: absolute;
   inset: 0;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 18px 22px 26px;
+  background:
+    radial-gradient(120% 60% at 0% 0%, rgba(15, 118, 110, 0.06), transparent 60%),
+    linear-gradient(180deg, #f7faf9 0%, var(--surface) 160px);
 }
 .company-overview .overview-date {
-  margin: 0 0 12px;
-  font-size: 12px;
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 4px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 999px;
 }
+
+/* 개요 불릿 — 강조 카드 */
 .company-overview .overview-list {
-  margin: 0;
-  padding-left: 18px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 11px;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.05), rgba(15, 118, 110, 0.01));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.04);
 }
 .company-overview .overview-list li {
-  line-height: 1.65;
-  font-size: 14px;
+  position: relative;
+  padding-left: 19px;
+  line-height: 1.62;
+  font-size: 13.5px;
+  color: var(--text);
 }
-.company-overview .overview-source {
-  margin: 16px 0 0;
-  font-size: 11px;
+.company-overview .overview-list li::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
 }
+
+/* 섹션 표 — 카드 */
 .company-overview .overview-table {
   width: 100%;
-  border-collapse: collapse;
-  margin-top: 16px;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0 0 18px;
   font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.04);
 }
 .company-overview .overview-table caption {
   text-align: left;
   font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 6px;
-  color: var(--text);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  color: var(--accent);
+  background: rgba(15, 118, 110, 0.07);
+  border-bottom: 1px solid var(--border);
 }
 .company-overview .overview-table th,
 .company-overview .overview-table td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
+  border-bottom: 1px solid #eef1f3;
   text-align: left;
   vertical-align: top;
 }
+.company-overview .overview-table tbody tr:last-child th,
+.company-overview .overview-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.company-overview .overview-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+.company-overview .overview-table tbody tr:hover {
+  background: rgba(15, 118, 110, 0.04);
+}
 .company-overview .overview-table th {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   width: 40%;
+}
+.company-overview .overview-table td {
+  color: var(--text);
 }
 .company-overview .overview-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.company-overview .overview-table.shareholders thead th {
+.company-overview .overview-table thead th {
   font-weight: 600;
-  color: var(--text);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #f4f6f7;
+  border-bottom: 1px solid var(--border);
   width: auto;
 }
-.company-overview .overview-table.shareholders thead th:not(:first-child) {
+.company-overview .overview-table.shareholders thead th:not(:first-child),
+.company-overview .overview-table.products thead th:last-child {
   text-align: right;
+}
+.company-overview .overview-table.shareholders tbody td:first-child {
+  font-weight: 500;
 }
 .company-overview .overview-table.history th {
   width: 22%;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
 }
-.company-overview .overview-table.products thead th:last-child {
-  text-align: right;
+
+/* 매출구성 — 비주얼 바 */
+.company-overview .overview-table.products .bar-cell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.company-overview .overview-table.products .bar-fill {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  z-index: -1;
+  min-width: 2px;
+  border-radius: 0 5px 5px 0;
+  background: linear-gradient(90deg, rgba(15, 118, 110, 0.26), rgba(15, 118, 110, 0.08));
+}
+.company-overview .overview-table.products .bar-label {
+  position: relative;
+  font-weight: 500;
+}
+.company-overview .overview-table.products .num {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.company-overview .overview-source {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .badge {

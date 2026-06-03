@@ -34,7 +34,7 @@ async def _resolve_fns(
     """
     # 추천 KIS 호출(수급/시세)은 읽기 전용이라 모드 무관 → 실전 자격증명이 있으면
     # 더 높은 레이트리밋(실전 ≈16/s)을 써서 콜드 로드를 가속한다.
-    kis_mode = settings.recommend_kis_mode
+    kis_mode = settings.market_data_mode
 
     if settings.recommend_data_source == "krx":
         # KRX 스냅샷 1회 조회 (lazy: price_fn 첫 호출 시)

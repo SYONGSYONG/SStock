@@ -320,7 +320,7 @@ async def test_minute_chart_resamples_to_5min(tmp_path, monkeypatch):
     )
     _patch_now(monkeypatch)
 
-    candles = await get_minute_chart("005930", 5, s)
+    candles = await get_minute_chart("005930", 5, settings=s)
 
     assert len(candles) == 2  # 09:00~09:04 한 버킷 + 09:05 한 버킷
     a = candles[0]

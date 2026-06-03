@@ -148,10 +148,10 @@ class Settings(BaseSettings):
         return self.kis_for(mode).is_complete
 
     @property
-    def recommend_kis_mode(self) -> TradingMode:
-        """추천(읽기 전용 시세·수급) KIS 호출에 쓸 모드.
+    def market_data_mode(self) -> TradingMode:
+        """읽기 전용 시세 데이터(차트·추천 수급/시세) KIS 호출에 쓸 모드.
 
-        추천 데이터는 모드 무관(시세/수급은 동일)하므로, 더 높은 레이트리밋을 가진
+        시세/수급/차트는 모드 무관(동일 데이터)하므로, 더 높은 레이트리밋을 가진
         실전(≈16/s)을 쓰면 콜드 로드가 크게 빨라진다. 실전 자격증명이 완비됐을 때만
         live를 쓰고, 아니면 paper(≈2/s)로 폴백한다. 주문이 아니라 안전하다.
         """

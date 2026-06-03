@@ -172,7 +172,8 @@ async def _get_period_chart(
     kis_client: KisClient | None = None,
 ) -> list[dict[str, Any]]:
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    # 차트는 읽기 전용 시세라 모드 무관 → 빠른 레이트(실전 자격증명 시 live)로 조회.
+    client = kis_client or KisClient(settings, mode=settings.market_data_mode)
     today = datetime.now(_KST).date()
     lookback = _WEEKLY_LOOKBACK_DAYS if period_div_code == "W" else _LOOKBACK_DAYS
     start = today - timedelta(days=lookback)
@@ -306,7 +307,8 @@ async def _fetch_today_minute(
     마지막 거래 세션의 실제 분봉을 가져온다.
     """
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    # 차트는 읽기 전용 시세라 모드 무관 → 빠른 레이트(실전 자격증명 시 live)로 조회.
+    client = kis_client or KisClient(settings, mode=settings.market_data_mode)
 
     # 장중이면 현재 시각, 장외이면 마감 시각(15:30)으로 조회
     now_kst = datetime.now(_KST)
@@ -357,7 +359,8 @@ async def _fetch_minute_session(
     """마지막 거래일의 1분봉 세션(09:00~15:30)을 조회한다. 오늘이 휴장이면
     직전 거래일로 거슬러 올라가 데이터가 있는 첫 날을 사용한다."""
     settings = settings or get_settings()
-    client = kis_client or KisClient(settings)
+    # 차트는 읽기 전용 시세라 모드 무관 → 빠른 레이트(실전 자격증명 시 live)로 조회.
+    client = kis_client or KisClient(settings, mode=settings.market_data_mode)
     today = datetime.now(_KST).date()
     for back in range(_MINUTE_DATE_LOOKBACK + 1):
         date_str = (today - timedelta(days=back)).strftime("%Y%m%d")

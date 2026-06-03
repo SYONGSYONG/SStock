@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.config import Settings, get_settings
 from app.kis.charts import ChartUnavailableError, get_daily_chart, get_minute_chart, get_weekly_chart
 
 router = APIRouter(prefix="/api/charts", tags=["charts"])
@@ -18,6 +19,7 @@ async def chart(
     interval: str = Query(default="daily"),
     unit: int = Query(default=1, description="분봉 단위(분): 1·5·10·30"),
     scope: str = Query(default="session", description='분봉 데이터 출처: "today" 또는 "session"'),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
     if interval not in _INTERVALS:
         raise HTTPException(
@@ -36,11 +38,11 @@ async def chart(
         )
     try:
         if interval == "minute":
-            candles = await get_minute_chart(symbol, unit, scope)
+            candles = await get_minute_chart(symbol, unit, scope, settings)
         elif interval == "weekly":
-            candles = await get_weekly_chart(symbol)
+            candles = await get_weekly_chart(symbol, settings)
         else:
-            candles = await get_daily_chart(symbol)
+            candles = await get_daily_chart(symbol, settings)
     except ChartUnavailableError as exc:
         raise HTTPException(
             status_code=503,

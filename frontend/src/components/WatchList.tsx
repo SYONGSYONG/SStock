@@ -3,6 +3,7 @@ import type { StockSearchResult, WatchItem } from "../types";
 
 interface WatchListProps {
   items: WatchItem[];
+  strategySymbols: Set<string>;
   onAdd: (symbol: string, name?: string) => void;
   onRemove: (symbol: string) => void;
   onSelect?: (symbol: string, name?: string | null) => void;
@@ -10,7 +11,7 @@ interface WatchListProps {
   error?: string | null;
 }
 
-export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: WatchListProps) {
+export function WatchList({ items, strategySymbols, onAdd, onRemove, onSelect, search, error }: WatchListProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockSearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -119,22 +120,28 @@ export function WatchList({ items, onAdd, onRemove, onSelect, search, error }: W
       </div>
       {error && <p className="error">{error}</p>}
       <ul className="watch-list">
-        {items.map((it) => (
-          <li key={it.symbol}>
-            <button
-              type="button"
-              className="watch-open"
-              onClick={() => onSelect?.(it.symbol, it.name)}
-              title="차트 보기"
-            >
-              <span className="code">{it.symbol}</span>
-              <span className="name">{it.name ?? "-"}</span>
-            </button>
-            <button type="button" className="link-danger" onClick={() => onRemove(it.symbol)}>
-              삭제
-            </button>
-          </li>
-        ))}
+        {items.map((it) => {
+          const hasStrategy = strategySymbols.has(it.symbol);
+          return (
+            <li key={it.symbol}>
+              <button
+                type="button"
+                className="watch-open"
+                onClick={() => onSelect?.(it.symbol, it.name)}
+                title="차트 보기"
+              >
+                <span className={`code ${hasStrategy ? "with-strategy" : ""}`} title={hasStrategy ? "전략 등록됨" : undefined}>
+                  {it.symbol}
+                  {hasStrategy && <span className="strategy-marker" aria-label="전략 등록됨">•</span>}
+                </span>
+                <span className="name">{it.name ?? "-"}</span>
+              </button>
+              <button type="button" className="link-danger" onClick={() => onRemove(it.symbol)}>
+                삭제
+              </button>
+            </li>
+          );
+        })}
         {items.length === 0 && <li className="empty">등록된 종목이 없습니다</li>}
       </ul>
     </section>

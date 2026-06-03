@@ -219,6 +219,9 @@ export function App() {
     }
   };
 
+  // 전략이 등록된 종목코드 집합
+  const strategySymbols = new Set(strategies.map((s) => s.symbol));
+
   return (
     <div className="app">
       <ModeBanner
@@ -256,6 +259,7 @@ export function App() {
         <aside className="sidebar">
           <WatchList
             items={items}
+            strategySymbols={strategySymbols}
             onAdd={handleAddWatch}
             onRemove={handleRemoveWatch}
             onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
@@ -291,7 +295,7 @@ export function App() {
         </aside>
         <div className="content">
           <AccountPanel balance={account} />
-          <QuoteTable items={items} quotes={quotes} />
+          <QuoteTable items={items} quotes={quotes} strategySymbols={strategySymbols} />
           <PositionTable positions={positions} quotes={quotes} />
           <OrderLog orders={orders} />
           <SignalLog signals={signals} />

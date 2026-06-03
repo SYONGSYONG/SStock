@@ -1400,3 +1400,24 @@ body {
   font-size: 11px;
   color: #94a3b8;
 }
+
+/* ── 전략 등록된 종목 강조 스타일 ── */
+.code.with-strategy {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.code.with-strategy .strategy-marker {
+  margin-left: 2px;
+  color: #2563eb;
+  font-size: 0.8em;
+  vertical-align: baseline;
+}
+
+.quote-table tr.with-strategy {
+  background-color: #f0f9ff;
+}
+
+.quote-table tr.with-strategy:hover {
+  background-color: #e0f2fe;
+}

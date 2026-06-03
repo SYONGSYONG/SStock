@@ -11,7 +11,7 @@ const RESULTS: StockSearchResult[] = [
 function setup() {
   const onAdd = vi.fn();
   const search = vi.fn(async () => RESULTS);
-  render(<WatchList items={[]} onAdd={onAdd} onRemove={() => {}} search={search} />);
+  render(<WatchList items={[]} strategySymbols={new Set()} onAdd={onAdd} onRemove={() => {}} search={search} />);
   return { onAdd, search, input: screen.getByLabelText("종목 검색") };
 }
 
@@ -64,6 +64,7 @@ describe("WatchList 종목 열기", () => {
     render(
       <WatchList
         items={items}
+        strategySymbols={new Set()}
         onAdd={() => {}}
         onRemove={() => {}}
         onSelect={onSelect}
@@ -80,6 +81,7 @@ describe("WatchList 종목 열기", () => {
     render(
       <WatchList
         items={items}
+        strategySymbols={new Set()}
         onAdd={() => {}}
         onRemove={onRemove}
         onSelect={onSelect}

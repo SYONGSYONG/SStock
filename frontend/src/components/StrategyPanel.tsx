@@ -281,14 +281,16 @@ export function StrategyPanel({
                 />
                 {c.enabled ? "ON" : "OFF"}
               </label>
-              <button className="link-action" onClick={() => openEdit(c)}>
-                전략 수정
-              </button>
               <button className="link-danger" onClick={() => onRemove(c.id)}>
                 삭제
               </button>
             </div>
-            <div className="strategy-desc">{describeStrategy(c.strategy, c.params)}</div>
+            <div className="strategy-desc">
+              {describeStrategy(c.strategy, c.params)}
+              <button className="link-action strategy-edit" onClick={() => openEdit(c)}>
+                전략 수정
+              </button>
+            </div>
             {(() => {
               const b = budgetOf(c.symbol);
               if (!b) {

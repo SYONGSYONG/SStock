@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { StrategyConfig, StrategyName } from "../types";
-import { describeStrategy } from "../lib/strategy";
+import { describeStrategy, getStrategyHelp } from "../lib/strategy";
+import { HelpPopover } from "./HelpPopover";
 
 interface StrategyPanelProps {
   configs: StrategyConfig[];
@@ -19,6 +20,24 @@ const DEFAULT_PARAMS: Record<StrategyName, Record<string, number>> = {
   ma_cross: { short: 5, long: 20 },
   rsi: { period: 14, low: 30, high: 70 },
 };
+
+/** 선택된 전략의 도움말 본문 */
+function StrategyHelpBody({ strategy }: { strategy: StrategyName }) {
+  const help = getStrategyHelp(strategy);
+  if (!help) return null;
+  return (
+    <>
+      <strong className="help-title">{help.title}</strong>
+      <p className="help-summary">{help.summary}</p>
+      <ul className="help-rules">
+        {help.rules.map((r) => (
+          <li key={r}>{r}</li>
+        ))}
+      </ul>
+      <p className="help-note">⚠ {help.note}</p>
+    </>
+  );
+}
 
 export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
@@ -50,6 +69,9 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           <option value="ma_cross">이동평균 크로스</option>
           <option value="rsi">RSI</option>
         </select>
+        <HelpPopover label={`${strategy === "rsi" ? "RSI" : "이동평균 크로스"} 도움말`}>
+          <StrategyHelpBody strategy={strategy} />
+        </HelpPopover>
         <button type="submit" disabled={!/^\d{6}$/.test(symbol)}>
           추가
         </button>

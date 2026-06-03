@@ -784,16 +784,15 @@ body {
   color: #92400e;
 }
 
-/* ── 전략 선택 + 도움말 한 셀 묶음 ── */
-.strategy-pick {
+/* ── 패널 제목 + 도움말(제목 옆 ? 아이콘) ── */
+.panel-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0; /* grid 트랙이 줄어들 수 있게(오버플로 방지) */
+  margin-bottom: 12px; /* 기존 .panel h2 하단 여백 유지 */
 }
-.strategy-pick select {
-  flex: 1;
-  min-width: 0;
+.panel-head h2 {
+  margin: 0;
 }
 
 /* ── 도움말 팝오버 ──
@@ -827,48 +826,84 @@ body {
   background: #2563eb;
   color: #fff;
 }
-.help-bubble {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
-  width: 300px;
-  max-width: 80vw;
-  padding: 12px 14px;
+/* 클릭 시 브라우저 화면 중앙에 뜨는 도움말 모달 */
+.help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+.help-dialog {
+  position: relative;
+  width: 420px;
+  max-width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 20px 22px;
   background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
   text-align: left;
-  white-space: normal;
   cursor: default;
 }
-.help-bubble .help-title {
-  display: block;
-  font-size: 13px;
-  color: var(--text);
+.help-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 14px;
+  line-height: 26px;
+  text-align: center;
+  cursor: pointer;
 }
-.help-bubble .help-summary {
-  margin: 4px 0 8px;
-  font-size: 12px;
+.help-dialog-close:hover {
+  background: #e2e8f0;
+}
+.help-dialog-body .help-title {
+  display: block;
+  font-size: 16px;
+  color: var(--text);
+  padding-right: 28px;
+}
+.help-dialog-body .help-summary {
+  margin: 8px 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
   color: #475569;
 }
-.help-bubble .help-rules {
-  margin: 0 0 8px;
-  padding-left: 16px;
+.help-dialog-body .help-section {
+  margin: 14px 0 6px;
   font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  letter-spacing: 0.02em;
+}
+.help-dialog-body .help-rules {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--text);
 }
-.help-bubble .help-rules li {
-  margin: 2px 0;
+.help-dialog-body .help-rules li {
+  margin: 3px 0;
 }
-.help-bubble .help-note {
-  margin: 0;
-  padding-top: 8px;
+.help-dialog-body .help-note {
+  margin: 16px 0 0;
+  padding-top: 12px;
   border-top: 1px solid #f1f5f9;
-  font-size: 11px;
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.65;
   color: #64748b;
 }
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { StrategyConfig, StrategyName } from "../types";
-import { describeStrategy, getStrategyHelp } from "../lib/strategy";
+import { describeStrategy, explainParams, getStrategyHelp } from "../lib/strategy";
 import { HelpPopover } from "./HelpPopover";
 
 interface StrategyPanelProps {
@@ -22,18 +22,39 @@ const DEFAULT_PARAMS: Record<StrategyName, Record<string, number>> = {
 };
 
 /** 선택된 전략의 도움말 본문 */
-function StrategyHelpBody({ strategy }: { strategy: StrategyName }) {
+function StrategyHelpBody({
+  strategy,
+  params,
+}: {
+  strategy: StrategyName;
+  params: Record<string, number>;
+}) {
   const help = getStrategyHelp(strategy);
   if (!help) return null;
+  const meanings = explainParams(strategy, params);
   return (
     <>
       <strong className="help-title">{help.title}</strong>
       <p className="help-summary">{help.summary}</p>
+
+      <p className="help-section">매매 규칙</p>
       <ul className="help-rules">
         {help.rules.map((r) => (
           <li key={r}>{r}</li>
         ))}
       </ul>
+
+      {meanings.length > 0 && (
+        <>
+          <p className="help-section">설정값의 의미</p>
+          <ul className="help-rules">
+            {meanings.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <p className="help-note">⚠ {help.note}</p>
     </>
   );
@@ -52,7 +73,12 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
 
   return (
     <section className="panel">
-      <h2>전략</h2>
+      <div className="panel-head">
+        <h2>전략</h2>
+        <HelpPopover label={`${strategy === "rsi" ? "RSI" : "이동평균 크로스"} 도움말`}>
+          <StrategyHelpBody strategy={strategy} params={DEFAULT_PARAMS[strategy]} />
+        </HelpPopover>
+      </div>
       <form className="watch-form" onSubmit={submit}>
         <input
           aria-label="전략 종목코드"
@@ -61,19 +87,14 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           maxLength={6}
           onChange={(e) => setSymbol(e.target.value.replace(/\D/g, ""))}
         />
-        <div className="strategy-pick">
-          <select
-            aria-label="전략 선택"
-            value={strategy}
-            onChange={(e) => setStrategy(e.target.value as StrategyName)}
-          >
-            <option value="ma_cross">이동평균 크로스</option>
-            <option value="rsi">RSI</option>
-          </select>
-          <HelpPopover label={`${strategy === "rsi" ? "RSI" : "이동평균 크로스"} 도움말`}>
-            <StrategyHelpBody strategy={strategy} />
-          </HelpPopover>
-        </div>
+        <select
+          aria-label="전략 선택"
+          value={strategy}
+          onChange={(e) => setStrategy(e.target.value as StrategyName)}
+        >
+          <option value="ma_cross">이동평균 크로스</option>
+          <option value="rsi">RSI</option>
+        </select>
         <button type="submit" disabled={!/^\d{6}$/.test(symbol)}>
           추가
         </button>

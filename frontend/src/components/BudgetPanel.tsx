@@ -20,9 +20,6 @@ export function BudgetPanel({
   orderableCash,
   error,
 }: BudgetPanelProps) {
-  const [symbol, setSymbol] = useState("");
-  const [principal, setPrincipal] = useState("");
-
   // 원금 수정 모달
   const [editing, setEditing] = useState<Budget | null>(null);
   const [editPrincipal, setEditPrincipal] = useState("");
@@ -46,22 +43,11 @@ export function BudgetPanel({
   // 설정가능금액 = 주문가능현금 − Σ(각 칸막이 가용액)
   const committed = budgets.reduce((sum, b) => sum + b.available, 0);
   const settable = orderableCash == null ? null : orderableCash - committed;
-  const inputAmount = Number(principal) || 0;
-  const overSettable = settable != null && inputAmount > settable; // 표시+경고만(차단 안 함)
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const p = Number(principal);
-    if (!/^\d{6}$/.test(symbol) || !Number.isFinite(p) || p < 1) return;
-    onSet(symbol, Math.floor(p));
-    setSymbol("");
-    setPrincipal("");
-  };
 
   return (
-    <section className="panel">
+    <div className="panel-section">
       <h2>자본 칸막이</h2>
-      <p className="muted hint">종목별 투입 원금 한도 (한도 = 원금 + 실현손익)</p>
+      <p className="muted hint">종목별 투입 원금 한도 (한도 = 원금 + 실현손익) · 전략 추가 시 함께 등록</p>
       <p className="budget-cash">
         {orderableCash == null ? (
           <span className="muted">주문가능현금 조회 불가</span>
@@ -75,31 +61,6 @@ export function BudgetPanel({
           </>
         )}
       </p>
-      <form className="budget-form" onSubmit={submit}>
-        <input
-          aria-label="칸막이 종목코드"
-          placeholder="종목코드"
-          value={symbol}
-          maxLength={6}
-          onChange={(e) => setSymbol(e.target.value.replace(/\D/g, ""))}
-        />
-        <input
-          aria-label="원금"
-          placeholder="원금(원)"
-          inputMode="numeric"
-          value={principal}
-          onChange={(e) => setPrincipal(e.target.value.replace(/\D/g, ""))}
-        />
-        <button type="submit" disabled={!/^\d{6}$/.test(symbol) || !principal}>
-          설정
-        </button>
-      </form>
-      {overSettable && (
-        <p className="budget-warn">
-          ⚠ 설정가능금액({fmt(settable)}원)을 초과합니다 — 설정은 가능하나 계좌 현금이 부족할 수
-          있습니다
-        </p>
-      )}
       {error && <p className="error">{error}</p>}
       <ul className="strategy-list">
         {budgets.map((b) => (
@@ -127,7 +88,9 @@ export function BudgetPanel({
             </div>
           </li>
         ))}
-        {budgets.length === 0 && <li className="empty">설정된 칸막이가 없습니다</li>}
+        {budgets.length === 0 && (
+          <li className="empty">설정된 칸막이가 없습니다 — 전략 추가 시 함께 등록됩니다</li>
+        )}
       </ul>
 
       {editing && (
@@ -161,6 +124,6 @@ export function BudgetPanel({
           </div>
         </Modal>
       )}
-    </section>
+    </div>
   );
 }

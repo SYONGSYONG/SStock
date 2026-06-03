@@ -216,6 +216,13 @@ body {
   font-weight: 600;
 }
 
+/* 전략 + 자본 칸막이를 한 카드로 합친 패널: 섹션 사이 구분선 */
+.rules-panel .panel-section + .panel-section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
 /* 전략 목록: 2단 레이아웃(종목+토글/삭제 / 전략 설명) */
 /* ── 전략 추가 폼(파라미터 편집) ── */
 .strategy-form {
@@ -379,6 +386,22 @@ body {
 }
 .strategy-head .spacer {
   flex: 1;
+}
+/* 종목명: 관심종목처럼 작고 흐린 글씨 + 길면 말줄임(버튼 줄바꿈 방지) */
+.strategy-head .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.strategy-head .toggle,
+.strategy-head .link-action,
+.strategy-head .link-danger {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .strategy-desc {
   font-size: 11.5px;

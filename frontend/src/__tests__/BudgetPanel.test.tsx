@@ -19,15 +19,6 @@ describe("BudgetPanel", () => {
     expect(screen.getByText(/505,000원/)).toBeInTheDocument(); // 한도
   });
 
-  test("종목코드+원금 입력 후 설정 호출", () => {
-    const onSet = vi.fn();
-    render(<BudgetPanel budgets={[]} items={[]} onSet={onSet} onRemove={() => {}} />);
-    fireEvent.change(screen.getByLabelText("칸막이 종목코드"), { target: { value: "000660" } });
-    fireEvent.change(screen.getByLabelText("원금"), { target: { value: "300000" } });
-    fireEvent.click(screen.getByText("설정"));
-    expect(onSet).toHaveBeenCalledWith("000660", 300000);
-  });
-
   test("빈 칸막이 안내", () => {
     render(<BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} />);
     expect(screen.getByText(/설정된 칸막이가 없습니다/)).toBeInTheDocument();
@@ -53,22 +44,6 @@ describe("BudgetPanel", () => {
       <BudgetPanel budgets={[]} items={[]} onSet={() => {}} onRemove={() => {}} orderableCash={null} />,
     );
     expect(screen.getByText("주문가능현금 조회 불가")).toBeInTheDocument();
-  });
-
-  test("설정가능금액 초과 입력 시 경고만 표시(설정 버튼 활성)", () => {
-    render(
-      <BudgetPanel
-        budgets={[]}
-        items={[]}
-        onSet={() => {}}
-        onRemove={() => {}}
-        orderableCash={100000}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("칸막이 종목코드"), { target: { value: "000660" } });
-    fireEvent.change(screen.getByLabelText("원금"), { target: { value: "300000" } });
-    expect(screen.getByText(/설정가능금액.*초과/)).toBeInTheDocument();
-    expect(screen.getByText("설정")).not.toBeDisabled(); // 차단 안 함
   });
 
   test("수정 버튼 → 모달에서 원금을 고쳐 저장하면 onSet 호출", () => {

@@ -20,6 +20,8 @@ interface StrategyPanelProps {
     params: Record<string, number>;
     enabled: boolean;
   }) => void;
+  /** 전략과 함께 등록할 자본 칸막이(원금) 설정 */
+  onSetBudget: (symbol: string, principal: number) => void;
   onToggle: (id: number, enabled: boolean) => void;
   onRemove: (id: number) => void;
   error?: string | null;
@@ -97,13 +99,22 @@ function StrategyHelpBody({
 
 const toNumber = (raw: string): number => (raw === "" ? Number.NaN : Number(raw));
 
-export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: StrategyPanelProps) {
+export function StrategyPanel({
+  configs,
+  onAdd,
+  onSetBudget,
+  onToggle,
+  onRemove,
+  error,
+}: StrategyPanelProps) {
   const [symbol, setSymbol] = useState("");
   const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
   // 선택 전략의 기본값으로 채워둔 편집 가능한 파라미터
   const [params, setParams] = useState<Record<string, number>>({
     ...STRATEGY_DEFAULTS.ma_cross,
   });
+  // 전략과 함께 등록할 자본 칸막이 원금
+  const [principal, setPrincipal] = useState("");
 
   // 수정 모달 상태
   const [editing, setEditing] = useState<StrategyConfig | null>(null);
@@ -111,6 +122,8 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
 
   const validSymbol = /^\d{6}$/.test(symbol);
   const paramError = validateParams(strategy, params);
+  const principalValue = Number(principal);
+  const validPrincipal = /^\d+$/.test(principal) && principalValue >= 1;
 
   const changeStrategy = (next: StrategyName) => {
     setStrategy(next);
@@ -123,15 +136,20 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validSymbol || paramError) return;
+    if (!validSymbol || paramError || !validPrincipal) return;
+    // 전략과 자본 칸막이는 한 쌍으로만 의미가 있으므로 함께 등록한다.
     const ok = window.confirm(
-      `${symbol} 종목에 '${STRATEGY_LABEL[strategy]}' 전략을 추가합니다.\n` +
-        `${describeStrategy(strategy, params)}\n\n계속하시겠습니까?`,
+      `${symbol} 종목에 전략과 자본 칸막이를 함께 등록합니다.\n` +
+        `· 전략: ${describeStrategy(strategy, params)}\n` +
+        `· 원금: ${principalValue.toLocaleString("ko-KR")}원\n\n` +
+        `전략은 OFF 상태로 추가됩니다. 계속하시겠습니까?`,
     );
     if (!ok) return;
     onAdd({ symbol, strategy, params, enabled: false });
+    onSetBudget(symbol, Math.floor(principalValue));
     setSymbol("");
     setParams({ ...STRATEGY_DEFAULTS[strategy] });
+    setPrincipal("");
   };
 
   const openEdit = (c: StrategyConfig) => {
@@ -157,8 +175,24 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
     setEditing(null);
   };
 
+  // 활성화(ON) 인터락: 실수 방지를 위해 설정값을 팝업으로 확인한 뒤에만 켠다.
+  // 끄기(OFF)는 즉시 적용. 체크박스는 c.enabled로 제어되므로 취소 시 자동으로 OFF 유지.
+  const handleToggle = (c: StrategyConfig, checked: boolean) => {
+    if (!checked) {
+      onToggle(c.id, false);
+      return;
+    }
+    const ok = window.confirm(
+      `'${c.symbol} ${c.name ?? ""}' 전략을 활성화합니다.\n` +
+        `${describeStrategy(c.strategy, c.params)}\n\n` +
+        `이 설정으로 자동매매 신호 생성을 시작하시겠습니까?`,
+    );
+    if (!ok) return;
+    onToggle(c.id, true);
+  };
+
   return (
-    <section className="panel">
+    <div className="panel-section">
       <div className="panel-head">
         <h2>전략</h2>
         <HelpPopover label={`${STRATEGY_LABEL[strategy]} 도움말`}>
@@ -186,9 +220,25 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
 
         <StrategyParamInputs strategy={strategy} params={params} onChange={changeParam} />
 
+        <label className="param-field budget-field">
+          <span className="param-label">자본 칸막이 원금(원)</span>
+          <input
+            aria-label="자본 칸막이 원금"
+            inputMode="numeric"
+            placeholder="예: 1000000"
+            value={principal}
+            onChange={(e) => setPrincipal(e.target.value.replace(/\D/g, ""))}
+          />
+          <span className="param-default">전략과 함께 등록됩니다</span>
+        </label>
+
         {paramError && validSymbol && <p className="error param-error">{paramError}</p>}
 
-        <button type="submit" className="strategy-add" disabled={!validSymbol || !!paramError}>
+        <button
+          type="submit"
+          className="strategy-add"
+          disabled={!validSymbol || !!paramError || !validPrincipal}
+        >
           추가
         </button>
       </form>
@@ -204,7 +254,7 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
                 <input
                   type="checkbox"
                   checked={c.enabled}
-                  onChange={(e) => onToggle(c.id, e.target.checked)}
+                  onChange={(e) => handleToggle(c, e.target.checked)}
                 />
                 {c.enabled ? "ON" : "OFF"}
               </label>
@@ -242,6 +292,6 @@ export function StrategyPanel({ configs, onAdd, onToggle, onRemove, error }: Str
           </div>
         </Modal>
       )}
-    </section>
+    </div>
   );
 }

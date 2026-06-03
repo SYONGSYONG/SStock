@@ -261,21 +261,24 @@ export function App() {
             search={searchStocks}
             error={watchError}
           />
-          <StrategyPanel
-            configs={strategies}
-            onAdd={handleAddStrategy}
-            onToggle={handleToggleStrategy}
-            onRemove={handleRemoveStrategy}
-            error={strategyError}
-          />
-          <BudgetPanel
-            budgets={budgets}
-            items={items}
-            onSet={handleSetBudget}
-            onRemove={handleRemoveBudget}
-            orderableCash={account?.orderable_cash ?? null}
-            error={budgetError}
-          />
+          <section className="panel rules-panel">
+            <StrategyPanel
+              configs={strategies}
+              onAdd={handleAddStrategy}
+              onSetBudget={handleSetBudget}
+              onToggle={handleToggleStrategy}
+              onRemove={handleRemoveStrategy}
+              error={strategyError}
+            />
+            <BudgetPanel
+              budgets={budgets}
+              items={items}
+              onSet={handleSetBudget}
+              onRemove={handleRemoveBudget}
+              orderableCash={account?.orderable_cash ?? null}
+              error={budgetError}
+            />
+          </section>
           <BotControl
             running={bot.running}
             mode={bot.mode}

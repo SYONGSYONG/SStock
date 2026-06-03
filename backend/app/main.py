@@ -77,9 +77,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             if settings.has_kis_credentials(mode):
                 await _prewarm_kis_token(settings, mode, shared_clients[mode])
 
+    # KRX 스냅샷 프리워밍: 추천(KRX 모드) 첫 로드의 ~10초 페널티를 없앤다(KOSPI+KOSDAQ
+    # 2770종목, 하루 캐시). KRX 데이터는 모드 무관이라 1회 프리워밍이 모의/실전 모두 커버.
+    # 기동을 막지 않게 백그라운드로 띄운다(fire-and-forget, 실패 무시).
+    prewarm_task: asyncio.Task[None] | None = None
+    if settings.recommend_data_source == "krx" and settings.krx_api_key:
+        prewarm_task = asyncio.create_task(_prewarm_krx_snapshot(settings))
+
     try:
         yield
     finally:
+        if prewarm_task is not None and not prewarm_task.done():
+            prewarm_task.cancel()
         for mode, client in shared_clients.items():
             set_shared_client(mode, None)
             await client.aclose()
@@ -96,6 +105,22 @@ async def _prewarm_kis_token(settings, mode: str, client=None) -> None:
         logger.info("KIS 토큰 프리워밍 완료(%s)", mode)
     except Exception as exc:  # 기동 차단 방지(네트워크/타임아웃/인증 오류 모두 무시)
         logger.warning("KIS 토큰 프리워밍 실패(무시): %s", exc)
+
+
+async def _prewarm_krx_snapshot(settings) -> None:
+    """KRX 스냅샷(KOSPI+KOSDAQ 전 종목)을 미리 받아 캐시를 데운다(백그라운드).
+
+    추천 첫 로드의 ~10초 페널티 제거. KRX 장애/취소 시 추천은 lazy 폴백(실패 무시).
+    """
+    from app.stocks import krx
+
+    try:
+        snapshot = await krx.get_market_snapshot(settings)
+        logger.info("KRX 스냅샷 프리워밍 완료: %d종목", len(snapshot))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # 기동 차단 방지
+        logger.warning("KRX 스냅샷 프리워밍 실패(무시): %s", exc)
 
 
 def create_app() -> FastAPI:

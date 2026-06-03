@@ -316,3 +316,41 @@ async def test_clear_snapshot_cache():
 
     krx.clear_snapshot_cache()
     assert len(krx._snapshot_cache) == 0
+
+
+async def test_krx_프리워밍_스냅샷_호출(monkeypatch):
+    """기동 프리워밍이 KRX 스냅샷을 미리 받아 캐시를 데운다."""
+    from app.main import _prewarm_krx_snapshot
+
+    called: list[bool] = []
+
+    async def fake_snapshot(settings, *args, **kwargs):
+        called.append(True)
+        return {"005930": {"price": 70000, "change_rate": 1.0, "volume": 100}}
+
+    monkeypatch.setattr("app.stocks.krx.get_market_snapshot", fake_snapshot)
+    await _prewarm_krx_snapshot(object())
+    assert called == [True]
+
+
+async def test_krx_프리워밍_실패는_무시(monkeypatch):
+    """KRX 장애로 프리워밍이 실패해도 예외를 전파하지 않는다(기동 차단 방지)."""
+    from app.main import _prewarm_krx_snapshot
+
+    async def boom(settings, *args, **kwargs):
+        raise RuntimeError("KRX 일시 장애")
+
+    monkeypatch.setattr("app.stocks.krx.get_market_snapshot", boom)
+    await _prewarm_krx_snapshot(object())  # 예외 없이 끝나야 함
+
+
+async def test_krx_프리워밍_취소는_전파(monkeypatch):
+    """종료 시 취소(CancelledError)는 무시하지 않고 전파한다."""
+    from app.main import _prewarm_krx_snapshot
+
+    async def cancelled(settings, *args, **kwargs):
+        raise asyncio.CancelledError()
+
+    monkeypatch.setattr("app.stocks.krx.get_market_snapshot", cancelled)
+    with pytest.raises(asyncio.CancelledError):
+        await _prewarm_krx_snapshot(object())

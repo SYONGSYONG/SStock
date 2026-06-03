@@ -32,6 +32,10 @@ node_modules/
 dist/
 .vite/
 
+# 루트 package.json은 Playwright MCP 도구 스캐폴딩(앱 코드 아님). 프론트는 frontend/package.json.
+/package.json
+/package-lock.json
+
 # ===== 임시 / 추출 산출물 =====
 Reference/API_DOC/*.txt
 

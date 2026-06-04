@@ -257,6 +257,8 @@ describe("StrategyPanel", () => {
     // 닫힌 상태에서는 모달이 없다
     expect(screen.queryByRole("dialog")).toBeNull();
 
+    // 기본은 RSI+MA이므로 이동평균 크로스로 전환 후 도움말 확인
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
     fireEvent.click(screen.getByRole("button", { name: "이동평균 크로스 도움말" }));
 
     const dialog = screen.getByRole("dialog");
@@ -271,7 +273,7 @@ describe("StrategyPanel", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "이동평균 크로스 도움말" }));
+    fireEvent.click(screen.getByRole("button", { name: "RSI + MA 필터 도움말" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     // 배경(닫기) 클릭
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
@@ -346,10 +348,25 @@ describe("StrategyPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  test("전략 기본 선택은 RSI + MA 필터(먼저 뜬다)", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    // 셀렉트 기본값이 rsi_ma이고 RSI+MA 파라미터·도움말 버튼이 노출된다
+    expect((screen.getByLabelText("전략 선택") as HTMLSelectElement).value).toBe("rsi_ma");
+    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("21");
+    expect(screen.getByRole("button", { name: "RSI + MA 필터 도움말" })).toBeInTheDocument();
+    // 첫 번째 옵션이 RSI + MA 필터다
+    const options = within(screen.getByLabelText("전략 선택")).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("RSI + MA 필터");
+  });
+
   test("파라미터 입력이 기본값으로 채워져 있다(단기 10 / 장기 40)", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
+    // 기본은 RSI+MA → 이동평균 크로스로 전환
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
     expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("10");
     expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("40");
     // 거버너 추천 기본값도 채워져 있다(안정형: 확인봉 2 / 쿨다운 15)
@@ -396,6 +413,8 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
+    // 기본은 RSI+MA → 이동평균 크로스로 전환
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
     fireEvent.change(screen.getByLabelText("단기"), { target: { value: "50" } }); // 50 ≥ 40(기본 장기)
     expect(screen.getByText("단기는 장기보다 작아야 합니다")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "추가" })).toBeDisabled();
@@ -409,6 +428,8 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={onSetBudget} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
+    // 기본은 RSI+MA → 이동평균 크로스로 전환
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
     fireEvent.change(screen.getByLabelText("단기"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("장기"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("자본 칸막이 원금"), { target: { value: "1000000" } });

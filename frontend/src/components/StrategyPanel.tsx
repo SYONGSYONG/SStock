@@ -226,10 +226,11 @@ export function StrategyPanel({
     items.find((it) => it.symbol === sym)?.name ??
     configs.find((c) => c.symbol === sym)?.name ??
     "";
-  const [strategy, setStrategy] = useState<StrategyName>("ma_cross");
+  // 기본 전략은 실전 권장(검토 문서)인 RSI + MA 필터를 먼저 띄운다.
+  const [strategy, setStrategy] = useState<StrategyName>("rsi_ma");
   // 선택 전략의 기본값으로 채워둔 편집 가능한 파라미터
   const [params, setParams] = useState<Record<string, number>>({
-    ...STRATEGY_DEFAULTS.ma_cross,
+    ...STRATEGY_DEFAULTS.rsi_ma,
   });
   // 전략과 함께 등록할 자본 칸막이 원금
   const [principal, setPrincipal] = useState("");
@@ -364,8 +365,8 @@ export function StrategyPanel({
           value={strategy}
           onChange={(e) => changeStrategy(e.target.value as StrategyName)}
         >
-          <option value="ma_cross">이동평균 크로스</option>
           <option value="rsi_ma">RSI + MA 필터</option>
+          <option value="ma_cross">이동평균 크로스</option>
         </select>
       </div>
       <form className="strategy-form" onSubmit={submit}>
@@ -494,8 +495,8 @@ export function StrategyPanel({
               value={editStrategy}
               onChange={(e) => changeEditStrategy(e.target.value as StrategyName)}
             >
-              <option value="ma_cross">이동평균 크로스</option>
               <option value="rsi_ma">RSI + MA 필터</option>
+              <option value="ma_cross">이동평균 크로스</option>
             </select>
           </label>
           {editStrategy !== editing.strategy && (

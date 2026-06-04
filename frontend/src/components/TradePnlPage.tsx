@@ -133,6 +133,55 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
         </p>
       )}
 
+      {summary && rows.length > 0 && (
+        <div className="pnl-summary">
+          <table className="pnl-summary-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th className="num">수량</th>
+                <th className="num">거래금액</th>
+                <th className="num">수수료</th>
+                <th className="num">제세금</th>
+                <th className="num">정산금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>매도</th>
+                <td className="num">{fmt(summary.sell.qty)}</td>
+                <td className="num">{fmt(summary.sell.amount)}</td>
+                <td className="num">{fmt(summary.sell.fee)}</td>
+                <td className="num">{fmt(summary.sell.tax)}</td>
+                <td className="num">{fmt(summary.sell.settle)}</td>
+              </tr>
+              <tr>
+                <th>매수</th>
+                <td className="num">{fmt(summary.buy.qty)}</td>
+                <td className="num">{fmt(summary.buy.amount)}</td>
+                <td className="num">{fmt(summary.buy.fee)}</td>
+                <td className="num">{fmt(summary.buy.tax)}</td>
+                <td className="num">{fmt(summary.buy.settle)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="pnl-total">
+            <div>
+              <span className="pnl-total-label">실현손익 합계</span>
+              <strong className={direction(summary.realized_pnl_total)}>
+                {fmt(summary.realized_pnl_total)}원
+              </strong>
+            </div>
+            <div>
+              <span className="pnl-total-label">총손익률</span>
+              <strong className={direction(summary.total_pnl_rate)}>
+                {fmtRate(summary.total_pnl_rate)}
+              </strong>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pnl-table-wrap">
         <table className="pnl-table">
           <thead>
@@ -187,55 +236,6 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
           </tbody>
         </table>
       </div>
-
-      {summary && rows.length > 0 && (
-        <div className="pnl-summary">
-          <table className="pnl-summary-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th className="num">수량</th>
-                <th className="num">거래금액</th>
-                <th className="num">수수료</th>
-                <th className="num">제세금</th>
-                <th className="num">정산금액</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th>매도</th>
-                <td className="num">{fmt(summary.sell.qty)}</td>
-                <td className="num">{fmt(summary.sell.amount)}</td>
-                <td className="num">{fmt(summary.sell.fee)}</td>
-                <td className="num">{fmt(summary.sell.tax)}</td>
-                <td className="num">{fmt(summary.sell.settle)}</td>
-              </tr>
-              <tr>
-                <th>매수</th>
-                <td className="num">{fmt(summary.buy.qty)}</td>
-                <td className="num">{fmt(summary.buy.amount)}</td>
-                <td className="num">{fmt(summary.buy.fee)}</td>
-                <td className="num">{fmt(summary.buy.tax)}</td>
-                <td className="num">{fmt(summary.buy.settle)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="pnl-total">
-            <div>
-              <span className="pnl-total-label">실현손익 합계</span>
-              <strong className={direction(summary.realized_pnl_total)}>
-                {fmt(summary.realized_pnl_total)}원
-              </strong>
-            </div>
-            <div>
-              <span className="pnl-total-label">총손익률</span>
-              <strong className={direction(summary.total_pnl_rate)}>
-                {fmtRate(summary.total_pnl_rate)}
-              </strong>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

@@ -474,6 +474,7 @@ export function StrategyPanel({
         <Modal
           title={`${editing.symbol} ${editing.name ?? ""} 전략 수정`}
           onClose={() => setEditing(null)}
+          dismissable={false}
         >
           <label className="param-field edit-strategy-field">
             <span className="param-label">전략 종류</span>
@@ -521,6 +522,7 @@ export function StrategyPanel({
         <Modal
           title={`${editingBudget.symbol} · 자본 칸막이 원금 수정`}
           onClose={() => setEditingBudget(null)}
+          dismissable={false}
         >
           <label className="param-field">
             <span className="param-label">원금(원)</span>

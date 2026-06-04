@@ -278,6 +278,50 @@ describe("StrategyPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  test("전략 수정 모달은 배경 클릭으로 닫히지 않는다(취소/저장 버튼으로만 닫힘)", () => {
+    const configs: StrategyConfig[] = [
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // 배경 영역(모달 backdrop) 클릭 — 모달이 닫히지 않음
+    const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // 취소 버튼으로만 닫힐 수 있음
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("칸막이 수정 모달은 배경 클릭으로 닫히지 않는다(취소/저장 버튼으로만 닫힘)", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    const budgets: Budget[] = [
+      { symbol: "005930", principal: 1000000, realized_pnl: 0, holding_cost: 0, ceiling: 1000000, available: 1000000 },
+    ];
+    render(
+      <StrategyPanel budgets={budgets} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    fireEvent.click(within(item).getByRole("button", { name: "칸막이 수정" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // 배경 영역(모달 backdrop) 클릭 — 모달이 닫히지 않음
+    const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // 취소 버튼으로만 닫힐 수 있음
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   test("전략 비교 버튼을 누르면 비교표 팝업이 뜬다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
@@ -287,6 +331,19 @@ describe("StrategyPanel", () => {
     expect(dialog).toHaveTextContent("추세 전환 / 추세 추종");
     expect(dialog).toHaveTextContent("추세 필터 + 눌림목 반등");
     expect(dialog).toHaveTextContent("횡보장에서 가짜 신호 많음");
+  });
+
+  test("전략 비교 모달은 배경 클릭으로 닫힌다(dismissable=true)", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "전략 비교" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // 배경 영역 클릭 — 모달이 닫힘
+    const backdrop = screen.getByRole("dialog").parentElement as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   test("파라미터 입력이 기본값으로 채워져 있다(단기 5 / 장기 20)", () => {

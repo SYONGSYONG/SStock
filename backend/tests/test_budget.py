@@ -28,6 +28,13 @@ def _settings() -> Settings:
     )
 
 
+def test_effective_ceiling_이익미반영_손실반영():
+    # 이익은 한도를 키우지 않고(min(0,+)=0), 손실만 한도를 줄인다.
+    assert budget_service.effective_ceiling(1_000_000, 0) == 1_000_000
+    assert budget_service.effective_ceiling(1_000_000, 21_500) == 1_000_000  # 이익 무시
+    assert budget_service.effective_ceiling(1_000_000, -50_000) == 950_000  # 손실 반영
+
+
 def test_보유원가_실현손익_평균원가(tmp_path):
     conn = _db(tmp_path)
     # 10주 @1000, 10주 @1200 매수 -> 평균 1100, 보유원가 22000
@@ -42,18 +49,36 @@ def test_보유원가_실현손익_평균원가(tmp_path):
     assert s["holding_qty"] == 15
 
 
-def test_칸막이_한도_원금_플러스_실현손익(tmp_path):
+def test_실현이익은_한도에_미반영(tmp_path):
     conn = _db(tmp_path)
     budget_service.set_principal(conn, "005930", 1_000_000)
-    # 이익 실현: 10주 @1000 매수 후 10주 @1500 매도 -> 실현 +5000
+    # 이익 실현: 10주 @1000 매수 후 10주 @1500 매도 -> 실현 +5000, 보유 0(flat)
     order_service.save_order(conn, "005930", "BUY", 10, 1000, "paper", status="filled")
     order_service.save_order(conn, "005930", "SELL", 10, 1500, "paper", status="filled")
 
     st = budget_service.envelope_status(conn, "005930")
     assert st is not None
-    assert st["realized_pnl"] == 5000
-    assert st["ceiling"] == 1_005_000  # 원금 100만 + 실현 5천
-    assert st["available"] == 1_005_000  # 보유 없음
+    assert st["realized_pnl"] == 5000  # 실현이익은 정보로만 표시
+    assert st["ceiling"] == 1_000_000  # 한도는 원금 그대로(이익 미반영)
+    assert st["available"] == 1_000_000  # 보유 0 -> 가용 = 원금
+
+
+def test_실현손실은_한도를_축소(tmp_path):
+    conn = _db(tmp_path)
+    budget_service.set_principal(conn, "005930", 100_000)
+    # 손실 실현: 10주 @10000 매수 후 10주 @9000 매도 -> 실현 -1만, 보유 0
+    order_service.save_order(conn, "005930", "BUY", 10, 10000, "paper", status="filled")
+    order_service.save_order(conn, "005930", "SELL", 10, 9000, "paper", status="filled")
+
+    st = budget_service.envelope_status(conn, "005930")
+    assert st["realized_pnl"] == -10000
+    assert st["ceiling"] == 90_000  # 원금 10만 + 손실(-1만) = 9만
+    assert st["available"] == 90_000
+    # 9만까지만 매수 허용, 10만은 거부(손실로 한도 축소)
+    check_order(conn, _settings(), OrderIntent("005930", "BUY", 9, 10000))  # 예외 없음
+    with pytest.raises(RiskError) as e:
+        check_order(conn, _settings(), OrderIntent("005930", "BUY", 10, 10000))
+    assert e.value.code == "ENVELOPE_EXCEEDED"
 
 
 def test_가드_칸막이_초과시_매수_거부(tmp_path):
@@ -67,17 +92,17 @@ def test_가드_칸막이_초과시_매수_거부(tmp_path):
     assert e.value.code == "ENVELOPE_EXCEEDED"
 
 
-def test_가드_실현이익으로_한도_늘면_매수_허용(tmp_path):
+def test_실현이익은_매수한도를_늘리지_않음(tmp_path):
     conn = _db(tmp_path)
     budget_service.set_principal(conn, "005930", 100_000)
     # 10주 @10000 매수(보유원가 10만) 후 10주 @15000 매도 -> 실현 +5만, 보유 0
     order_service.save_order(conn, "005930", "BUY", 10, 10000, "paper", status="filled")
     order_service.save_order(conn, "005930", "SELL", 10, 15000, "paper", status="filled")
-    # 한도 = 10만 + 5만 = 15만, 보유원가 0 -> 14만 매수 허용
-    check_order(conn, _settings(), OrderIntent("005930", "BUY", 14, 10000))  # 예외 없음
-    # 16만 매수는 거부
+    # 실현이익이 있어도 한도는 원금 10만 그대로 -> 10만(=원금)까지만 매수 허용
+    check_order(conn, _settings(), OrderIntent("005930", "BUY", 10, 10000))  # 10만 OK
+    # 11만 매수는 거부(실현이익으로 한도가 늘지 않음)
     with pytest.raises(RiskError) as e:
-        check_order(conn, _settings(), OrderIntent("005930", "BUY", 16, 10000))
+        check_order(conn, _settings(), OrderIntent("005930", "BUY", 11, 10000))
     assert e.value.code == "ENVELOPE_EXCEEDED"
 
 

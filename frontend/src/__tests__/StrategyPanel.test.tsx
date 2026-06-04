@@ -162,12 +162,36 @@ describe("StrategyPanel", () => {
     fireEvent.click(within(dialog).getByText("저장"));
 
     // upsert: 같은 종목·전략, 새 파라미터, enabled 유지(true), 확인창 없음
+    // (onEditStrategy 미전달 → onAdd로 폴백)
     expect(onAdd).toHaveBeenCalledWith({
       symbol: "005930",
       strategy: "ma_cross",
       params: { short: 5, long: 60, bar_ticks: 50 },
       enabled: true,
     });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("수정 모달에서 다른 전략으로 교체하면 onEditStrategy로 새 전략을 전달", () => {
+    const onEditStrategy = vi.fn();
+    const configs: StrategyConfig[] = [
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} onEditStrategy={onEditStrategy} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
+    const dialog = screen.getByRole("dialog");
+    // 전략 종류를 RSI + MA 필터로 변경 → 교체 안내 + 기본 파라미터로 초기화
+    fireEvent.change(within(dialog).getByLabelText("수정 전략 선택"), { target: { value: "rsi_ma" } });
+    expect(within(dialog).getByText(/교체됩니다/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByText("저장"));
+
+    // 기존 id(7)와 새 전략(rsi_ma)·enabled 유지로 onEditStrategy 호출
+    expect(onEditStrategy).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({ symbol: "005930", strategy: "rsi_ma", enabled: true }),
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -344,12 +368,30 @@ describe("StrategyPanel", () => {
     const budgets: Budget[] = [
       { symbol: "005930", principal: 500000, realized_pnl: 0, holding_cost: 0, ceiling: 500000, available: 500000 },
     ];
-    render(
+    const { container } = render(
       <StrategyPanel budgets={budgets} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} orderableCash={1000000} />,
     );
-    // 설정가능 = 1,000,000 − 가용 500,000 = 500,000
-    expect(screen.getByText(/주문가능현금/)).toBeInTheDocument();
-    expect(screen.getByText(/500,000/)).toBeInTheDocument();
+    const cash = container.querySelector(".budget-cash") as HTMLElement;
+    // 주문가능현금 1,000,000 · 칸막이 합계 500,000 · 설정가능 = 1,000,000 − 500,000 = 500,000
+    expect(cash.textContent).toContain("주문가능현금 1,000,000원");
+    expect(cash.textContent).toContain("칸막이 합계 500,000원");
+    expect(cash.textContent).toContain("설정가능");
+  });
+
+  test("주문가능현금 아래에 칸막이 합계를 표시", () => {
+    const budgets: Budget[] = [
+      { symbol: "005930", principal: 1000000, realized_pnl: 0, holding_cost: 0, ceiling: 1000000, available: 1000000 },
+      { symbol: "000660", principal: 2000000, realized_pnl: 0, holding_cost: 0, ceiling: 2000000, available: 2000000 },
+    ];
+    const { container } = render(
+      <StrategyPanel budgets={budgets} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} orderableCash={9523230} />,
+    );
+    const cash = container.querySelector(".budget-cash") as HTMLElement;
+    expect(cash.textContent).toContain("주문가능현금 9,523,230원");
+    // 칸막이 합계 = 1,000,000 + 2,000,000 = 3,000,000
+    expect(cash.textContent).toContain("칸막이 합계 3,000,000원");
+    // 설정가능 = 9,523,230 − 3,000,000 = 6,523,230
+    expect(cash.textContent).toContain("6,523,230");
   });
 
   test("원금 미입력이면 추가 비활성화(전략·칸막이는 한 쌍)", () => {

@@ -105,6 +105,50 @@ async def test_봇_OFF면_주문없음(tmp_path):
     conn.close()
 
 
+async def test_같은방향_중복신호_억제(tmp_path):
+    # 확정봉이 그대로인 채 미완성 틱만 추가되면 같은 BUY 신호가 다시 떠도,
+    # 봇은 직전과 같은 방향 신호를 억제해 주문을 1건만 낸다(휘프소 폭증 방지).
+    path = str(tmp_path / "t.db")
+    init_db(path)
+    conn = connect(path)
+    strategy_service.upsert_config(
+        conn, "005930", "ma_cross", {"short": 2, "long": 4, "bar_ticks": 2}, enabled=True
+    )
+    budget_service.set_principal(conn, "005930", 10_000_000)
+    conn.close()
+    settings = Settings(
+        _env_file=None,
+        trading_mode="paper",
+        kis_paper_app_key="k",
+        kis_paper_app_secret="s",
+        daily_max_orders=100,
+        daily_max_amount=10_000_000,
+    )
+    calls: list[str] = []
+
+    async def placer(symbol, side, qty, price):
+        calls.append(side)
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    async def syncer(symbol, order_no):
+        return []  # 체결 동기화는 빈 응답(실 KIS 호출 방지)
+
+    bot = TradingBot(
+        conn_factory=lambda: connect(path),
+        settings=settings,
+        order_placer=placer,
+        order_syncer=syncer,
+    )
+    await bot.start()
+    # 12틱(각 봉 2틱) → 확정봉 [10,9,8,7,6,20]에서 골든크로스 BUY 1회
+    await _feed(bot, [10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 20, 20])
+    # 미완성 틱 1개 추가 → 확정봉 동일 → 같은 BUY 재발생하지만 억제됨
+    await bot.on_tick({"symbol": "005930", "price": 20})
+
+    assert calls == ["BUY"]  # 중복 BUY 없이 1건만
+    await bot.stop()
+
+
 async def test_미보유_매도신호는_주문생성_안함(tmp_path):
     # BUY가 거절되어 봇 보유가 0인 상태에서 데드크로스(SELL)가 떠도,
     # 매도가능 0이면 봇은 신호를 주문으로 만들지 않는다(거절 주문조차 남기지 않음).
@@ -117,17 +161,18 @@ async def test_미보유_매도신호는_주문생성_안함(tmp_path):
 
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings, order_placer=fake_placer)
     await bot.start()
-    # 틱6에서 BUY(거절) → 틱9에서 SELL(미보유 → 억제)
+    # 틱6에서 BUY(금액 한도 거절) → 틱9에서 SELL(미보유 → 억제)
     await _feed(bot, [10, 9, 8, 7, 6, 20, 18, 12, 8, 6, 5, 5])
 
     # 매도 주문은 시도조차 하지 않음
     assert all(c[1] != "SELL" for c in calls)
     conn = connect(path)
-    orders = order_service.list_orders(conn)
-    sides = [o["side"] for o in orders]
-    assert "SELL" not in sides  # 억제 → SELL 주문 자체가 없음
-    assert "BUY" in sides and all(
-        o["status"] == "rejected" for o in orders if o["side"] == "BUY"
+    # 가드 거절(BUY)은 주문에 안 남고, 미보유 매도(SELL)는 억제 → orders 비어 있음
+    assert order_service.list_orders(conn) == []
+    # 거절 사유는 감사 로그(RISK)에만 남는다
+    assert any(
+        log["category"] == "RISK" and "BUY" in log["message"]
+        for log in audit_service.list_logs(conn)
     )
     conn.close()
     await bot.stop()
@@ -147,8 +192,8 @@ async def test_가용_한도_초과면_거절(tmp_path):
 
     assert calls == []
     conn = connect(path)
-    orders = order_service.list_orders(conn)
-    assert orders[0]["status"] == "rejected"
+    # 가드 거절은 KIS로 전송되지 않으므로 주문 내역에 남기지 않는다(감사 로그에만 기록)
+    assert order_service.list_orders(conn) == []
     assert any(log["category"] == "RISK" for log in audit_service.list_logs(conn))
     conn.close()
     await bot.stop()

@@ -187,6 +187,25 @@ export function App() {
     await refreshStrategies();
   };
 
+  // 전략 수정 저장. 전략 종류가 바뀌면 새 전략을 먼저 추가한 뒤 기존 전략을 지워 교체한다.
+  // (먼저 추가하므로 해당 종목엔 항상 전략이 남아 있어 칸막이는 보존된다.)
+  const handleEditStrategy = async (
+    oldId: number,
+    body: Parameters<typeof addStrategy>[0],
+  ) => {
+    setStrategyError(null);
+    try {
+      const old = strategies.find((s) => s.id === oldId);
+      await addStrategy(body, viewMode);
+      if (old && old.strategy !== body.strategy) {
+        await deleteStrategy(oldId);
+      }
+      await refreshStrategies();
+    } catch (e) {
+      setStrategyError(e instanceof ApiError ? e.message : "전략 수정 실패");
+    }
+  };
+
   const handleRemoveStrategy = async (id: number) => {
     const target = strategies.find((s) => s.id === id);
     await deleteStrategy(id).catch(() => {});
@@ -310,6 +329,7 @@ export function App() {
               onSetBudget={handleSetBudget}
               onToggle={handleToggleStrategy}
               onRemove={handleRemoveStrategy}
+              onEditStrategy={handleEditStrategy}
               orderableCash={account?.orderable_cash ?? null}
               error={strategyError}
               budgetError={budgetError}

@@ -45,6 +45,16 @@ def compute_symbol_state(
     }
 
 
+def effective_ceiling(principal: int, realized_pnl: float) -> float:
+    """칸막이 매수 한도 = 원금 + min(0, 실현손익).
+
+    실현이익은 한도를 부풀리지 않고(보수적: 종이이익으로 위험을 키우지 않음), 실현손실만
+    한도를 축소한다(안전). 즉 포지션을 모두 정리(flat)하면 한도는 원금으로 돌아오고,
+    실현이익은 한도가 아니라 정보(누계)로만 표시한다. 손실은 계속 한도를 줄인다.
+    """
+    return principal + min(0.0, realized_pnl)
+
+
 def get_principal(conn: sqlite3.Connection, symbol: str, mode: str = "paper") -> int | None:
     """모드별 종목 원금 한도를 조회한다."""
     row = conn.execute(
@@ -92,7 +102,8 @@ def envelope_status(
     if principal is None:
         return None
     state = compute_symbol_state(conn, symbol, mode=mode)
-    ceiling = principal + state["realized_pnl"]
+    # 한도는 실현이익을 반영하지 않는다(원금 + 손실분만). 실현손익은 정보로만 표시.
+    ceiling = effective_ceiling(principal, state["realized_pnl"])
     return {
         "symbol": symbol,
         "principal": principal,

@@ -32,6 +32,17 @@ interface StrategyPanelProps {
   onSetBudget: (symbol: string, principal: number) => void;
   onToggle: (id: number, enabled: boolean) => void;
   onRemove: (id: number) => void;
+  /** 전략 수정 저장. 전략 종류가 바뀌면 기존 전략을 지우고 새 전략으로 교체한다.
+   *  미전달 시 onAdd로 폴백(같은 종류 파라미터만 upsert). */
+  onEditStrategy?: (
+    oldId: number,
+    body: {
+      symbol: string;
+      strategy: StrategyName;
+      params: Record<string, number>;
+      enabled: boolean;
+    },
+  ) => void;
   /** 계좌 주문가능현금(원금 입력 아래 설정가능액 표시용) */
   orderableCash?: number | null;
   error?: string | null;
@@ -186,6 +197,7 @@ export function StrategyPanel({
   onSetBudget,
   onToggle,
   onRemove,
+  onEditStrategy,
   orderableCash,
   error,
   budgetError,
@@ -211,8 +223,9 @@ export function StrategyPanel({
   // 전략과 함께 등록할 자본 칸막이 원금
   const [principal, setPrincipal] = useState("");
 
-  // 전략 파라미터 수정 모달
+  // 전략 수정 모달(파라미터 + 전략 종류 변경)
   const [editing, setEditing] = useState<StrategyConfig | null>(null);
+  const [editStrategy, setEditStrategy] = useState<StrategyName>("ma_cross");
   const [editParams, setEditParams] = useState<Record<string, number>>({});
   // 자본 칸막이(원금) 수정 모달
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -260,24 +273,37 @@ export function StrategyPanel({
 
   const openEdit = (c: StrategyConfig) => {
     setEditing(c);
+    setEditStrategy(c.strategy);
     setEditParams({ ...c.params });
+  };
+
+  // 수정 모달에서 전략 종류를 바꾸면 그 전략의 기본 파라미터로 채운다.
+  const changeEditStrategy = (next: StrategyName) => {
+    setEditStrategy(next);
+    setEditParams({ ...STRATEGY_DEFAULTS[next] });
   };
 
   const changeEditParam = (key: string, raw: string) => {
     setEditParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
   };
 
-  const editError = editing ? validateParams(editing.strategy, editParams) : null;
+  const editError = editing ? validateParams(editStrategy, editParams) : null;
 
   const saveEdit = () => {
     if (!editing || editError) return;
-    // 같은 종목·전략으로 upsert → 파라미터만 갱신(활성 상태 유지)
-    onAdd({
+    const body = {
       symbol: editing.symbol,
-      strategy: editing.strategy,
+      strategy: editStrategy,
       params: editParams,
       enabled: editing.enabled,
-    });
+    };
+    // 전략 종류가 바뀌면 기존 전략을 지우고 교체해야 하므로 onEditStrategy로 처리한다.
+    // 미전달(구버전 호출부)이면 같은 종류 파라미터 upsert로 폴백한다.
+    if (onEditStrategy) {
+      onEditStrategy(editing.id, body);
+    } else {
+      onAdd(body);
+    }
     setEditing(null);
   };
 
@@ -360,13 +386,15 @@ export function StrategyPanel({
           <span className="param-default">전략과 함께 등록됩니다</span>
         </label>
 
-        <p className="budget-rule">종목별 투입 원금 한도 (한도 = 원금 + 실현손익)</p>
+        <p className="budget-rule">종목별 투입 원금 한도 (한도 = 원금, 실현손실은 차감 · 이익은 미반영)</p>
         <p className="budget-cash">
           {orderableCash == null ? (
             <span className="muted">주문가능현금 조회 불가</span>
           ) : (
             <>
-              주문가능현금 {fmt(orderableCash)}원 · 설정가능{" "}
+              주문가능현금 {fmt(orderableCash)}원
+              <br />
+              칸막이 합계 {fmt(committed)}원 · 설정가능{" "}
               <b className={settable != null && settable < 0 ? "down" : "up"}>{fmt(settable)}</b>원
               {settable != null && settable < 0 && (
                 <span className="down"> (칸막이 합계가 현금 초과)</span>
@@ -444,11 +472,28 @@ export function StrategyPanel({
 
       {editing && (
         <Modal
-          title={`${editing.symbol} ${editing.name ?? ""} · ${STRATEGY_LABEL[editing.strategy]} 수정`}
+          title={`${editing.symbol} ${editing.name ?? ""} 전략 수정`}
           onClose={() => setEditing(null)}
         >
+          <label className="param-field edit-strategy-field">
+            <span className="param-label">전략 종류</span>
+            <select
+              aria-label="수정 전략 선택"
+              value={editStrategy}
+              onChange={(e) => changeEditStrategy(e.target.value as StrategyName)}
+            >
+              <option value="ma_cross">이동평균 크로스</option>
+              <option value="rsi_ma">RSI + MA 필터</option>
+            </select>
+          </label>
+          {editStrategy !== editing.strategy && (
+            <p className="param-default edit-strategy-note">
+              {STRATEGY_LABEL[editing.strategy]} → {STRATEGY_LABEL[editStrategy]}로 교체됩니다
+              (파라미터는 기본값으로 초기화).
+            </p>
+          )}
           <StrategyParamInputs
-            strategy={editing.strategy}
+            strategy={editStrategy}
             params={editParams}
             onChange={changeEditParam}
           />

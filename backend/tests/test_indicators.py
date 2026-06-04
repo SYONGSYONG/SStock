@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from app.strategies.indicators import rolling_sma, rsi, sma
+from app.strategies.indicators import closed_ticks, rolling_sma, rsi, sma
 
 
 def test_단순이동평균():
@@ -44,3 +44,12 @@ def test_rsi_범위():
     r = rsi(closes, period=14)
     last = r.iloc[-1]
     assert 0 <= last <= 100
+
+
+def test_closed_ticks_미완성봉_제외():
+    # bar_ticks의 배수 길이로 잘라 진행 중(미완성) 틱봉을 제외한다.
+    assert closed_ticks([1, 2, 3, 4, 5], 2) == [1, 2, 3, 4]  # 5번째(미완성) 제외
+    assert closed_ticks([1, 2, 3, 4], 2) == [1, 2, 3, 4]  # 정확한 배수면 그대로
+    assert closed_ticks([1, 2, 3], 5) == []  # 한 봉도 완성 안 됨
+    # bar_ticks<=1이면 틱=봉이므로 원본 그대로
+    assert closed_ticks([1, 2, 3], 1) == [1, 2, 3]

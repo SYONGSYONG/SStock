@@ -313,6 +313,23 @@ body {
   font-size: 10.5px;
   color: var(--muted);
 }
+/* 전략 수정 모달: 전략 종류 선택 + 교체 안내 */
+.edit-strategy-field {
+  flex: 1 1 100%;
+  margin-bottom: 10px;
+}
+.edit-strategy-field select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+.edit-strategy-note {
+  color: #2563eb !important;
+  margin: 0 0 8px;
+}
 /* 원금 입력 보조 ± 버튼(천만/백만 단위) */
 .amount-steppers {
   display: flex;

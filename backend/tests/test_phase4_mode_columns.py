@@ -313,8 +313,8 @@ class TestBudgetModeIsolation:
         status_live = budget_service.envelope_status(conn, "005930", mode="live")
 
         assert status_paper["principal"] == 100_000
-        assert status_paper["realized_pnl"] == 5000
-        assert status_paper["ceiling"] == 105_000
+        assert status_paper["realized_pnl"] == 5000  # 실현이익은 정보로만 표시
+        assert status_paper["ceiling"] == 100_000  # 이익은 한도 미반영 → 원금 그대로
         assert status_paper["holding_cost"] == 0  # 매도 완료
 
         assert status_live["principal"] == 500_000

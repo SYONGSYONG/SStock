@@ -3,7 +3,7 @@
 모든 주문은 집행 전 이 가드를 통과해야 한다(절대 안전 규칙).
 - 종목별 한도(수량/금액)
 - 자본 칸막이 필수: 미등록 종목은 매수·매도 모두 금지(ENVELOPE_REQUIRED)
-- 매수: 보유원가 + 주문금액 <= 원금 + 실현손익(ENVELOPE_EXCEEDED)
+- 매수: 보유원가 + 주문금액 <= 원금 + min(0, 실현손익) — 실현이익은 한도 미반영, 손실만 축소(ENVELOPE_EXCEEDED)
 - 매도: 봇 보유 0이면 거부(NO_BOT_HOLDING), 보유 초과면 거부(SELL_EXCEEDS_HOLDING) — 기보유분 보호
 - 일일 최대 주문 횟수/금액(risk_limit 테이블, 모드별; 미설정 시 DAILY_MAX_* 기본값)
 """
@@ -107,8 +107,9 @@ def check_order(
     state = budget_service.compute_symbol_state(conn, intent.symbol, mode=mode)
 
     if intent.side == "BUY":
-        # 매수: 보유원가 + 주문금액 <= 원금 + 실현손익
-        ceiling = principal + state["realized_pnl"]
+        # 매수: 보유원가 + 주문금액 <= 한도(원금 + min(0, 실현손익)).
+        # 실현이익은 한도를 키우지 않고, 실현손실만 한도를 줄인다(보수적·안전).
+        ceiling = budget_service.effective_ceiling(principal, state["realized_pnl"])
         if state["holding_cost"] + order_amount > ceiling:
             raise RiskError(
                 "ENVELOPE_EXCEEDED",

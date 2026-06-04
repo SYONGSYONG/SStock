@@ -54,6 +54,8 @@ class TradingBot:
         self._order_syncer = order_syncer
         self._broadcaster = broadcaster
         self._history: dict[str, list[float]] = {}
+        # (symbol, strategy) → 직전에 발생시킨 신호 방향. 같은 방향 중복 신호를 억제한다.
+        self._last_signal_side: dict[tuple[str, str], str] = {}
         self._running = False
         self._default_qty = default_qty
         self._sync_task: asyncio.Task[None] | None = None
@@ -106,8 +108,15 @@ class TradingBot:
                 except ValueError:
                     continue
                 signal = strategy.evaluate(symbol, hist)
-                if signal is not None:
-                    await self._handle_signal(conn, signal, cfg)
+                if signal is None:
+                    continue
+                # 중복 신호 억제: 직전과 같은 방향(side) 신호는 건너뛴다.
+                # 확정봉 평가와 결합해 '교차 1회당 신호 1건'이 되게 한다(휘프소 폭증 방지).
+                key = (symbol, cfg["strategy"])
+                if self._last_signal_side.get(key) == signal.side:
+                    continue
+                self._last_signal_side[key] = signal.side
+                await self._handle_signal(conn, signal, cfg)
         finally:
             conn.close()
 
@@ -237,18 +246,10 @@ class TradingBot:
         try:
             check_order(conn, self._settings, intent, mode=self._mode)
         except RiskError as exc:
+            # 가드에서 막힌 주문은 KIS로 전송되지 않았으므로 '주문 내역(orders)'에 남기지
+            # 않는다. 거절 사유는 감사 로그(RISK)에만 기록한다(진단용). 실제로 KIS에
+            # 전송된 뒤 거부된 주문만 orders에 rejected로 남는다(아래 _place 경로).
             audit_service.log(conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}")
-            order = order_service.save_order(
-                conn,
-                signal.symbol,
-                signal.side,
-                qty,
-                signal.price,
-                self._mode,
-                status="rejected",
-                signal_id=saved["id"],
-            )
-            await self._broadcast({"type": "order", "data": order, "mode": self._mode})
             return
 
         result = await self._place(signal.symbol, signal.side, qty, signal.price)

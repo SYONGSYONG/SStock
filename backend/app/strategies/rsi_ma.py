@@ -19,7 +19,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from app.strategies.base import Signal
-from app.strategies.indicators import rolling_sma, rsi, to_tick_bars
+from app.strategies.indicators import closed_ticks, rolling_sma, rsi, to_tick_bars
 
 
 @dataclass
@@ -42,7 +42,8 @@ class RsiMaStrategy:
             raise ValueError("0 < low < high < 100 이어야 합니다")
 
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
-        bars = to_tick_bars(closes, self.bar_ticks)
+        # 확정봉만 평가한다(진행 중 미완성 틱봉 제외 → 매 틱 재샘플링 휘프소 방지).
+        bars = to_tick_bars(closed_ticks(closes, self.bar_ticks), self.bar_ticks)
         # RSI는 직전·현재 2개, MA는 직전·현재 2개(크로스 판정) 값이 필요하다.
         if len(bars) < max(self.rsi_period + 2, self.ma_period + 1):
             return None

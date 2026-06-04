@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.strategies.base import Signal
-from app.strategies.indicators import rolling_sma, to_tick_bars
+from app.strategies.indicators import closed_ticks, rolling_sma, to_tick_bars
 
 
 @dataclass
@@ -32,7 +32,8 @@ class MaCrossStrategy:
             raise ValueError("bar_ticks는 1 이상이어야 합니다")
 
     def evaluate(self, symbol: str, closes: list[float]) -> Signal | None:
-        bars = to_tick_bars(closes, self.bar_ticks)
+        # 확정봉만 평가한다(진행 중 미완성 틱봉 제외 → 매 틱 재샘플링 휘프소 방지).
+        bars = to_tick_bars(closed_ticks(closes, self.bar_ticks), self.bar_ticks)
         if len(bars) < self.long + 1:
             return None
         short_ma = rolling_sma(bars, self.short)
@@ -40,7 +41,7 @@ class MaCrossStrategy:
         # len(bars) >= long+1 이므로 마지막 두 지점의 단기·장기 SMA는 모두 유효(None 아님).
         prev_diff = short_ma[-2] - long_ma[-2]
         cur_diff = short_ma[-1] - long_ma[-1]
-        price = closes[-1]
+        price = closes[-1]  # 주문가는 최신 틱(신호 판정은 확정봉, 체결가는 현재가)
 
         if prev_diff <= 0 < cur_diff:
             return Signal(

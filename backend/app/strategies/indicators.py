@@ -25,6 +25,21 @@ def to_tick_bars(closes: list[float], bar_ticks: int) -> list[float]:
     return [closes[i] for i in idxs]
 
 
+def closed_ticks(closes: list[float], bar_ticks: int) -> list[float]:
+    """진행 중(미완성) 틱봉을 제외한 '확정 구간'만 반환한다.
+
+    `to_tick_bars`는 최신 틱에 앵커링해 매 틱 재샘플링하므로, 마지막 봉이 매 틱
+    바뀌어 이동평균 교차가 경계 부근에서 출렁인다(휘프소 → 신호 폭증). 길이를
+    bar_ticks의 배수로 잘라 고정 경계(완성봉의 마지막 틱)에서만 샘플링되게 한다.
+
+    bar_ticks<=1이면 틱=봉이므로 원본 그대로 반환한다.
+    """
+    if bar_ticks <= 1:
+        return list(closes)
+    n = len(closes) - (len(closes) % bar_ticks)
+    return list(closes[:n])
+
+
 def rolling_sma(closes: list[float], period: int) -> list[float | None]:
     """Rolling SMA — 러닝 합계로 갱신하는 단순이동평균(최근 N개 창).
 

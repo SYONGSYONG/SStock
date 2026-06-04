@@ -7,7 +7,7 @@ import respx
 
 from app.config import Settings
 from app.kis.auth import KisAuth
-from app.kis.realtime import build_subscribe_message, parse_tick
+from app.kis.realtime import build_subscribe_message, parse_orderbook, parse_tick
 
 
 def _settings() -> Settings:
@@ -35,6 +35,20 @@ def test_비체결_메시지는_None():
     assert parse_tick('{"header":{"tr_id":"PINGPONG"}}') is None
     assert parse_tick("") is None
     assert parse_tick("0|H0STASP0|001|005930^...") is None  # 다른 TR
+
+
+def test_호가메시지_파싱():
+    asks = "^".join(str(70100 + i * 100) for i in range(10))  # 매도호가1~10
+    bids = "^".join(str(70000 - i * 100) for i in range(10))  # 매수호가1~10
+    raw = f"0|H0STASP0|001|005930^093015^0^{asks}^{bids}"
+    ob = parse_orderbook(raw)
+    assert ob is not None
+    assert ob["kind"] == "orderbook"
+    assert ob["symbol"] == "005930"
+    assert ob["ask"] == 70100  # 최우선 매도호가
+    assert ob["bid"] == 70000  # 최우선 매수호가
+    # 체결 메시지는 호가 파서가 무시
+    assert parse_orderbook("0|H0STCNT0|001|005930^...") is None
 
 
 def test_구독_메시지_구성():

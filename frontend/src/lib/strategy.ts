@@ -22,6 +22,7 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
     take_profit_ticks: 0,
     min_volatility_ticks: 0,
     min_turnover: 0,
+    max_spread_ticks: 0,
   },
   rsi_ma: {
     rsi_period: 14,
@@ -39,6 +40,7 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
     take_profit_ticks: 0,
     min_volatility_ticks: 0,
     min_turnover: 0,
+    max_spread_ticks: 0,
   },
 };
 
@@ -66,6 +68,7 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
     { key: "take_profit_ticks", label: "익절틱(0=off)", min: 0, max: 500 },
     { key: "min_volatility_ticks", label: "최소변동틱(0=off)", min: 0, max: 1000 },
     { key: "min_turnover", label: "최소거래대금(0=off)", min: 0, max: 1_000_000_000 },
+    { key: "max_spread_ticks", label: "최대스프레드틱(0=off)", min: 0, max: 50 },
   ],
   rsi_ma: [
     { key: "rsi_period", label: "RSI 기간", min: 2, max: 999 },
@@ -83,6 +86,7 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
     { key: "take_profit_ticks", label: "익절틱(0=off)", min: 0, max: 500 },
     { key: "min_volatility_ticks", label: "최소변동틱(0=off)", min: 0, max: 1000 },
     { key: "min_turnover", label: "최소거래대금(0=off)", min: 0, max: 1_000_000_000 },
+    { key: "max_spread_ticks", label: "최대스프레드틱(0=off)", min: 0, max: 50 },
   ],
 };
 

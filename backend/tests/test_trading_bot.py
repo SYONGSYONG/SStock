@@ -148,6 +148,30 @@ def test_거버너_변동성_거래대금_필터(tmp_path):
     conn.close()
 
 
+def test_거버너_스프레드_필터(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+    key = ("005930", "ma_cross")
+    cfg = {"params": {"bar_ticks": 1, "max_spread_ticks": 3}}  # tick(10000)=10 → 한도 30원
+    hist = [10000.0] * 5
+    # 스프레드 미수신 → 통과
+    assert bot._governor_allows(conn, key, "BUY", hist, cfg) is True
+    bot._spread["005930"] = 50  # 50 > 30 → 차단
+    assert bot._governor_allows(conn, key, "BUY", hist, cfg) is False
+    bot._spread["005930"] = 20  # 20 <= 30 → 통과
+    assert bot._governor_allows(conn, key, "BUY", hist, cfg) is True
+    conn.close()
+
+
+async def test_호가틱_스프레드_갱신(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    bot._running = True
+    await bot.on_tick({"kind": "orderbook", "symbol": "005930", "ask": 70100, "bid": 70000})
+    assert bot._spread["005930"] == 100
+
+
 def test_거버너_미체결매수_중복방지(tmp_path):
     path, settings = _setup(tmp_path)
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)

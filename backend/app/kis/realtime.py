@@ -38,6 +38,13 @@ _IDX_LOW = 9
 _IDX_ACML_VOL = 13
 _MIN_FIELDS = 14
 
+# H0STASP0 호가 메시지: 헤더 3필드(종목/시간/구분) + 매도호가1~10 + 매수호가1~10
+_ORDERBOOK_TR = "H0STASP0"
+_IDX_OB_SYMBOL = 0
+_IDX_ASKP1 = 3  # 매도호가1(최우선 매도호가)
+_IDX_BIDP1 = 13  # 매수호가1(최우선 매수호가)
+_MIN_OB_FIELDS = 23  # 3 + 10 + 10
+
 TickHandler = Callable[[dict[str, Any]], Awaitable[None]]
 
 
@@ -65,8 +72,35 @@ def parse_tick(raw: str) -> dict[str, Any] | None:
     }
 
 
-def build_subscribe_message(approval_key: str, symbol: str, mode: str, subscribe: bool = True) -> dict:
-    """체결가 구독/해지 메시지를 만든다. tr_type 1=구독, 2=해지."""
+def parse_orderbook(raw: str) -> dict[str, Any] | None:
+    """H0STASP0 실시간 호가 메시지에서 최우선 매도/매수호가를 파싱한다(스프레드용)."""
+    if not raw or raw[0] not in ("0", "1"):
+        return None
+    parts = raw.split("|")
+    if len(parts) < 4 or parts[1] != _ORDERBOOK_TR:
+        return None
+    fields = parts[3].split("^")
+    if len(fields) < _MIN_OB_FIELDS:
+        return None
+    return {
+        "kind": "orderbook",
+        "symbol": fields[_IDX_OB_SYMBOL],
+        "ask": to_int(fields[_IDX_ASKP1]),
+        "bid": to_int(fields[_IDX_BIDP1]),
+    }
+
+
+def build_subscribe_message(
+    approval_key: str,
+    symbol: str,
+    mode: str,
+    subscribe: bool = True,
+    tr_name: str = "realtime_price",
+) -> dict:
+    """실시간 구독/해지 메시지를 만든다. tr_type 1=구독, 2=해지.
+
+    tr_name: 'realtime_price'(체결) | 'realtime_orderbook'(호가).
+    """
     return {
         "header": {
             "approval_key": approval_key,
@@ -74,7 +108,7 @@ def build_subscribe_message(approval_key: str, symbol: str, mode: str, subscribe
             "tr_type": "1" if subscribe else "2",
             "content-type": "utf-8",
         },
-        "body": {"input": {"tr_id": resolve_ws_tr_id("realtime_price", mode), "tr_key": symbol}},
+        "body": {"input": {"tr_id": resolve_ws_tr_id(tr_name, mode), "tr_key": symbol}},
     }
 
 
@@ -112,8 +146,16 @@ class KisRealtimeClient:
                 async with websockets.connect(self.url) as ws:
                     retries = 0
                     for symbol in sorted(self._symbols):
+                        # 체결가 + 호가(스프레드용) 둘 다 구독
                         await ws.send(
                             json.dumps(build_subscribe_message(approval_key, symbol, self._mode))
+                        )
+                        await ws.send(
+                            json.dumps(
+                                build_subscribe_message(
+                                    approval_key, symbol, self._mode, tr_name="realtime_orderbook"
+                                )
+                            )
                         )
                     await self._receive_loop(ws, on_tick)
             except Exception as exc:  # noqa: BLE001 - 재연결을 위해 광범위 포착
@@ -127,9 +169,9 @@ class KisRealtimeClient:
                 break
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
-            tick = parse_tick(raw)
-            if tick is not None:
-                await on_tick(tick)
+            msg = parse_tick(raw) or parse_orderbook(raw)
+            if msg is not None:
+                await on_tick(msg)
 
     def stop(self) -> None:
         self._stop.set()

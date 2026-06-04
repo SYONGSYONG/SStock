@@ -25,6 +25,7 @@ from app.strategies.market_rules import (
     recent_range_ticks,
     recent_turnover,
     stop_exit_reason,
+    tick_size,
 )
 from app.strategies.registry import build_strategy
 
@@ -69,6 +70,8 @@ class TradingBot:
         self._history: dict[str, list[float]] = {}
         # 종목별 누적 거래량(acml_vol) 히스토리 — 거래대금 필터용(틱에 volume이 있을 때만).
         self._vol_history: dict[str, list[float]] = {}
+        # 종목별 최신 스프레드(최우선 매도호가 − 매수호가, 원) — 호가 구독에서 갱신.
+        self._spread: dict[str, int] = {}
         # (symbol, strategy) → 직전에 발생시킨 신호 방향. 같은 방향 중복 신호를 억제한다.
         self._last_signal_side: dict[tuple[str, str], str] = {}
         # 거버너 상태: (symbol, strategy) → 매수/매도가 일어난 확정봉 인덱스(최소보유·쿨다운용).
@@ -104,6 +107,14 @@ class TradingBot:
 
     async def on_tick(self, tick: dict[str, Any]) -> None:
         if not self._running:
+            return
+        # 호가 메시지: 스프레드만 갱신하고 종료(전략 평가 대상 아님).
+        if tick.get("kind") == "orderbook":
+            sym = tick.get("symbol")
+            ask = tick.get("ask")
+            bid = tick.get("bid")
+            if sym and ask and bid and ask > 0 and bid > 0:
+                self._spread[sym] = int(ask) - int(bid)
             return
         symbol = tick.get("symbol")
         price = tick.get("price")
@@ -315,6 +326,11 @@ class TradingBot:
                 vh = self._vol_history.get(key[0], [])
                 if len(vh) >= 2 and recent_turnover(hist, vh, lookback) < mt:
                     return False  # 거래대금 부족
+            ms = int(params.get("max_spread_ticks", 0))
+            if ms > 0 and hist:
+                spread = self._spread.get(key[0])
+                if spread is not None and spread > tick_size(hist[-1]) * ms:
+                    return False  # 스프레드 과대(들어가자마자 손실 위험)
             return True
         # SELL
         min_hold = int(params.get("min_hold_bars", 0))

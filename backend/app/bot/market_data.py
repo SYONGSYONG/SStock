@@ -62,7 +62,16 @@ class MarketDataService:
             self._symbols = list(symbols)
 
     async def _on_tick(self, tick: dict[str, Any]) -> None:
-        """tick을 수신해 broadcast와 핸들러로 전달한다."""
+        """tick을 수신해 broadcast와 핸들러로 전달한다.
+
+        호가(orderbook) 메시지는 대시보드에 불필요하므로 브로드캐스트하지 않고 봇 핸들러로만
+        전달한다(스프레드 갱신용).
+        """
+        if tick.get("kind") == "orderbook":
+            if self._on_tick_handler is not None:
+                await self._on_tick_handler(tick)
+            return
+
         # broadcast에 mode 태그 추가
         await hub.broadcast({"type": "tick", "mode": self._mode, "data": tick})
 

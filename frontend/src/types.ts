@@ -52,6 +52,8 @@ export interface Signal {
   price: number | null;
   reason: string;
   mode?: TradingMode;
+  /** 1 = OFF(비활성) 전략의 관찰 전용 신호(실주문과 연동되지 않음) */
+  observe?: number;
   created_at: string;
 }
 

@@ -33,4 +33,14 @@ describe("SignalLog", () => {
     expect(screen.getByText("이동평균 크로스")).toBeInTheDocument();
     expect(screen.queryByText("ma_cross")).toBeNull();
   });
+
+  test("OFF 전략의 관찰 신호에는 '관찰' 배지를 표시", () => {
+    render(<SignalLog signals={[{ ...sample[0], observe: 1 }]} />);
+    expect(screen.getByText("관찰")).toBeInTheDocument();
+  });
+
+  test("일반 신호에는 관찰 배지가 없음", () => {
+    render(<SignalLog signals={sample} />);
+    expect(screen.queryByText("관찰")).toBeNull();
+  });
 });

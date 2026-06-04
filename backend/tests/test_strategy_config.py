@@ -52,6 +52,20 @@ def test_신호_저장_및_조회(tmp_path):
     assert rows[1]["side"] == "BUY"
 
 
+def test_신호_관찰플래그_저장(tmp_path):
+    conn = _db(tmp_path)
+    # 기본은 실주문 연동 신호(observe=0)
+    real = signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스", "paper")
+    # OFF 전략 관찰 신호(observe=1)
+    obs = signal_service.save_signal(
+        conn, "000660", "rsi_ma", "SELL", 120000.0, "RSI 과매수", "paper", observe=True
+    )
+    assert real["observe"] == 0
+    assert obs["observe"] == 1
+    rows = signal_service.list_signals(conn, limit=10)
+    assert {r["symbol"]: r["observe"] for r in rows} == {"005930": 0, "000660": 1}
+
+
 def test_신호_모드별_분리(tmp_path):
     conn = _db(tmp_path)
     signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스", "paper")

@@ -1215,6 +1215,20 @@ body {
   color: #7f1d1d;
 }
 
+/* ── 관찰 전용 신호 배지(OFF 전략이 기록한 로그) ── */
+.observe-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  background: #f1f5f9;
+  color: #64748b;
+  vertical-align: middle;
+}
+
 /* ── 보유 포지션 출처 배지(봇/직접/혼합) ── */
 .src-badge {
   display: inline-block;

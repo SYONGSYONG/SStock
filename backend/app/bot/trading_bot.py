@@ -137,11 +137,15 @@ class TradingBot:
         try:
             configs = [
                 c
-                for c in strategy_service.list_enabled(conn, mode=self._mode)
+                for c in strategy_service.list_configs(conn, mode=self._mode)
                 if c["symbol"] == symbol
             ]
             for cfg in configs:
                 key = (symbol, cfg["strategy"])
+                # OFF(비활성) 전략: 신호만 평가해 '관찰 로그'로 기록하고 주문은 내지 않는다.
+                if not cfg["enabled"]:
+                    await self._observe_signal(conn, key, symbol, hist, cfg)
+                    continue
                 # 0) 보호 청산(손절/익절/트레일링): 보유 중이면 전략 신호와 무관하게 즉시 검사.
                 if await self._check_stops(conn, key, symbol, float(price), hist, cfg):
                     continue
@@ -391,6 +395,42 @@ class TradingBot:
             self._high_price.pop(key, None)
             return True
         return False
+
+    async def _observe_signal(
+        self,
+        conn: sqlite3.Connection,
+        key: tuple[str, str],
+        symbol: str,
+        hist: list[float],
+        cfg: dict[str, Any],
+    ) -> None:
+        """OFF(비활성) 전략의 신호를 평가해 '관찰 전용'으로 기록한다.
+
+        실주문·거버너·보호청산을 거치지 않고 신호(observe=1)만 저장·브로드캐스트한다.
+        나중에 전략 유효성을 검증할 수 있도록 로그를 남기는 용도다(검토 문서 '방식 B').
+        """
+        try:
+            strategy = build_strategy(cfg["strategy"], cfg["params"])
+        except ValueError:
+            return
+        signal = strategy.evaluate(symbol, hist)
+        if signal is None:
+            return
+        # 중복 억제: 직전과 같은 방향(side) 신호는 건너뛴다(매 틱 동일 신호 폭증 방지).
+        if self._last_signal_side.get(key) == signal.side:
+            return
+        self._last_signal_side[key] = signal.side
+        saved = signal_service.save_signal(
+            conn,
+            signal.symbol,
+            signal.strategy,
+            signal.side,
+            signal.price,
+            signal.reason,
+            self._mode,
+            observe=True,
+        )
+        await self._broadcast({"type": "signal", "data": saved, "mode": self._mode})
 
     async def _handle_signal(
         self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]

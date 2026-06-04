@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS signals (
   price       REAL,
   reason      TEXT,
   mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
+  observe     INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
@@ -130,6 +131,16 @@ def _ensure_order_columns(conn: sqlite3.Connection) -> None:
                                 END
         """
     )
+
+
+def _ensure_signal_columns(conn: sqlite3.Connection) -> None:
+    """기존 DB에 신호 관찰(observe) 컬럼이 없으면 추가한다(기본 0=실주문 연동 신호)."""
+    has_observe = any(
+        r[1] == "observe"
+        for r in conn.execute("PRAGMA table_info(signals)").fetchall()
+    )
+    if not has_observe:
+        conn.execute("ALTER TABLE signals ADD COLUMN observe INTEGER NOT NULL DEFAULT 0")
 
 
 def _ensure_mode_columns(conn: sqlite3.Connection) -> None:
@@ -232,6 +243,7 @@ def init_db(database_path: str) -> None:
         conn.executescript(SCHEMA)
         _ensure_order_columns(conn)
         _ensure_mode_columns(conn)
+        _ensure_signal_columns(conn)
         conn.commit()
     finally:
         conn.close()

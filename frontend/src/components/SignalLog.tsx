@@ -30,7 +30,10 @@ export function SignalLog({ signals }: SignalLogProps) {
                 <span className="code">{s.symbol}</span>{" "}
                 <span className="name">{s.name ?? ""}</span>
               </td>
-              <td>{strategyLabel(s.strategy)}</td>
+              <td>
+                {strategyLabel(s.strategy)}
+                {s.observe ? <span className="observe-badge">관찰</span> : null}
+              </td>
               <td className={s.side === "BUY" ? "up" : "down"}>
                 {s.side === "BUY" ? "매수" : "매도"}
               </td>

@@ -322,6 +322,18 @@
 > 검증: 백엔드 pytest +3(전체 264), 프론트 vitest 138. Phase C의 보류 항목(스프레드) 해소.
 > 거버너 Phase A·B·C 전 항목 완료.
 
+## Phase 17 — OFF 전략 관찰 신호(로그 전용)
+
+| # | 단계 | 검증 | 상태 |
+|---|------|------|------|
+| 1 | `signals.observe` 컬럼 추가 + 마이그레이션, `save_signal(observe=)`·`list_signals` 반영 | pytest(관찰 플래그 저장) | ✅ |
+| 2 | 봇이 `enabled=False` 전략도 신호 평가→`_observe_signal`로 로그만 기록(실주문·거버너·보호청산 제외) | pytest(OFF 전략 관찰 신호) | ✅ |
+| 3 | 대시보드 매매 신호 표에 `관찰` 배지 표시 | vitest(관찰 배지) | ✅ |
+| 4 | 11-strategy.md '방식 B' 문서화 | 문서 동기화 | ✅ |
+
+> 목적: 검토 문서 '방식 B' — 기본 실주문은 `rsi_ma`, `ma_cross`는 OFF로 두고 신호만 관찰·검증.
+> 검증: 백엔드 pytest +2(전체 266), 프론트 vitest +2(SignalLog). 봇 OFF(정지) 시에는 관찰도 미동작.
+
 ## 진행 현황 요약
 
 | Phase | 단계 | 완료 | 진행률 |

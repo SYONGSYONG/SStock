@@ -106,6 +106,38 @@ async def test_봇_OFF면_주문없음(tmp_path):
     conn.close()
 
 
+async def test_OFF전략_관찰신호만_기록(tmp_path):
+    """봇이 켜져 있어도 전략이 OFF면 신호를 '관찰 전용'으로만 기록하고 주문은 내지 않는다."""
+    path, settings = _setup(tmp_path)
+    # _setup이 등록한 enabled 전략을 OFF로 전환
+    conn = connect(path)
+    cfg = strategy_service.list_configs(conn, mode="paper")[0]
+    strategy_service.set_enabled(conn, cfg["id"], False)
+    conn.close()
+
+    calls: list[tuple] = []
+
+    async def fake_placer(symbol, side, qty, price):
+        calls.append((symbol, side, qty, price))
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings, order_placer=fake_placer)
+    await bot.start()
+    await _feed(bot, [10, 9, 8, 7, 6, 20])
+    await bot.stop()
+
+    # 실주문은 전혀 나가지 않는다
+    assert calls == []
+    conn = connect(path)
+    assert order_service.list_orders(conn) == []
+    # 관찰 신호(observe=1)는 기록된다
+    sigs = signal_service.list_signals(conn)
+    assert len(sigs) >= 1
+    assert sigs[0]["side"] == "BUY"
+    assert sigs[0]["observe"] == 1
+    conn.close()
+
+
 def test_거버너_쿨다운_최소보유(tmp_path):
     path, settings = _setup(tmp_path)
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)

@@ -144,8 +144,10 @@ export interface RiskLimit {
   mode: TradingMode;
   max_orders: number;
   max_amount: number;
+  max_daily_loss: number; // 0 = 비활성
   order_count: number;
   order_amount: number;
+  realized_pnl: number; // 당일 실현손익
 }
 
 export interface TradePnlRow {

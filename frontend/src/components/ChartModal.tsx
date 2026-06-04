@@ -92,13 +92,6 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
   const [ovLoading, setOvLoading] = useState(false);
   const [ovError, setOvError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   useEffect(() => {
     autoRetriesRef.current = 0;
@@ -366,13 +359,13 @@ export function ChartModal({ symbol, name, minuteScope = "session", fetchChart, 
   );
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    // 배경 클릭/Esc로는 닫히지 않는다. 우상단 X(modal-close)로만 닫는다(실수 닫힘 방지).
+    <div className="modal-backdrop">
       <div
         className="modal chart-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`${symbol} 차트`}
-        onClick={(e) => e.stopPropagation()}
       >
         <header className="chart-modal-head">
           <h2>

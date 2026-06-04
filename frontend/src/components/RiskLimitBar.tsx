@@ -1,11 +1,16 @@
 import { useState } from "react";
 import type { RiskLimit, TradingMode } from "../types";
 import { fmt } from "../lib/format";
+import { direction } from "../lib/format";
 
 interface RiskLimitBarProps {
   data: RiskLimit | null;
   mode: TradingMode;
-  onUpdate: (maxOrders: number, maxAmount: number) => Promise<void> | void;
+  onUpdate: (
+    maxOrders: number,
+    maxAmount: number,
+    maxDailyLoss: number,
+  ) => Promise<void> | void;
   error?: string | null;
 }
 
@@ -19,35 +24,48 @@ export function RiskLimitBar({ data, mode, onUpdate, error }: RiskLimitBarProps)
   const [editing, setEditing] = useState(false);
   const [orders, setOrders] = useState("");
   const [amount, setAmount] = useState("");
+  const [dailyLoss, setDailyLoss] = useState("");
   const isLive = mode === "live";
 
   const startEdit = () => {
     if (!data) return;
     setOrders(String(data.max_orders));
     setAmount(String(data.max_amount));
+    setDailyLoss(String(data.max_daily_loss));
     setEditing(true);
   };
 
   const submit = async () => {
     const o = Number(orders);
     const a = Number(amount);
+    const dl = Number(dailyLoss);
     if (!Number.isInteger(o) || o < 1 || !Number.isInteger(a) || a < 1) {
       window.alert("주문 횟수·금액은 1 이상의 정수여야 합니다.");
       return;
     }
+    if (!Number.isInteger(dl) || dl < 0) {
+      window.alert("하루 손실 한도는 0 이상의 정수여야 합니다(0=비활성).");
+      return;
+    }
     // 한도 변경은 매매 안전에 직접 영향 → 적용 전 재확인(사용자 요구사항).
     const ok = window.confirm(
-      `${isLive ? "실전" : "모의"} 일일 주문 한도를 변경합니다.\n` +
+      `${isLive ? "실전" : "모의"} 일일 한도를 변경합니다.\n` +
         `· 주문 횟수: ${fmt(data?.max_orders ?? 0)} → ${fmt(o)}건\n` +
-        `· 주문 금액: ${fmt(data?.max_amount ?? 0)} → ${fmt(a)}원\n\n계속하시겠습니까?`,
+        `· 주문 금액: ${fmt(data?.max_amount ?? 0)} → ${fmt(a)}원\n` +
+        `· 하루 손실 한도: ${fmt(data?.max_daily_loss ?? 0)} → ${fmt(dl)}원${dl === 0 ? "(비활성)" : ""}\n\n계속하시겠습니까?`,
     );
     if (!ok) return;
-    await onUpdate(o, a);
+    await onUpdate(o, a, dl);
     setEditing(false);
   };
 
   const orderRatio = data ? ratio(data.order_count, data.max_orders) : 0;
   const amountRatio = data ? ratio(data.order_amount, data.max_amount) : 0;
+  // 손실 사용률: 실현손익이 음수일 때 손실/한도(한도 0이면 0).
+  const lossRatio =
+    data && data.max_daily_loss > 0 && data.realized_pnl < 0
+      ? ratio(-data.realized_pnl, data.max_daily_loss)
+      : 0;
 
   return (
     <section className="panel risk-limit" aria-label="일일 주문 한도">
@@ -82,6 +100,17 @@ export function RiskLimitBar({ data, mode, onUpdate, error }: RiskLimitBarProps)
               step={100000}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+            />
+            <span className="unit">원</span>
+          </label>
+          <label>
+            하루 손실 한도
+            <input
+              type="number"
+              min={0}
+              step={100000}
+              value={dailyLoss}
+              onChange={(e) => setDailyLoss(e.target.value)}
             />
             <span className="unit">원</span>
           </label>
@@ -131,6 +160,30 @@ export function RiskLimitBar({ data, mode, onUpdate, error }: RiskLimitBarProps)
                 style={{ width: `${amountRatio * 100}%` }}
               />
             </div>
+          </div>
+          <div className="risk-metric">
+            <div className="risk-metric-head">
+              <span className="risk-label">오늘 실현손익</span>
+              <span className="risk-value">
+                <strong className={direction(data.realized_pnl)}>
+                  {fmt(data.realized_pnl)}
+                </strong>
+                {data.max_daily_loss > 0 && (
+                  <>
+                    <span className="risk-sep"> / 손실한도 </span>
+                    −{fmt(data.max_daily_loss)}원
+                  </>
+                )}
+              </span>
+            </div>
+            {data.max_daily_loss > 0 && (
+              <div className="risk-track">
+                <div
+                  className={`risk-fill${lossRatio >= 1 ? " over" : " down"}`}
+                  style={{ width: `${lossRatio * 100}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

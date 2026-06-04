@@ -249,10 +249,14 @@ export function App() {
     setMarket((m) => ({ ...m, running: r.running }));
   };
 
-  const handleSetRiskLimit = async (maxOrders: number, maxAmount: number) => {
+  const handleSetRiskLimit = async (
+    maxOrders: number,
+    maxAmount: number,
+    maxDailyLoss: number,
+  ) => {
     setRiskLimitError(null);
     try {
-      setRiskLimit(await updateRiskLimits(maxOrders, maxAmount, viewMode));
+      setRiskLimit(await updateRiskLimits(maxOrders, maxAmount, maxDailyLoss, viewMode));
     } catch (e) {
       setRiskLimitError(e instanceof ApiError ? e.message : "한도 변경 실패");
     }

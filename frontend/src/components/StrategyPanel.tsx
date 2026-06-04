@@ -128,6 +128,17 @@ function StrategyHelpBody({
         ))}
       </ul>
 
+      {help.examples?.length > 0 && (
+        <>
+          <p className="help-section">예시 (상황)</p>
+          <ul className="help-rules help-examples">
+            {help.examples.map((ex) => (
+              <li key={ex}>{ex}</li>
+            ))}
+          </ul>
+        </>
+      )}
+
       {meanings.length > 0 && (
         <>
           <p className="help-section">설정값의 의미</p>

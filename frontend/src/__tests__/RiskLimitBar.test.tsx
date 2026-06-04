@@ -7,8 +7,10 @@ const DATA: RiskLimit = {
   mode: "paper",
   max_orders: 100,
   max_amount: 1_000_000,
+  max_daily_loss: 0,
   order_count: 20,
   order_amount: 300_000,
+  realized_pnl: 0,
 };
 
 describe("RiskLimitBar", () => {
@@ -38,7 +40,7 @@ describe("RiskLimitBar", () => {
     fireEvent.click(screen.getByText("저장"));
 
     expect(confirmSpy).toHaveBeenCalled();
-    expect(onUpdate).toHaveBeenCalledWith(50, 5_000_000);
+    expect(onUpdate).toHaveBeenCalledWith(50, 5_000_000, 0);
     confirmSpy.mockRestore();
   });
 

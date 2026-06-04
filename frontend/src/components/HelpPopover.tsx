@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface HelpPopoverProps {
   /** 접근성 라벨(예: "이동평균 크로스 도움말") */
@@ -7,18 +7,9 @@ interface HelpPopoverProps {
 }
 
 /** 물음표 버튼을 누르면 브라우저 화면 중앙에 설명 모달을 띄우는 도움말.
- *  배경 클릭 또는 Esc로 닫힌다(외부 의존성 없음). */
+ *  우상단 ✕ 버튼으로만 닫힌다(배경 클릭·Esc로는 닫히지 않음 — 실수 닫힘 방지). */
 export function HelpPopover({ label, children }: HelpPopoverProps) {
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open]);
 
   return (
     <span className="help-popover">
@@ -33,13 +24,12 @@ export function HelpPopover({ label, children }: HelpPopoverProps) {
         ?
       </button>
       {open && (
-        <div className="help-backdrop" onClick={() => setOpen(false)}>
+        <div className="help-backdrop">
           <div
             className="help-dialog"
             role="dialog"
             aria-modal="true"
             aria-label={label}
-            onClick={(e) => e.stopPropagation()}
           >
             <button
               type="button"

@@ -207,12 +207,16 @@ describe("ChartModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  test("Esc 키로 닫는다", async () => {
+  test("Esc·배경 클릭으로는 닫히지 않는다(X로만)", async () => {
     const onClose = vi.fn();
     const fetchChart = vi.fn().mockResolvedValue(DAILY);
-    render(<ChartModal symbol="005930" fetchChart={fetchChart} onClose={onClose} />);
+    const { container } = render(
+      <ChartModal symbol="005930" fetchChart={fetchChart} onClose={onClose} />,
+    );
     fireEvent.keyDown(window, { key: "Escape" });
-    expect(onClose).toHaveBeenCalled();
+    const backdrop = container.querySelector(".modal-backdrop") as HTMLElement;
+    fireEvent.click(backdrop);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   test("빈 캔들이면 데이터 없음 안내를 보여준다", async () => {

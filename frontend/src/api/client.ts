@@ -168,11 +168,16 @@ export const getRiskLimits = (mode: TradingMode) =>
 export const updateRiskLimits = (
   maxOrders: number,
   maxAmount: number,
+  maxDailyLoss: number,
   mode: TradingMode,
 ) =>
   api<RiskLimit>(withMode("/api/risk-limits", mode), {
     method: "PUT",
-    body: JSON.stringify({ max_orders: maxOrders, max_amount: maxAmount }),
+    body: JSON.stringify({
+      max_orders: maxOrders,
+      max_amount: maxAmount,
+      max_daily_loss: maxDailyLoss,
+    }),
   });
 
 export const getTradePnl = (

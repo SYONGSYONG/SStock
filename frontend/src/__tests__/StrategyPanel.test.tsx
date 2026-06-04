@@ -295,8 +295,11 @@ describe("StrategyPanel", () => {
     );
     expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("5");
     expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("20");
-    // 기본값 안내도 함께 노출
-    expect(screen.getByText("기본 5")).toBeInTheDocument();
+    // 거버너 추천 기본값도 채워져 있다
+    expect((screen.getByLabelText("확인봉") as HTMLInputElement).value).toBe("2");
+    expect((screen.getByLabelText("쿨다운봉") as HTMLInputElement).value).toBe("10");
+    // 기본값 안내도 함께 노출("기본 5"는 단기·최소보유봉 등 복수 가능)
+    expect(screen.getAllByText("기본 5").length).toBeGreaterThan(0);
     expect(screen.getByText("기본 20")).toBeInTheDocument();
   });
 
@@ -355,12 +358,21 @@ describe("StrategyPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "추가" }));
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(onAdd).toHaveBeenCalledWith({
-      symbol: "005930",
-      strategy: "ma_cross",
-      params: { short: 3, long: 10, bar_ticks: 50 }, // 틱봉 기본 50 포함
-      enabled: false, // 기본 OFF
-    });
+    // 사용자 입력(단기3/장기10) + 거버너 추천 기본값이 함께 등록된다
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: "005930",
+        strategy: "ma_cross",
+        enabled: false,
+        params: expect.objectContaining({
+          short: 3,
+          long: 10,
+          bar_ticks: 50,
+          confirm_bars: 2,
+          cooldown_bars: 10,
+        }),
+      }),
+    );
     expect(onSetBudget).toHaveBeenCalledWith("005930", 1000000);
   });
 

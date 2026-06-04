@@ -56,6 +56,9 @@ class TradingBot:
         self._history: dict[str, list[float]] = {}
         # (symbol, strategy) → 직전에 발생시킨 신호 방향. 같은 방향 중복 신호를 억제한다.
         self._last_signal_side: dict[tuple[str, str], str] = {}
+        # 거버너 상태: (symbol, strategy) → 매수/매도가 일어난 확정봉 인덱스(최소보유·쿨다운용).
+        self._entry_bar: dict[tuple[str, str], int] = {}
+        self._exit_bar: dict[tuple[str, str], int] = {}
         self._running = False
         self._default_qty = default_qty
         self._sync_task: asyncio.Task[None] | None = None
@@ -115,8 +118,17 @@ class TradingBot:
                 key = (symbol, cfg["strategy"])
                 if self._last_signal_side.get(key) == signal.side:
                     continue
+                # 실전 거버너: 쿨다운/최소보유/미체결매수 게이트(통과 못 하면 last_side 갱신 없이 건너뜀).
+                if not self._governor_allows(conn, key, signal.side, hist, cfg):
+                    continue
                 self._last_signal_side[key] = signal.side
-                await self._handle_signal(conn, signal, cfg)
+                placed = await self._handle_signal(conn, signal, cfg)
+                bar = self._bar_index(hist, cfg)
+                if placed == "BUY":
+                    self._entry_bar[key] = bar
+                elif placed == "SELL":
+                    self._exit_bar[key] = bar
+                    self._entry_bar.pop(key, None)
         finally:
             conn.close()
 
@@ -221,12 +233,61 @@ class TradingBot:
             return "partial"
         return "requested"
 
-    async def _handle_signal(self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]) -> None:
+    @staticmethod
+    def _bar_index(hist: list[float], cfg: dict[str, Any]) -> int:
+        """현재 확정봉 인덱스 = 히스토리 길이 // bar_ticks(거버너 봉 수 측정용)."""
+        bt = int(cfg.get("params", {}).get("bar_ticks", 50)) or 1
+        return len(hist) // bt
+
+    def _has_open_buy(self, conn: sqlite3.Connection, symbol: str) -> bool:
+        """미체결 매수 주문(requested/partial)이 있으면 True(신규 매수 중복 방지)."""
+        row = conn.execute(
+            "SELECT 1 FROM orders WHERE symbol = ? AND mode = ? AND side = 'BUY' "
+            "AND status IN ('requested', 'partial') LIMIT 1",
+            (symbol, self._mode),
+        ).fetchone()
+        return row is not None
+
+    def _governor_allows(
+        self,
+        conn: sqlite3.Connection,
+        key: tuple[str, str],
+        side: str,
+        hist: list[float],
+        cfg: dict[str, Any],
+    ) -> bool:
+        """실전 거버너 게이트. 통과하면 True.
+
+        - 매수: 매도 후 cooldown_bars 동안 금지, 미체결 매수 있으면 금지.
+        - 매도: 매수 후 min_hold_bars 동안 (일반)매도 금지.
+        값이 0이면 해당 게이트는 무시(현행 동작).
+        """
+        params = cfg.get("params", {})
+        bar = self._bar_index(hist, cfg)
+        if side == "BUY":
+            cooldown = int(params.get("cooldown_bars", 0))
+            exit_bar = self._exit_bar.get(key)
+            if cooldown > 0 and exit_bar is not None and bar - exit_bar < cooldown:
+                return False  # 쿨다운 중
+            if self._has_open_buy(conn, key[0]):
+                return False  # 미체결 매수 중복 방지
+            return True
+        # SELL
+        min_hold = int(params.get("min_hold_bars", 0))
+        entry_bar = self._entry_bar.get(key)
+        if min_hold > 0 and entry_bar is not None and bar - entry_bar < min_hold:
+            return False  # 최소 보유 기간 미달
+        return True
+
+    async def _handle_signal(
+        self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]
+    ) -> str | None:
+        """신호를 주문으로 집행한다. 실제로 주문이 전송(성공)되면 side를 반환, 아니면 None."""
         # 미보유 매도 억제: 봇이 팔 수량이 없으면(매도가능 0) 신호를 주문으로 만들지 않는다.
         # 가드(NO_BOT_HOLDING)가 어차피 거부하지만, 거절 주문/신호 폭증을 신호 단계에서 막는다.
         if signal.side == "SELL" and bot_sellable_qty(conn, signal.symbol, self._mode) <= 0:
             logger.debug("매도 신호 무시(매도가능 0): %s %s", self._mode, signal.symbol)
-            return
+            return None
 
         saved = signal_service.save_signal(
             conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason, self._mode
@@ -252,7 +313,7 @@ class TradingBot:
             audit_service.log(
                 conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}", self._mode
             )
-            return
+            return None
 
         result = await self._place(signal.symbol, signal.side, qty, signal.price)
         status = "requested" if result.ok else "rejected"
@@ -276,6 +337,8 @@ class TradingBot:
         await self._broadcast({"type": "order", "data": order, "mode": self._mode})
         if result.ok:
             await self.sync_orders(force=True)
+            return signal.side  # 실제 전송 성공 → 거버너 진입/청산 봉 기록용
+        return None
 
     async def _place(self, symbol: str, side: str, qty: int, price: float | None) -> OrderResult:
         if self._order_placer is not None:

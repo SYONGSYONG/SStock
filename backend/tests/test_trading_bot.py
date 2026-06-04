@@ -105,6 +105,39 @@ async def test_봇_OFF면_주문없음(tmp_path):
     conn.close()
 
 
+def test_거버너_쿨다운_최소보유(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+    key = ("005930", "ma_cross")
+    cfg_cd = {"params": {"bar_ticks": 1, "cooldown_bars": 5}}
+    cfg_mh = {"params": {"bar_ticks": 1, "min_hold_bars": 5}}
+
+    # 쿨다운: 매도 후 5봉 이내 매수 금지
+    bot._exit_bar[key] = 10
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 12, cfg_cd) is False  # 12-10<5
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 16, cfg_cd) is True  # 16-10>=5
+
+    # 최소보유: 매수 후 5봉 이내 매도 금지
+    bot._entry_bar[key] = 10
+    assert bot._governor_allows(conn, key, "SELL", [0.0] * 12, cfg_mh) is False
+    assert bot._governor_allows(conn, key, "SELL", [0.0] * 16, cfg_mh) is True
+    conn.close()
+
+
+def test_거버너_미체결매수_중복방지(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+    key = ("005930", "ma_cross")
+    cfg = {"params": {"bar_ticks": 1}}
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 5, cfg) is True
+    # 미체결 매수가 있으면 신규 매수 차단
+    order_service.save_order(conn, "005930", "BUY", 1, 1000, "paper", status="requested")
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 5, cfg) is False
+    conn.close()
+
+
 async def test_같은방향_중복신호_억제(tmp_path):
     # 확정봉이 그대로인 채 미완성 틱만 추가되면 같은 BUY 신호가 다시 떠도,
     # 봇은 직전과 같은 방향 신호를 억제해 주문을 1건만 낸다(휘프소 폭증 방지).

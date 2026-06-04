@@ -267,6 +267,24 @@
 
 > 검증: 백엔드 pytest +2(전체 244), 프론트 134 통과. 실 DB 마이그레이션 적용 완료.
 
+## Phase 13 — 실전 거버너(완충층) Phase A
+
+목표: 신호↔주문 사이에 완충층을 넣어 횡보장 왕복매매를 줄인다. 상세 설계는
+[11-strategy.md](11-strategy.md) "실전 거버너" 절. **기본값은 현행 호환(중립), UI 폼엔
+추천값**을 채워 보여준다.
+
+| # | 단계 | 검증 | 상태 |
+|---|------|------|------|
+| 1 | 틱사이즈 유틸 이식(`market_rules.tick_size`) | pytest(가격대별) | ✅ |
+| 2 | ma_cross 필터: `confirm_bars`·`diff_buffer_ticks`·`trend_ma`·`use_long_slope`(역호환) | pytest 5건 | ✅ |
+| 3 | rsi_ma 필터: `confirm_bars`·`ma_buffer_ticks`(히스테리시스)·`max_distance_ticks`(역호환) | pytest(역호환) | ✅ |
+| 4 | 봇 거버너: `min_hold_bars`·`cooldown_bars`·미체결매수 중복방지 상태머신 | pytest 3건 | ✅ |
+| 5 | `bar_ticks` 상한 200→2000 + UI 파라미터화(폼 노출) + **추천 기본값** | vitest + tsc | ✅ |
+
+> 검증: 백엔드 pytest +8(전체 254), 프론트 vitest 135 통과. 중립 기본값으로 기존 동작 보존.
+> Phase B(손절/익절/trailing·하루 손실 한도·시간 필터), Phase C(스프레드·거래대금·변동성
+> 필터·호가 구독)는 후속.
+
 ## 진행 현황 요약
 
 | Phase | 단계 | 완료 | 진행률 |

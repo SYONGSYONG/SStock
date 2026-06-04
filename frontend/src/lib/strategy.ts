@@ -4,10 +4,32 @@ export const STRATEGY_LABEL: Record<string, string> = {
   rsi_ma: "RSI + MA 필터",
 };
 
-/** 전략별 기본 파라미터 값(단일 진실 공급원). */
+/** 전략별 기본 파라미터 값(단일 진실 공급원).
+ *  거버너 파라미터는 **실전 추천값**을 기본으로 채운다(엔진은 값이 없으면 중립으로 동작). */
 export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
-  ma_cross: { short: 5, long: 20, bar_ticks: 50 },
-  rsi_ma: { rsi_period: 14, low: 30, high: 70, ma_period: 50, bar_ticks: 50 },
+  ma_cross: {
+    short: 5,
+    long: 20,
+    bar_ticks: 50,
+    confirm_bars: 2,
+    diff_buffer_ticks: 1,
+    trend_ma: 100,
+    use_long_slope: 1,
+    min_hold_bars: 5,
+    cooldown_bars: 10,
+  },
+  rsi_ma: {
+    rsi_period: 14,
+    low: 30,
+    high: 70,
+    ma_period: 50,
+    bar_ticks: 50,
+    confirm_bars: 2,
+    ma_buffer_ticks: 2,
+    max_distance_ticks: 8,
+    min_hold_bars: 5,
+    cooldown_bars: 10,
+  },
 };
 
 /** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
@@ -22,14 +44,25 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
   ma_cross: [
     { key: "short", label: "단기", min: 1, max: 999 },
     { key: "long", label: "장기", min: 2, max: 999 },
-    { key: "bar_ticks", label: "틱봉", min: 1, max: 200 },
+    { key: "bar_ticks", label: "틱봉", min: 1, max: 2000 },
+    { key: "confirm_bars", label: "확인봉", min: 1, max: 20 },
+    { key: "diff_buffer_ticks", label: "이격틱", min: 0, max: 50 },
+    { key: "trend_ma", label: "추세MA(0=off)", min: 0, max: 999 },
+    { key: "use_long_slope", label: "우상향필터(0/1)", min: 0, max: 1 },
+    { key: "min_hold_bars", label: "최소보유봉", min: 0, max: 100 },
+    { key: "cooldown_bars", label: "쿨다운봉", min: 0, max: 100 },
   ],
   rsi_ma: [
     { key: "rsi_period", label: "RSI 기간", min: 2, max: 999 },
     { key: "low", label: "과매도", min: 1, max: 99 },
     { key: "high", label: "과매수", min: 1, max: 99 },
     { key: "ma_period", label: "추세 MA", min: 2, max: 999 },
-    { key: "bar_ticks", label: "틱봉", min: 1, max: 200 },
+    { key: "bar_ticks", label: "틱봉", min: 1, max: 2000 },
+    { key: "confirm_bars", label: "확인봉", min: 1, max: 20 },
+    { key: "ma_buffer_ticks", label: "MA버퍼틱", min: 0, max: 50 },
+    { key: "max_distance_ticks", label: "추격거리틱(0=off)", min: 0, max: 200 },
+    { key: "min_hold_bars", label: "최소보유봉", min: 0, max: 100 },
+    { key: "cooldown_bars", label: "쿨다운봉", min: 0, max: 100 },
   ],
 };
 
@@ -68,6 +101,14 @@ export function validateParams(
     }
     if (!(low > 0 && low < high && high < 100)) {
       return "0 < 과매도 < 과매수 < 100 이어야 합니다";
+    }
+  }
+  // 거버너 등 정의된 모든 필드는 (입력된 경우) 범위 안이어야 한다.
+  for (const f of STRATEGY_PARAM_FIELDS[strategy] ?? []) {
+    const v = params[f.key];
+    if (v === undefined) continue;
+    if (!Number.isFinite(v) || v < f.min || v > f.max) {
+      return `${f.label}는 ${f.min}~${f.max} 범위여야 합니다`;
     }
   }
   return null;

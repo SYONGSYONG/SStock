@@ -20,7 +20,12 @@ from app.services import (
 )
 from app.services.risk_guard import OrderIntent, RiskError, bot_sellable_qty, check_order
 from app.strategies.base import Signal
-from app.strategies.market_rules import in_entry_block_window, stop_exit_reason
+from app.strategies.market_rules import (
+    in_entry_block_window,
+    recent_range_ticks,
+    recent_turnover,
+    stop_exit_reason,
+)
 from app.strategies.registry import build_strategy
 
 logger = logging.getLogger(__name__)
@@ -62,6 +67,8 @@ class TradingBot:
         self._order_syncer = order_syncer
         self._broadcaster = broadcaster
         self._history: dict[str, list[float]] = {}
+        # 종목별 누적 거래량(acml_vol) 히스토리 — 거래대금 필터용(틱에 volume이 있을 때만).
+        self._vol_history: dict[str, list[float]] = {}
         # (symbol, strategy) → 직전에 발생시킨 신호 방향. 같은 방향 중복 신호를 억제한다.
         self._last_signal_side: dict[tuple[str, str], str] = {}
         # 거버너 상태: (symbol, strategy) → 매수/매도가 일어난 확정봉 인덱스(최소보유·쿨다운용).
@@ -107,6 +114,13 @@ class TradingBot:
         hist.append(float(price))
         if len(hist) > _HISTORY_SIZE:
             del hist[0]
+
+        vol = tick.get("volume")
+        if vol is not None:
+            vh = self._vol_history.setdefault(symbol, [])
+            vh.append(float(vol))
+            if len(vh) > _HISTORY_SIZE:
+                del vh[0]
 
         conn = self._conn_factory()
         try:
@@ -291,6 +305,16 @@ class TradingBot:
                 return False  # 미체결 매수 중복 방지
             if self._entry_blocked(conn):
                 return False  # 하루 손실 한도 초과 또는 진입 금지 시간대
+            # 시장 상태 필터(변동성/거래대금) — 최근 ~20봉 기준
+            lookback = (int(params.get("bar_ticks", 50)) or 1) * 20
+            mv = int(params.get("min_volatility_ticks", 0))
+            if mv > 0 and recent_range_ticks(hist, lookback) < mv:
+                return False  # 너무 조용한 구간(변동성 부족)
+            mt = int(params.get("min_turnover", 0))
+            if mt > 0:
+                vh = self._vol_history.get(key[0], [])
+                if len(vh) >= 2 and recent_turnover(hist, vh, lookback) < mt:
+                    return False  # 거래대금 부족
             return True
         # SELL
         min_hold = int(params.get("min_hold_bars", 0))

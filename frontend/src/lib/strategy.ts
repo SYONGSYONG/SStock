@@ -20,6 +20,8 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
     stop_loss_ticks: 5,
     trailing_stop_ticks: 5,
     take_profit_ticks: 0,
+    min_volatility_ticks: 0,
+    min_turnover: 0,
   },
   rsi_ma: {
     rsi_period: 14,
@@ -35,6 +37,8 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
     stop_loss_ticks: 5,
     trailing_stop_ticks: 5,
     take_profit_ticks: 0,
+    min_volatility_ticks: 0,
+    min_turnover: 0,
   },
 };
 
@@ -60,6 +64,8 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
     { key: "stop_loss_ticks", label: "손절틱(0=off)", min: 0, max: 200 },
     { key: "trailing_stop_ticks", label: "트레일링틱(0=off)", min: 0, max: 200 },
     { key: "take_profit_ticks", label: "익절틱(0=off)", min: 0, max: 500 },
+    { key: "min_volatility_ticks", label: "최소변동틱(0=off)", min: 0, max: 1000 },
+    { key: "min_turnover", label: "최소거래대금(0=off)", min: 0, max: 1_000_000_000 },
   ],
   rsi_ma: [
     { key: "rsi_period", label: "RSI 기간", min: 2, max: 999 },
@@ -75,6 +81,8 @@ export const STRATEGY_PARAM_FIELDS: Record<string, ParamField[]> = {
     { key: "stop_loss_ticks", label: "손절틱(0=off)", min: 0, max: 200 },
     { key: "trailing_stop_ticks", label: "트레일링틱(0=off)", min: 0, max: 200 },
     { key: "take_profit_ticks", label: "익절틱(0=off)", min: 0, max: 500 },
+    { key: "min_volatility_ticks", label: "최소변동틱(0=off)", min: 0, max: 1000 },
+    { key: "min_turnover", label: "최소거래대금(0=off)", min: 0, max: 1_000_000_000 },
   ],
 };
 

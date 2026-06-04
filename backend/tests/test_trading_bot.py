@@ -126,6 +126,28 @@ def test_거버너_쿨다운_최소보유(tmp_path):
     conn.close()
 
 
+def test_거버너_변동성_거래대금_필터(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+    key = ("005930", "ma_cross")
+    cfg = {"params": {"bar_ticks": 1, "min_volatility_ticks": 2}}
+    # 조용한 구간(범위 0) → 변동성 부족으로 매수 차단
+    assert bot._governor_allows(conn, key, "BUY", [10000.0] * 25, cfg) is False
+    # 충분한 변동(범위 500=5틱) → 허용
+    hist = [10000.0] * 24 + [10500.0]
+    assert bot._governor_allows(conn, key, "BUY", hist, cfg) is True
+
+    # 거래대금 필터: 거래량 변화 없음 → 차단
+    cfg2 = {"params": {"bar_ticks": 1, "min_turnover": 1_000_000}}
+    bot._vol_history["005930"] = [100.0, 100.0, 100.0]
+    assert bot._governor_allows(conn, key, "BUY", [10000.0] * 5, cfg2) is False
+    # 거래대금 충분 → 허용
+    bot._vol_history["005930"] = [100.0, 1_000_000.0]
+    assert bot._governor_allows(conn, key, "BUY", [10000.0] * 5, cfg2) is True
+    conn.close()
+
+
 def test_거버너_미체결매수_중복방지(tmp_path):
     path, settings = _setup(tmp_path)
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)

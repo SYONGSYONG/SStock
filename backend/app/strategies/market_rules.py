@@ -57,6 +57,36 @@ def stop_exit_reason(
     return None
 
 
+def recent_range_ticks(closes: list[float], lookback: int) -> float:
+    """최근 lookback개 틱의 (고가−저가)를 호가단위(틱) 수로 환산. 변동성 필터용.
+
+    너무 조용한 횡보 구간(범위가 작음)에서 매매를 피하기 위해 쓴다.
+    """
+    if not closes:
+        return 0.0
+    window = closes[-lookback:] if lookback > 0 else closes
+    if not window:
+        return 0.0
+    rng = max(window) - min(window)
+    return rng / tick_size(window[-1])
+
+
+def recent_turnover(closes: list[float], volumes: list[float], lookback: int) -> float:
+    """최근 lookback개 틱의 거래대금 추정(누적거래량 증가분 × 평균가). 거래대금 필터용.
+
+    volumes는 누적 거래량(acml_vol). 데이터가 부족하면 0.0(필터 미적용 의미).
+    """
+    if len(volumes) < 2 or not closes:
+        return 0.0
+    vw = volumes[-lookback:] if lookback > 0 else volumes
+    cw = closes[-lookback:] if lookback > 0 else closes
+    if len(vw) < 2 or not cw:
+        return 0.0
+    delta_vol = max(vw[-1] - vw[0], 0.0)  # 누적이라 증가분
+    avg_price = sum(cw) / len(cw)
+    return delta_vol * avg_price
+
+
 def in_entry_block_window(now: datetime, after_open_min: int, before_close_min: int) -> bool:
     """장 시작 직후/마감 직전 '신규 진입 금지' 시간대면 True.
 

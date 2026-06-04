@@ -7,9 +7,11 @@ from datetime import datetime
 from app.strategies.ma_cross import MaCrossStrategy
 from app.strategies.market_rules import (
     in_entry_block_window,
+    recent_range_ticks,
+    recent_turnover,
     stop_exit_reason,
-    tick_size,
 )
+from app.strategies.market_rules import tick_size
 
 
 def _side(strat, closes):
@@ -74,6 +76,21 @@ def test_in_entry_block_window():
     assert in_entry_block_window(datetime(2026, 6, 4, 14, 0), 0, 10) is False
     # 비활성(0)
     assert in_entry_block_window(datetime(2026, 6, 4, 9, 2), 0, 0) is False
+
+
+def test_recent_range_ticks():
+    # 범위 100원, tick_size(9,950)=10원 → 10틱
+    assert recent_range_ticks([10000, 10050, 9950], 0) == 10.0
+    # 조용한 구간(모두 같음) → 0
+    assert recent_range_ticks([10000] * 10, 0) == 0.0
+    assert recent_range_ticks([], 5) == 0.0
+
+
+def test_recent_turnover():
+    # 누적거래량 100→300(증가분 200) × 평균가 1000 = 200,000
+    assert recent_turnover([1000, 1000], [100, 300], 0) == 200000
+    # 데이터 부족 → 0(필터 미적용)
+    assert recent_turnover([1000], [100], 0) == 0.0
 
 
 def test_ma_cross_역호환_기본값():

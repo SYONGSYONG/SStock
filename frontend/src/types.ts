@@ -152,6 +152,7 @@ export interface TradePnlRow {
   trade_date: string;
   symbol: string;
   name: string;
+  source: "bot" | "manual";
   sell_qty: number;
   buy_unit_price: number;
   sell_unit_price: number;

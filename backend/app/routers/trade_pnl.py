@@ -69,6 +69,8 @@ async def get_trade_pnl(
             data = await kis_trade_pnl.get_period_trade_profit(
                 settings, mode="live", start=start, end=end, symbol=symbol, sort=sort
             )
+            # KIS는 계좌 전체 매매(직접 포함)를 돌려준다 → 우리 봇 주문과 대조해 봇/직접 표기
+            trade_pnl_service.annotate_source(conn, "live", data["rows"])
             return {"data": data}
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             # KIS 장애/자격증명 누락 등 → 대시보드가 깨지지 않게 빈 결과로 graceful 처리

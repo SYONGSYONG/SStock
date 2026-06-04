@@ -49,8 +49,23 @@ def test_매도마다_실현손익_행_생성(tmp_path):
     fee = round(10000 * ESTIMATED_FEE_RATE) + round(15000 * ESTIMATED_FEE_RATE)
     tax = round(15000 * ESTIMATED_TAX_RATE)
     assert r["realized_pnl"] == 15000 - 10000 - fee - tax
+    assert r["source"] == "bot"  # 로컬 계산은 전부 봇
     assert res["estimated"] is True
     assert res["source"] == "local"
+
+
+def test_봇직접_분류_annotate(tmp_path):
+    conn = _db(tmp_path)
+    # 봇이 005930을 2026-06-02에 매도 체결 → 그 (종목,날짜)는 '봇'
+    _fill(conn, "005930", "BUY", 10, 1000, "2026-06-01 10:00:00")
+    _fill(conn, "005930", "SELL", 10, 1500, "2026-06-02 10:00:00")
+    rows = [
+        {"symbol": "005930", "trade_date": "2026-06-02"},  # 봇이 판 날
+        {"symbol": "005930", "trade_date": "2026-06-03"},  # 봇이 안 판 날 → 직접
+        {"symbol": "000660", "trade_date": "2026-06-02"},  # 봇이 안 판 종목 → 직접
+    ]
+    trade_pnl_service.annotate_source(conn, "paper", rows)
+    assert [r["source"] for r in rows] == ["bot", "manual", "manual"]
 
 
 def test_평균원가법_부분매도(tmp_path):
@@ -216,6 +231,8 @@ def test_live_KIS_경로(tmp_path):
         assert data["rows"][0]["symbol"] == "005930"
         assert data["rows"][0]["trade_date"] == "2026-06-04"
         assert data["rows"][0]["realized_pnl"] == 4973
+        # 봇 주문 이력이 없는 계좌 → KIS 매매는 직접(manual)로 분류
+        assert data["rows"][0]["source"] == "manual"
         assert data["summary"]["realized_pnl_total"] == 4973
     finally:
         app.dependency_overrides.clear()

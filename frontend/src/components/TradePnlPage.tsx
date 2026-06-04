@@ -105,6 +105,7 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
               <th>매매일자</th>
               <th>종목명</th>
               <th>종목코드</th>
+              <th>구분</th>
               <th className="num">매도수량</th>
               <th className="num">매입단가</th>
               <th className="num">매도단가</th>
@@ -124,6 +125,11 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
                   <td>{r.trade_date}</td>
                   <td>{r.name || "-"}</td>
                   <td className="code">{r.symbol}</td>
+                  <td>
+                    <span className={`src-badge src-${r.source}`}>
+                      {r.source === "bot" ? "봇" : "직접"}
+                    </span>
+                  </td>
                   <td className="num">{fmt(r.sell_qty)}</td>
                   <td className="num">{fmt(r.buy_unit_price)}</td>
                   <td className="num">{fmt(r.sell_unit_price)}</td>
@@ -138,7 +144,7 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
             })}
             {rows.length === 0 && !loading && (
               <tr>
-                <td colSpan={12} className="empty">
+                <td colSpan={13} className="empty">
                   해당 기간의 매매손익이 없습니다
                 </td>
               </tr>

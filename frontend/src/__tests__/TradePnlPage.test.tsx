@@ -9,6 +9,7 @@ const RESULT: TradePnlResult = {
       trade_date: "2026-06-04",
       symbol: "005930",
       name: "삼성전자",
+      source: "bot",
       sell_qty: 10,
       buy_unit_price: 1000,
       sell_unit_price: 1500,

@@ -55,6 +55,7 @@ def _map_row(row: dict[str, Any]) -> dict[str, Any]:
         "trade_date": _to_dash(row.get("trad_dt") or ""),
         "symbol": row.get("pdno") or "",
         "name": row.get("prdt_name") or "",
+        "source": "manual",  # 기본값; 라우터에서 우리 orders와 대조해 봇/직접 보정
         "sell_qty": sell_qty,
         "buy_unit_price": buy_unit,
         "sell_unit_price": sell_unit,

@@ -3,12 +3,15 @@ import type { Quote, TradingMode } from "../types";
 
 const RECONNECT_MIN_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
+// 서버가 죽은 연결을 감지하도록 주기적으로 keepalive 핑을 보낸다(서버 수신 타임아웃 60초).
+const PING_INTERVAL_MS = 25_000;
 
 export function useLiveQuotes(viewMode: TradingMode = "paper") {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const shouldReconnectRef = useRef(true);
   const viewModeRef = useRef(viewMode);
@@ -17,6 +20,13 @@ export function useLiveQuotes(viewMode: TradingMode = "paper") {
     if (reconnectTimerRef.current != null) {
       window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const clearPingTimer = useCallback(() => {
+    if (pingTimerRef.current != null) {
+      window.clearInterval(pingTimerRef.current);
+      pingTimerRef.current = null;
     }
   }, []);
 
@@ -32,11 +42,23 @@ export function useLiveQuotes(viewMode: TradingMode = "paper") {
       retryCountRef.current = 0;
       clearReconnectTimer();
       setConnected(true);
+      // keepalive 핑(서버가 half-open 연결을 감지·정리하도록)
+      clearPingTimer();
+      pingTimerRef.current = window.setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send("ping");
+          } catch {
+            // ignore send errors
+          }
+        }
+      }, PING_INTERVAL_MS);
     };
 
     ws.onclose = () => {
       wsRef.current = null;
       setConnected(false);
+      clearPingTimer();
       if (!shouldReconnectRef.current) return;
 
       const retry = retryCountRef.current + 1;
@@ -67,7 +89,7 @@ export function useLiveQuotes(viewMode: TradingMode = "paper") {
         // ignore malformed messages
       }
     };
-  }, [clearReconnectTimer]);
+  }, [clearReconnectTimer, clearPingTimer]);
 
   // viewMode 변경 시 ref 업데이트 + quotes 비우기
   useEffect(() => {
@@ -82,6 +104,7 @@ export function useLiveQuotes(viewMode: TradingMode = "paper") {
     return () => {
       shouldReconnectRef.current = false;
       clearReconnectTimer();
+      clearPingTimer();
       const ws = wsRef.current;
       wsRef.current = null;
       if (ws) {
@@ -92,7 +115,7 @@ export function useLiveQuotes(viewMode: TradingMode = "paper") {
         }
       }
     };
-  }, [clearReconnectTimer, connect]);
+  }, [clearReconnectTimer, clearPingTimer, connect]);
 
   const mergeSnapshot = useCallback((snapshot: Quote[]) => {
     setQuotes((prev) => {

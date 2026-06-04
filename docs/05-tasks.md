@@ -246,9 +246,13 @@
 | 2 | 실전 KIS `TTTC8715R` 연동(`kis/trade_pnl`, TR_ID 추가) + 라우터 하이브리드(graceful) | pytest respx 1건 | ✅ |
 | 3 | 프론트 `TradePnlPage`(조회기간·정렬·표·요약·추정 안내) + 3번째 탭 | vitest 3건 + tsc | ✅ |
 
-> 검증: 백엔드 pytest +9, 프론트 vitest +3 통과.
+| 4 | 봇/직접 분류 표기(`source`, 구분 컬럼) — 실전 KIS 매매를 우리 orders와 (종목,날짜) 대조 | pytest 2건(annotate·local source) + vitest | ✅ |
+
+> 검증: 백엔드 pytest +11, 프론트 vitest +3 통과.
 > ⚠️ `TTTC8708R`(기간별손익일별합산, 일별)은 TR_ID·seam만 추가 — 일별/월별 뷰는 추후.
-> ⚠️ 미완: (a) 모의에서 봇 외(직접) 매매 표시, (b) 봇/직접 분류 표기 — 추가 작업 필요.
+> ⚠️ 미완: **모의(paper)에서 봇 외(직접) 매매 표시** — 로컬은 봇 주문만 보유. KIS 당일체결
+> (VTTC0081R, 모의 지원) 기간 연동이 필요(paper 기간 지원 확인 후 진행). 실전은 KIS가
+> 계좌 전체를 돌려주므로 직접 매매도 포함되며 봇/직접으로 분류됨.
 
 ## Phase 12 — 신호·시스템로그 모드 분리
 

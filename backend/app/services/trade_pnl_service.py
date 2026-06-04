@@ -75,6 +75,7 @@ def _build_rows(conn: sqlite3.Connection, mode: str) -> list[dict[str, Any]]:
                 "trade_date": str(o["created_at"])[:10],
                 "symbol": symbol,
                 "name": _resolve_name(symbol),
+                "source": "bot",  # 로컬 계산은 봇 주문 이력 기반 → 전부 봇
                 "sell_qty": sell_qty,
                 "buy_unit_price": round(avg),
                 "sell_unit_price": round(price),
@@ -93,6 +94,28 @@ def _build_rows(conn: sqlite3.Connection, mode: str) -> list[dict[str, Any]]:
         st["cost"] -= avg * sell_qty
 
     return rows
+
+
+def bot_sell_dates(conn: sqlite3.Connection, mode: str) -> set[tuple[str, str]]:
+    """봇이 매도 체결한 (종목코드, 매매일자) 집합. 봇/직접 분류용.
+
+    봇 주문은 우리 DB(orders)에 기록되므로, KIS가 돌려준 계좌 전체 매매 중 이 집합에
+    드는 (종목, 날짜)의 매도는 봇이 낸 것으로 본다(그 외는 직접 매매).
+    """
+    rows = conn.execute(
+        "SELECT symbol, date(created_at) AS d FROM orders "
+        "WHERE mode = ? AND side = 'SELL' AND status NOT IN ('rejected', 'cancelled') "
+        "AND filled_qty > 0",
+        (mode,),
+    ).fetchall()
+    return {(r["symbol"], r["d"]) for r in rows}
+
+
+def annotate_source(conn: sqlite3.Connection, mode: str, rows: list[dict[str, Any]]) -> None:
+    """KIS가 돌려준 행에 봇/직접 구분을 채운다(우리 orders와 (종목,날짜) 대조)."""
+    bot_dates = bot_sell_dates(conn, mode)
+    for r in rows:
+        r["source"] = "bot" if (r.get("symbol"), r.get("trade_date")) in bot_dates else "manual"
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:

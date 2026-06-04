@@ -88,6 +88,12 @@ CREATE TABLE IF NOT EXISTS capital_envelope (
   PRIMARY KEY(symbol, mode)
 );
 
+CREATE TABLE IF NOT EXISTS risk_limit (
+  mode        TEXT NOT NULL PRIMARY KEY CHECK(mode IN ('paper','live')),
+  max_orders  INTEGER NOT NULL,
+  max_amount  INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
 CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders(symbol);
 CREATE INDEX IF NOT EXISTS idx_audit_category ON audit_logs(category);

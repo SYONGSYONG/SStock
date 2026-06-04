@@ -9,7 +9,12 @@ import pytest
 from app.config import Settings
 from app.db.database import connect, init_db
 from app.services import budget_service, order_service
-from app.services.risk_guard import OrderIntent, RiskError, check_order
+from app.services.risk_guard import (
+    OrderIntent,
+    RiskError,
+    bot_sellable_qty,
+    check_order,
+)
 
 
 def _db(tmp_path) -> sqlite3.Connection:
@@ -105,10 +110,10 @@ def test_칸막이_미등록_종목은_매도_금지(tmp_path):
 def test_봇_보유없는_종목_매도_차단(tmp_path):
     conn = _db(tmp_path)
     _envelope(conn)  # 칸막이는 있으나 봇이 산 적 없음
-    # 실제 계좌에 기보유분이 있어도 봇 주문 이력상 보유 0 → 매도 차단
+    # 실제 계좌에 기보유분이 있어도 봇 주문 이력상 보유 0 → 미보유 매도 차단
     with pytest.raises(RiskError) as e:
         check_order(conn, _settings(), OrderIntent("005930", "SELL", 1, 1000))
-    assert e.value.code == "SELL_EXCEEDS_HOLDING"
+    assert e.value.code == "NO_BOT_HOLDING"
 
 
 def test_봇_보유수량_초과_매도_차단(tmp_path):
@@ -139,3 +144,15 @@ def test_미체결_매도_중복_차단(tmp_path):
     with pytest.raises(RiskError) as e:
         check_order(conn, _settings(), OrderIntent("005930", "SELL", 3, 1000))  # 3주는 초과
     assert e.value.code == "SELL_EXCEEDS_HOLDING"
+
+
+def test_매도가능수량_헬퍼(tmp_path):
+    conn = _db(tmp_path)
+    _envelope(conn)
+    # 봇이 산 적 없음 → 매도가능 0
+    assert bot_sellable_qty(conn, "005930", "paper") == 0
+    order_service.save_order(conn, "005930", "BUY", 5, 1000, "paper", status="filled")
+    assert bot_sellable_qty(conn, "005930", "paper") == 5
+    # 미체결 매도 2주 → 매도가능 3
+    order_service.save_order(conn, "005930", "SELL", 2, 1000, "paper", status="requested")
+    assert bot_sellable_qty(conn, "005930", "paper") == 3

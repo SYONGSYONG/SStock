@@ -94,6 +94,26 @@ describe("StrategyPanel", () => {
     expect(onSetBudget).toHaveBeenCalledWith("005930", 2000000);
   });
 
+  test("칸막이 수정 모달 +버튼도 설정가능(=설정가능+현재원금)을 넘으면 고정", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    const budgets: Budget[] = [
+      { symbol: "005930", principal: 1000000, realized_pnl: 0, holding_cost: 0, ceiling: 1000000, available: 1000000 },
+    ];
+    render(
+      <StrategyPanel budgets={budgets} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} orderableCash={8000000} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    fireEvent.click(within(item).getByRole("button", { name: "칸막이 수정" }));
+    const dialog = screen.getByRole("dialog");
+    // 설정가능 = (8,000,000 − 1,000,000 가용) + 1,000,000 현재원금 = 8,000,000
+    fireEvent.click(within(dialog).getByText("+천만")); // 1,000,000 + 10,000,000 → 상한 8,000,000으로 고정
+    expect((within(dialog).getByLabelText("칸막이 수정 원금") as HTMLInputElement).value).toBe(
+      "8,000,000",
+    );
+  });
+
   test("원금 ± 도움 버튼: +천만/−백만/초기화", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,

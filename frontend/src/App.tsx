@@ -16,6 +16,7 @@ import {
   getPositions,
   getQuote,
   getRecommend,
+  getRiskLimits,
   getSignals,
   getStrategies,
   getThemes,
@@ -29,12 +30,14 @@ import {
   stopBot,
   stopMarket,
   subscribeRecommend,
+  updateRiskLimits,
 } from "./api/client";
 import { ModeBanner } from "./components/ModeBanner";
 import { WatchList } from "./components/WatchList";
 import { QuoteTable } from "./components/QuoteTable";
 import { MarketControl } from "./components/MarketControl";
 import { BotControl } from "./components/BotControl";
+import { RiskLimitBar } from "./components/RiskLimitBar";
 import { StrategyPanel } from "./components/StrategyPanel";
 import { SignalLog } from "./components/SignalLog";
 import { PositionTable } from "./components/PositionTable";
@@ -56,6 +59,7 @@ import type {
   MarketStatus,
   Order,
   Position,
+  RiskLimit,
   Signal,
   StrategyConfig,
   TradingMode,
@@ -77,6 +81,8 @@ export function App() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [riskLimit, setRiskLimit] = useState<RiskLimit | null>(null);
+  const [riskLimitError, setRiskLimitError] = useState<string | null>(null);
   const [account, setAccount] = useState<AccountBalance | null>(null);
   const [chartTarget, setChartTarget] = useState<{ symbol: string; name?: string | null; source: "dashboard" | "recommend" } | null>(null);
   const [watchError, setWatchError] = useState<string | null>(null);
@@ -104,6 +110,7 @@ export function App() {
     refreshWatch().catch(() => {});
     refreshStrategies().catch(() => {});
     getMarketStatus(viewMode).then(setMarket).catch(() => {});
+    getRiskLimits(viewMode).then(setRiskLimit).catch(() => {});
   }, [viewMode, refreshWatch, refreshStrategies]);
 
   // 봇/신호/주문/포지션/로그 폴링.
@@ -124,6 +131,7 @@ export function App() {
       getPositions(viewMode).then(setPositions).catch(() => {});
       getAudit(100).then(setAudit).catch(() => {});
       getBudgets(viewMode).then(setBudgets).catch(() => {});
+      getRiskLimits(viewMode).then(setRiskLimit).catch(() => {});
       getAccountBalance(viewMode).then(setAccount).catch(() => {});
       getMarketStatus(viewMode).then(setMarket).catch(() => {});
     };
@@ -220,6 +228,15 @@ export function App() {
     setMarket((m) => ({ ...m, running: r.running }));
   };
 
+  const handleSetRiskLimit = async (maxOrders: number, maxAmount: number) => {
+    setRiskLimitError(null);
+    try {
+      setRiskLimit(await updateRiskLimits(maxOrders, maxAmount, viewMode));
+    } catch (e) {
+      setRiskLimitError(e instanceof ApiError ? e.message : "한도 변경 실패");
+    }
+  };
+
   const handleSetBudget = async (symbol: string, principal: number) => {
     setBudgetError(null);
     try {
@@ -276,6 +293,12 @@ export function App() {
             onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
             search={searchStocks}
             error={watchError}
+          />
+          <RiskLimitBar
+            data={riskLimit}
+            mode={viewMode}
+            onUpdate={handleSetRiskLimit}
+            error={riskLimitError}
           />
           <section className="panel rules-panel">
             <StrategyPanel

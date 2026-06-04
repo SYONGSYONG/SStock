@@ -79,8 +79,9 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
 
-    # 안전 가드
-    daily_max_orders: int = 20
+    # 안전 가드 — risk_limit 테이블에 모드별 행이 없을 때 쓰는 기본값.
+    # 대시보드에서 런타임에 변경하면 risk_limit에 저장되어 이 기본값보다 우선한다.
+    daily_max_orders: int = 100
     daily_max_amount: int = 1_000_000
 
     # 데이터베이스

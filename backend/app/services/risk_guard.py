@@ -4,8 +4,8 @@
 - 종목별 한도(수량/금액)
 - 자본 칸막이 필수: 미등록 종목은 매수·매도 모두 금지(ENVELOPE_REQUIRED)
 - 매수: 보유원가 + 주문금액 <= 원금 + 실현손익(ENVELOPE_EXCEEDED)
-- 매도: 봇이 산 수량까지만 허용(SELL_EXCEEDS_HOLDING, 기보유분 보호)
-- 일일 최대 주문 횟수/금액
+- 매도: 봇 보유 0이면 거부(NO_BOT_HOLDING), 보유 초과면 거부(SELL_EXCEEDS_HOLDING) — 기보유분 보호
+- 일일 최대 주문 횟수/금액(risk_limit 테이블, 모드별; 미설정 시 DAILY_MAX_* 기본값)
 """
 
 from __future__ import annotations
@@ -53,22 +53,17 @@ def _bot_open_sell_qty(conn: sqlite3.Connection, symbol: str, mode: str) -> int:
     return int(row["q"])
 
 
-def _today_order_count(conn: sqlite3.Connection, mode: str) -> int:
-    row = conn.execute(
-        "SELECT COUNT(*) AS c FROM orders "
-        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now', '+9 hours')",
-        (mode,),
-    ).fetchone()
-    return int(row["c"])
+def bot_sellable_qty(conn: sqlite3.Connection, symbol: str, mode: str = "paper") -> int:
+    """봇이 지금 추가로 매도할 수 있는 수량.
 
+    = 봇 보유수량(자기 주문 이력 기준) − 미체결 매도 수량. 0 이하이면 봇이 팔 것이
+    없다(미보유이거나 보유분을 이미 모두 매도 대기 중). 봇은 이 값이 0 이하인 매도
+    신호를 주문으로 만들지 않는다(거절 주문 폭증 방지).
+    """
+    from app.services import budget_service
 
-def _today_order_amount(conn: sqlite3.Connection, mode: str) -> int:
-    row = conn.execute(
-        "SELECT COALESCE(SUM(qty * COALESCE(price, 0)), 0) AS s FROM orders "
-        "WHERE mode = ? AND status NOT IN ('rejected') AND date(created_at) = date('now', '+9 hours')",
-        (mode,),
-    ).fetchone()
-    return int(row["s"])
+    state = budget_service.compute_symbol_state(conn, symbol, mode=mode)
+    return int(state["holding_qty"]) - _bot_open_sell_qty(conn, symbol, mode)
 
 
 def check_order(
@@ -123,22 +118,35 @@ def check_order(
     else:  # SELL
         # 매도: 봇이 자기 주문으로 보유한 수량까지만 허용(직접 매수한 기보유분 보호).
         bot_qty = int(state["holding_qty"])
-        sellable = bot_qty - _bot_open_sell_qty(conn, intent.symbol, mode)
+        open_sell = _bot_open_sell_qty(conn, intent.symbol, mode)
+        sellable = bot_qty - open_sell
+        if bot_qty <= 0:
+            # 봇이 보유하지 않은 종목 — 직접 매수한 기보유분일 수 있어 봇은 건드리지 않는다.
+            raise RiskError(
+                "NO_BOT_HOLDING",
+                f"봇이 보유하지 않은 종목은 매도하지 않습니다(봇 보유 0주). "
+                f"직접 매수한 기보유분은 봇이 매도하지 않습니다.",
+            )
         if intent.qty > sellable:
             raise RiskError(
                 "SELL_EXCEEDS_HOLDING",
-                f"봇 보유수량 초과 매도: 매도 {intent.qty}주 > 봇 보유 {sellable}주 "
-                f"(직접 매수한 기보유분은 봇이 매도하지 않습니다)",
+                f"봇 매도가능 수량 초과: 매도 {intent.qty}주 > 매도가능 {sellable}주 "
+                f"(봇 보유 {bot_qty}주 − 미체결 매도 {open_sell}주)",
             )
 
-    # 일일 주문 횟수 (모드별)
-    if _today_order_count(conn, mode) >= settings.daily_max_orders:
+    # 일일 한도(모드별) — risk_limit 테이블에서 읽고, 없으면 settings 기본값 폴백.
+    from app.services import risk_limit_service
+
+    limits = risk_limit_service.get_limits(conn, settings, mode)
+
+    # 일일 주문 횟수
+    if risk_limit_service.today_order_count(conn, mode) >= limits["max_orders"]:
         raise RiskError(
-            "DAILY_ORDER_LIMIT", f"일일 주문 횟수 한도({settings.daily_max_orders}) 초과"
+            "DAILY_ORDER_LIMIT", f"일일 주문 횟수 한도({limits['max_orders']}) 초과"
         )
 
-    # 일일 주문 금액 (모드별)
-    if _today_order_amount(conn, mode) + order_amount > settings.daily_max_amount:
+    # 일일 주문 금액
+    if risk_limit_service.today_order_amount(conn, mode) + order_amount > limits["max_amount"]:
         raise RiskError(
-            "DAILY_AMOUNT_LIMIT", f"일일 주문 금액 한도({settings.daily_max_amount}) 초과"
+            "DAILY_AMOUNT_LIMIT", f"일일 주문 금액 한도({limits['max_amount']}) 초과"
         )

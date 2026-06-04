@@ -464,7 +464,15 @@ export function StrategyPanel({
         </Modal>
       )}
 
-      {editingBudget && (
+      {editingBudget && (() => {
+        // 수정 시 상한 = 설정가능 + 이 칸막이의 현재 원금.
+        // (settable은 모든 칸막이의 가용액을 이미 차감했으므로, 이 종목 몫을 되돌려
+        //  더해 주면 실현손익·보유원가 항이 상쇄되어 순수 원금 상한으로 떨어진다.)
+        const editSettable =
+          settable == null ? null : settable + editingBudget.principal;
+        const overEdit =
+          editSettable != null && editPrincipalValue > editSettable;
+        return (
         <Modal
           title={`${editingBudget.symbol} · 자본 칸막이 원금 수정`}
           onClose={() => setEditingBudget(null)}
@@ -478,9 +486,16 @@ export function StrategyPanel({
               value={editPrincipal ? Number(editPrincipal).toLocaleString("ko-KR") : ""}
               onChange={(e) => setEditPrincipal(e.target.value.replace(/\D/g, ""))}
             />
-            <AmountSteppers value={editPrincipal} onChange={setEditPrincipal} />
+            <AmountSteppers value={editPrincipal} onChange={setEditPrincipal} max={editSettable} />
             <span className="param-default">현재 {fmt(editingBudget.principal)}원</span>
           </label>
+          {editSettable != null && (
+            <p className="budget-cash">
+              설정가능{" "}
+              <b className={overEdit ? "down" : "up"}>{fmt(editSettable)}</b>원
+              {overEdit && <span className="down"> (주문가능현금 초과)</span>}
+            </p>
+          )}
           <div className="edit-modal-actions">
             <button type="button" className="btn-ghost" onClick={() => setEditingBudget(null)}>
               취소
@@ -495,7 +510,8 @@ export function StrategyPanel({
             </button>
           </div>
         </Modal>
-      )}
+        );
+      })()}
 
       {compareOpen && (
         <Modal title="전략 비교 — 이동평균 크로스 vs RSI + MA 필터" onClose={() => setCompareOpen(false)}>

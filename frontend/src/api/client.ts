@@ -13,6 +13,7 @@ import type {
   RecommendCandidates,
   RecommendQuote,
   RecommendResult,
+  RiskLimit,
   Signal,
   StockSearchResult,
   StrategyConfig,
@@ -156,6 +157,19 @@ export const setBudget = (symbol: string, principal: number, mode: TradingMode) 
 export const deleteBudget = (symbol: string, mode: TradingMode) =>
   api<{ symbol: string; removed: boolean }>(withMode(`/api/budgets/${symbol}`, mode), {
     method: "DELETE",
+  });
+
+export const getRiskLimits = (mode: TradingMode) =>
+  api<RiskLimit>(withMode("/api/risk-limits", mode));
+
+export const updateRiskLimits = (
+  maxOrders: number,
+  maxAmount: number,
+  mode: TradingMode,
+) =>
+  api<RiskLimit>(withMode("/api/risk-limits", mode), {
+    method: "PUT",
+    body: JSON.stringify({ max_orders: maxOrders, max_amount: maxAmount }),
   });
 
 export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");

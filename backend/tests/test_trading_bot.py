@@ -105,6 +105,34 @@ async def test_봇_OFF면_주문없음(tmp_path):
     conn.close()
 
 
+async def test_미보유_매도신호는_주문생성_안함(tmp_path):
+    # BUY가 거절되어 봇 보유가 0인 상태에서 데드크로스(SELL)가 떠도,
+    # 매도가능 0이면 봇은 신호를 주문으로 만들지 않는다(거절 주문조차 남기지 않음).
+    path, settings = _setup(tmp_path, daily_max_amount=10)  # BUY(20원) 거절 유도
+    calls: list[tuple] = []
+
+    async def fake_placer(symbol, side, qty, price):
+        calls.append((symbol, side, qty, price))
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings, order_placer=fake_placer)
+    await bot.start()
+    # 틱6에서 BUY(거절) → 틱9에서 SELL(미보유 → 억제)
+    await _feed(bot, [10, 9, 8, 7, 6, 20, 18, 12, 8, 6, 5, 5])
+
+    # 매도 주문은 시도조차 하지 않음
+    assert all(c[1] != "SELL" for c in calls)
+    conn = connect(path)
+    orders = order_service.list_orders(conn)
+    sides = [o["side"] for o in orders]
+    assert "SELL" not in sides  # 억제 → SELL 주문 자체가 없음
+    assert "BUY" in sides and all(
+        o["status"] == "rejected" for o in orders if o["side"] == "BUY"
+    )
+    conn.close()
+    await bot.stop()
+
+
 async def test_가용_한도_초과면_거절(tmp_path):
     path, settings = _setup(tmp_path, daily_max_amount=10)
     calls: list[tuple] = []

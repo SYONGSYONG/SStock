@@ -12,7 +12,7 @@ from app.config import Settings, get_settings
 from app.db.database import connect
 from app.kis.orders import OrderResult, get_daily_ccld, place_order
 from app.services import audit_service, order_service, signal_service, strategy_service
-from app.services.risk_guard import OrderIntent, RiskError, check_order
+from app.services.risk_guard import OrderIntent, RiskError, bot_sellable_qty, check_order
 from app.strategies.registry import build_strategy
 
 logger = logging.getLogger(__name__)
@@ -213,6 +213,12 @@ class TradingBot:
         return "requested"
 
     async def _handle_signal(self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]) -> None:
+        # 미보유 매도 억제: 봇이 팔 수량이 없으면(매도가능 0) 신호를 주문으로 만들지 않는다.
+        # 가드(NO_BOT_HOLDING)가 어차피 거부하지만, 거절 주문/신호 폭증을 신호 단계에서 막는다.
+        if signal.side == "SELL" and bot_sellable_qty(conn, signal.symbol, self._mode) <= 0:
+            logger.debug("매도 신호 무시(매도가능 0): %s %s", self._mode, signal.symbol)
+            return
+
         saved = signal_service.save_signal(
             conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason
         )

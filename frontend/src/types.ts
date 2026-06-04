@@ -138,6 +138,14 @@ export interface Budget {
   available: number;
 }
 
+export interface RiskLimit {
+  mode: TradingMode;
+  max_orders: number;
+  max_amount: number;
+  order_count: number;
+  order_amount: number;
+}
+
 export interface ThemeInfo {
   slug: string;
   label: string;

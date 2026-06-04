@@ -250,7 +250,7 @@ describe("StrategyPanel", () => {
     expect(within(dialog).getByText("저장")).toBeDisabled();
   });
 
-  test("도움말 버튼을 누르면 중앙 모달로 전략 설명·5/20 의미가 뜬다", () => {
+  test("도움말 버튼을 누르면 중앙 모달로 전략 설명·10/40 의미가 뜬다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
@@ -262,9 +262,9 @@ describe("StrategyPanel", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("골든크로스");
     expect(dialog).toHaveTextContent("틱봉");
-    // 설정값(5/20)의 의미 설명
-    expect(dialog).toHaveTextContent("단기 5 = 틱봉 5개");
-    expect(dialog).toHaveTextContent("장기 20 = 틱봉 20개");
+    // 설정값(추천 기본 10/40)의 의미 설명
+    expect(dialog).toHaveTextContent("단기 10 = 틱봉 10개");
+    expect(dialog).toHaveTextContent("장기 40 = 틱봉 40개");
   });
 
   test("배경 클릭으로 도움말 모달이 닫힌다", () => {
@@ -346,18 +346,18 @@ describe("StrategyPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  test("파라미터 입력이 기본값으로 채워져 있다(단기 5 / 장기 20)", () => {
+  test("파라미터 입력이 기본값으로 채워져 있다(단기 10 / 장기 40)", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("5");
-    expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("20");
-    // 거버너 추천 기본값도 채워져 있다
+    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("10");
+    expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("40");
+    // 거버너 추천 기본값도 채워져 있다(안정형: 확인봉 2 / 쿨다운 15)
     expect((screen.getByLabelText("확인봉") as HTMLInputElement).value).toBe("2");
-    expect((screen.getByLabelText("쿨다운봉") as HTMLInputElement).value).toBe("10");
-    // 기본값 안내도 함께 노출("기본 5"는 단기·최소보유봉 등 복수 가능)
-    expect(screen.getAllByText("기본 5").length).toBeGreaterThan(0);
-    expect(screen.getByText("기본 20")).toBeInTheDocument();
+    expect((screen.getByLabelText("쿨다운봉") as HTMLInputElement).value).toBe("15");
+    // 기본값 안내도 함께 노출
+    expect(screen.getByText("기본 10")).toBeInTheDocument();
+    expect(screen.getByText("기본 40")).toBeInTheDocument();
   });
 
   test("RSI+MA 선택 시 5개 파라미터(기본값)와 도움말이 뜬다", () => {
@@ -365,10 +365,10 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi_ma" } });
-    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("14");
+    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("21");
     expect((screen.getByLabelText("과매도") as HTMLInputElement).value).toBe("30");
-    expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("70");
-    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("75");
+    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("80");
     expect((screen.getByLabelText("틱봉") as HTMLInputElement).value).toBe("50");
 
     fireEvent.click(screen.getByRole("button", { name: "RSI + MA 필터 도움말" }));
@@ -383,11 +383,11 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "rsi_ma" } });
-    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("14");
-    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("21");
+    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("80");
     // 이동평균 크로스로 되돌리면 다시 단기/장기/틱봉
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
-    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("5");
+    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("10");
     expect((screen.getByLabelText("틱봉") as HTMLInputElement).value).toBe("50");
   });
 
@@ -396,7 +396,7 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
-    fireEvent.change(screen.getByLabelText("단기"), { target: { value: "30" } }); // 30 ≥ 20
+    fireEvent.change(screen.getByLabelText("단기"), { target: { value: "50" } }); // 50 ≥ 40(기본 장기)
     expect(screen.getByText("단기는 장기보다 작아야 합니다")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "추가" })).toBeDisabled();
   });
@@ -426,7 +426,7 @@ describe("StrategyPanel", () => {
           long: 10,
           bar_ticks: 50,
           confirm_bars: 2,
-          cooldown_bars: 10,
+          cooldown_bars: 15,
         }),
       }),
     );

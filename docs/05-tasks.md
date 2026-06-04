@@ -334,6 +334,18 @@
 > 목적: 검토 문서 '방식 B' — 기본 실주문은 `rsi_ma`, `ma_cross`는 OFF로 두고 신호만 관찰·검증.
 > 검증: 백엔드 pytest +2(전체 266), 프론트 vitest +2(SignalLog). 봇 OFF(정지) 시에는 관찰도 미동작.
 
+## Phase 18 — 전략 추천 기본값 안정형 교체
+
+| # | 단계 | 검증 | 상태 |
+|---|------|------|------|
+| 1 | `STRATEGY_DEFAULTS` 안정형 세트: rsi_ma(rsi 21·high 75·ma 80·min_hold 8·cd 15), ma_cross(short 10·long 40·buffer 2·min_hold 8·cd 15) | vitest(기본값·도움말) | ✅ |
+| 2 | 도움말 문구(워밍업·예시) + 11-strategy 파라미터 표/거버너 추천값 동기화 | 문서 동기화 | ✅ |
+
+> 근거: 검토 문서(`Reference/SStock_strategy_parameter_review.md`) 안정형 1차 추천(잦은 매매·노이즈
+> 둔감화). `_HISTORY_SIZE=6000` 유지 전제로 `bar_ticks`는 50 중심. 엔진 중립 기본값(역호환)은
+> 불변이며, **UI '새로 추가' 시 채워지는 추천 프리필만** 변경(기존 적용 전략엔 영향 없음).
+> 검증: 프론트 vitest 140(기존 단정 6건을 새 기본값으로 갱신), 백엔드 무관(프론트 전용 변경).
+
 ## 진행 현황 요약
 
 | Phase | 단계 | 완료 | 진행률 |

@@ -11,8 +11,16 @@ from typing import Any
 from app.config import Settings, get_settings
 from app.db.database import connect
 from app.kis.orders import OrderResult, get_daily_ccld, place_order
-from app.services import audit_service, order_service, signal_service, strategy_service
+from app.services import (
+    audit_service,
+    order_service,
+    risk_limit_service,
+    signal_service,
+    strategy_service,
+)
 from app.services.risk_guard import OrderIntent, RiskError, bot_sellable_qty, check_order
+from app.strategies.base import Signal
+from app.strategies.market_rules import in_entry_block_window, stop_exit_reason
 from app.strategies.registry import build_strategy
 
 logger = logging.getLogger(__name__)
@@ -59,6 +67,9 @@ class TradingBot:
         # 거버너 상태: (symbol, strategy) → 매수/매도가 일어난 확정봉 인덱스(최소보유·쿨다운용).
         self._entry_bar: dict[tuple[str, str], int] = {}
         self._exit_bar: dict[tuple[str, str], int] = {}
+        # 보호 청산용: 진입가 / 진입 후 최고가(손절·익절·트레일링 판정).
+        self._entry_price: dict[tuple[str, str], float] = {}
+        self._high_price: dict[tuple[str, str], float] = {}
         self._running = False
         self._default_qty = default_qty
         self._sync_task: asyncio.Task[None] | None = None
@@ -105,6 +116,10 @@ class TradingBot:
                 if c["symbol"] == symbol
             ]
             for cfg in configs:
+                key = (symbol, cfg["strategy"])
+                # 0) 보호 청산(손절/익절/트레일링): 보유 중이면 전략 신호와 무관하게 즉시 검사.
+                if await self._check_stops(conn, key, symbol, float(price), hist, cfg):
+                    continue
                 # 알 수 없는 전략(예: 제거된 'rsi')·잘못된 파라미터는 건너뛴다(틱 처리 보호).
                 try:
                     strategy = build_strategy(cfg["strategy"], cfg["params"])
@@ -115,10 +130,9 @@ class TradingBot:
                     continue
                 # 중복 신호 억제: 직전과 같은 방향(side) 신호는 건너뛴다.
                 # 확정봉 평가와 결합해 '교차 1회당 신호 1건'이 되게 한다(휘프소 폭증 방지).
-                key = (symbol, cfg["strategy"])
                 if self._last_signal_side.get(key) == signal.side:
                     continue
-                # 실전 거버너: 쿨다운/최소보유/미체결매수 게이트(통과 못 하면 last_side 갱신 없이 건너뜀).
+                # 실전 거버너: 쿨다운/최소보유/미체결매수/하루손실/시간 게이트.
                 if not self._governor_allows(conn, key, signal.side, hist, cfg):
                     continue
                 self._last_signal_side[key] = signal.side
@@ -126,9 +140,13 @@ class TradingBot:
                 bar = self._bar_index(hist, cfg)
                 if placed == "BUY":
                     self._entry_bar[key] = bar
+                    self._entry_price[key] = float(signal.price or price)
+                    self._high_price[key] = float(signal.price or price)
                 elif placed == "SELL":
                     self._exit_bar[key] = bar
                     self._entry_bar.pop(key, None)
+                    self._entry_price.pop(key, None)
+                    self._high_price.pop(key, None)
         finally:
             conn.close()
 
@@ -271,6 +289,8 @@ class TradingBot:
                 return False  # 쿨다운 중
             if self._has_open_buy(conn, key[0]):
                 return False  # 미체결 매수 중복 방지
+            if self._entry_blocked(conn):
+                return False  # 하루 손실 한도 초과 또는 진입 금지 시간대
             return True
         # SELL
         min_hold = int(params.get("min_hold_bars", 0))
@@ -278,6 +298,59 @@ class TradingBot:
         if min_hold > 0 and entry_bar is not None and bar - entry_bar < min_hold:
             return False  # 최소 보유 기간 미달
         return True
+
+    def _entry_blocked(self, conn: sqlite3.Connection) -> bool:
+        """신규 매수 차단 여부 — 하루 손실 한도 초과 또는 진입 금지 시간대."""
+        from datetime import datetime, timedelta, timezone
+
+        limits = risk_limit_service.get_limits(conn, self._settings, self._mode)
+        mdl = int(limits.get("max_daily_loss", 0) or 0)
+        if mdl > 0 and risk_limit_service.today_realized_pnl(conn, self._mode) <= -mdl:
+            return True  # 하루 손실 한도 초과
+        now = datetime.now(timezone(timedelta(hours=9)))
+        return in_entry_block_window(
+            now,
+            int(self._settings.entry_block_after_open_min),
+            int(self._settings.entry_block_before_close_min),
+        )
+
+    async def _check_stops(
+        self,
+        conn: sqlite3.Connection,
+        key: tuple[str, str],
+        symbol: str,
+        price: float,
+        hist: list[float],
+        cfg: dict[str, Any],
+    ) -> bool:
+        """보유 중 보호 청산(손절/익절/트레일링)을 검사·집행한다. 청산했으면 True.
+
+        거버너(최소보유/쿨다운)를 무시하고 즉시 매도한다(보호 목적).
+        """
+        entry = self._entry_price.get(key)
+        if entry is None:
+            return False
+        if bot_sellable_qty(conn, symbol, self._mode) <= 0:
+            # 더 이상 봇 보유가 없으면 상태 정리
+            self._entry_price.pop(key, None)
+            self._high_price.pop(key, None)
+            return False
+        high = max(self._high_price.get(key, entry), price)
+        self._high_price[key] = high
+        reason = stop_exit_reason(entry, high, price, cfg.get("params", {}))
+        if reason is None:
+            return False
+
+        sig = Signal(symbol=symbol, strategy=cfg["strategy"], side="SELL", price=price, reason=reason)
+        placed = await self._handle_signal(conn, sig, cfg)
+        if placed == "SELL":
+            self._last_signal_side[key] = "SELL"
+            self._exit_bar[key] = self._bar_index(hist, cfg)
+            self._entry_bar.pop(key, None)
+            self._entry_price.pop(key, None)
+            self._high_price.pop(key, None)
+            return True
+        return False
 
     async def _handle_signal(
         self, conn: sqlite3.Connection, signal: Any, cfg: dict[str, Any]

@@ -83,6 +83,12 @@ class Settings(BaseSettings):
     # 대시보드에서 런타임에 변경하면 risk_limit에 저장되어 이 기본값보다 우선한다.
     daily_max_orders: int = 100
     daily_max_amount: int = 1_000_000
+    # 하루 손실 한도(원, 0=비활성). 당일 실현손익이 -이 값 이하면 신규 매수 중단.
+    daily_max_loss: int = 0
+
+    # 시간 필터(전역) — 장 시작 직후/마감 직전 신규 진입 금지(분). 0이면 비활성.
+    entry_block_after_open_min: int = 0
+    entry_block_before_close_min: int = 0
 
     # 데이터베이스
     database_path: str = "./data/sstock.db"

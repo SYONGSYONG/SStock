@@ -45,5 +45,7 @@ def set_risk_limit(
 ) -> dict:
     """모드별 일일 한도를 변경한다."""
     _check_mode(mode)
-    risk_limit_service.set_limits(conn, mode, item.max_orders, item.max_amount)
+    risk_limit_service.set_limits(
+        conn, mode, item.max_orders, item.max_amount, item.max_daily_loss
+    )
     return {"data": risk_limit_service.status(conn, settings, mode)}

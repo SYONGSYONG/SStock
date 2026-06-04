@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from app.strategies.ma_cross import MaCrossStrategy
-from app.strategies.market_rules import tick_size
+from app.strategies.market_rules import (
+    in_entry_block_window,
+    stop_exit_reason,
+    tick_size,
+)
 
 
 def _side(strat, closes):
@@ -43,6 +49,31 @@ def test_ma_cross_trend_ma_이탈_매도():
     assert _side(MaCrossStrategy(2, 4, 1, trend_ma=0), seq) is None
     # 추세MA 사용 시 현재가<추세MA → 추세 이탈 매도
     assert _side(MaCrossStrategy(2, 4, 1, trend_ma=4), seq) == "SELL"
+
+
+def test_stop_exit_reason_손절_익절_트레일링():
+    # 진입가 10,000 (tick=10)
+    sl = {"stop_loss_ticks": 5}  # 손절선 9,950
+    assert stop_exit_reason(10000, 10000, 9940, sl) == "손절"
+    assert stop_exit_reason(10000, 10000, 9960, sl) is None
+    tp = {"take_profit_ticks": 10}  # 익절선 10,100
+    assert stop_exit_reason(10000, 10100, 10100, tp) == "익절"
+    tr = {"trailing_stop_ticks": 5}  # 최고가 10,200 → 10,150 이하
+    assert stop_exit_reason(10000, 10200, 10140, tr) == "트레일링스탑"
+    assert stop_exit_reason(10000, 10200, 10160, tr) is None
+    # 모두 0 → 청산 없음
+    assert stop_exit_reason(10000, 10200, 9000, {}) is None
+
+
+def test_in_entry_block_window():
+    # 장 시작(09:00) 후 5분 차단
+    assert in_entry_block_window(datetime(2026, 6, 4, 9, 2), 5, 0) is True
+    assert in_entry_block_window(datetime(2026, 6, 4, 9, 10), 5, 0) is False
+    # 장 마감(15:30) 전 10분 차단
+    assert in_entry_block_window(datetime(2026, 6, 4, 15, 25), 0, 10) is True
+    assert in_entry_block_window(datetime(2026, 6, 4, 14, 0), 0, 10) is False
+    # 비활성(0)
+    assert in_entry_block_window(datetime(2026, 6, 4, 9, 2), 0, 0) is False
 
 
 def test_ma_cross_역호환_기본값():

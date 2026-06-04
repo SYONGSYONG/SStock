@@ -8,3 +8,4 @@ from pydantic import BaseModel, Field
 class RiskLimitSet(BaseModel):
     max_orders: int = Field(ge=1, le=100_000)
     max_amount: int = Field(ge=1)
+    max_daily_loss: int = Field(default=0, ge=0)  # 0 = 비활성

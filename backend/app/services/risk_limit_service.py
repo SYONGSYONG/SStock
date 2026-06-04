@@ -41,28 +41,49 @@ def today_order_amount(conn: sqlite3.Connection, mode: str) -> int:
 def get_limits(conn: sqlite3.Connection, settings: Settings, mode: str) -> dict[str, int]:
     """모드별 일일 한도를 반환한다. 행이 없으면 settings 기본값으로 폴백."""
     row = conn.execute(
-        "SELECT max_orders, max_amount FROM risk_limit WHERE mode = ?", (mode,)
+        "SELECT max_orders, max_amount, max_daily_loss FROM risk_limit WHERE mode = ?", (mode,)
     ).fetchone()
     if row is not None:
-        return {"max_orders": int(row["max_orders"]), "max_amount": int(row["max_amount"])}
+        return {
+            "max_orders": int(row["max_orders"]),
+            "max_amount": int(row["max_amount"]),
+            "max_daily_loss": int(row["max_daily_loss"]),
+        }
     return {
         "max_orders": settings.daily_max_orders,
         "max_amount": settings.daily_max_amount,
+        "max_daily_loss": settings.daily_max_loss,
     }
 
 
 def set_limits(
-    conn: sqlite3.Connection, mode: str, max_orders: int, max_amount: int
+    conn: sqlite3.Connection,
+    mode: str,
+    max_orders: int,
+    max_amount: int,
+    max_daily_loss: int = 0,
 ) -> dict[str, int]:
     """모드별 일일 한도를 설정(upsert)한다."""
     conn.execute(
-        "INSERT INTO risk_limit (mode, max_orders, max_amount) VALUES (?, ?, ?) "
+        "INSERT INTO risk_limit (mode, max_orders, max_amount, max_daily_loss) "
+        "VALUES (?, ?, ?, ?) "
         "ON CONFLICT(mode) DO UPDATE SET max_orders = excluded.max_orders, "
-        "max_amount = excluded.max_amount",
-        (mode, max_orders, max_amount),
+        "max_amount = excluded.max_amount, max_daily_loss = excluded.max_daily_loss",
+        (mode, max_orders, max_amount, max_daily_loss),
     )
     conn.commit()
-    return {"max_orders": max_orders, "max_amount": max_amount}
+    return {"max_orders": max_orders, "max_amount": max_amount, "max_daily_loss": max_daily_loss}
+
+
+def today_realized_pnl(conn: sqlite3.Connection, mode: str) -> int:
+    """당일(KST) 실현손익 합계(추정 수수료·세금 반영). 하루 손실 한도 판정용."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import trade_pnl_service
+
+    today = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+    res = trade_pnl_service.compute_trade_pnl(conn, mode=mode, start=today, end=today)
+    return int(res["summary"]["realized_pnl_total"])
 
 
 def status(conn: sqlite3.Connection, settings: Settings, mode: str) -> dict[str, Any]:
@@ -72,6 +93,8 @@ def status(conn: sqlite3.Connection, settings: Settings, mode: str) -> dict[str,
         "mode": mode,
         "max_orders": limits["max_orders"],
         "max_amount": limits["max_amount"],
+        "max_daily_loss": limits["max_daily_loss"],
         "order_count": today_order_count(conn, mode),
         "order_amount": today_order_amount(conn, mode),
+        "realized_pnl": today_realized_pnl(conn, mode),
     }

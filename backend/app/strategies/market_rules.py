@@ -6,6 +6,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
+# KRX 정규장(분 단위, 09:00~15:30)
+_OPEN_MIN = 9 * 60
+_CLOSE_MIN = 15 * 60 + 30
+
 
 def tick_size(price: float) -> int:
     """가격에 따른 호가단위(원)를 반환한다.
@@ -25,3 +31,41 @@ def tick_size(price: float) -> int:
     if price < 500000:
         return 500
     return 1000
+
+
+def stop_exit_reason(
+    entry_price: float, high_price: float, cur_price: float, params: dict
+) -> str | None:
+    """보유 중 보호 청산(손절/익절/트레일링) 사유. 해당 없으면 None.
+
+    틱 단위로 판정한다. 0이면 해당 청산 비활성. 손절·익절·트레일링은 전략 신호와
+    무관하게 즉시 처리한다(최소보유/쿨다운 무시).
+    - stop_loss_ticks: 진입가 − tick×N 이하 → 손절
+    - take_profit_ticks: 진입가 + tick×N 이상 → 익절
+    - trailing_stop_ticks: (이익 구간에서) 최고가 − tick×N 이하 → 트레일링스탑
+    """
+    ts = tick_size(cur_price)
+    sl = int(params.get("stop_loss_ticks", 0) or 0)
+    tp = int(params.get("take_profit_ticks", 0) or 0)
+    tr = int(params.get("trailing_stop_ticks", 0) or 0)
+    if sl > 0 and cur_price <= entry_price - ts * sl:
+        return "손절"
+    if tp > 0 and cur_price >= entry_price + ts * tp:
+        return "익절"
+    if tr > 0 and high_price > entry_price and (high_price - cur_price) >= ts * tr:
+        return "트레일링스탑"
+    return None
+
+
+def in_entry_block_window(now: datetime, after_open_min: int, before_close_min: int) -> bool:
+    """장 시작 직후/마감 직전 '신규 진입 금지' 시간대면 True.
+
+    after_open_min: 장 시작(09:00) 후 N분 진입 금지. before_close_min: 장 마감(15:30) 전 N분 금지.
+    값이 0이면 해당 차단 비활성.
+    """
+    minutes = now.hour * 60 + now.minute + now.second / 60
+    if after_open_min > 0 and _OPEN_MIN <= minutes < _OPEN_MIN + after_open_min:
+        return True
+    if before_close_min > 0 and _CLOSE_MIN - before_close_min < minutes <= _CLOSE_MIN:
+        return True
+    return False

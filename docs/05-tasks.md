@@ -285,6 +285,17 @@
 > Phase B(손절/익절/trailing·하루 손실 한도·시간 필터), Phase C(스프레드·거래대금·변동성
 > 필터·호가 구독)는 후속.
 
+## Phase 14 — 실전 거버너 Phase B(손절·트레일링 + 하루 손실 + 시간 필터)
+
+| # | 단계 | 검증 | 상태 |
+|---|------|------|------|
+| 1 | 보호 청산: `stop_loss_ticks`·`take_profit_ticks`·`trailing_stop_ticks`(최소보유/쿨다운 무시, 즉시) — 봇 `_check_stops` + 진입가/최고가 추적 | pytest(stop_exit_reason·손절 보호청산) | ✅ |
+| 2 | 하루 손실 한도: `risk_limit.max_daily_loss`(모드별) + 당일 실현손익 초과 시 신규 매수 차단 | pytest(하루손실 매수차단) | ✅ |
+| 3 | 시간 필터(전역 설정): 장 시작 후/마감 전 N분 신규 진입 금지 | pytest(in_entry_block_window) | ✅ |
+
+> 검증: 백엔드 pytest +5(전체 258). 기본값 0(off)이면 현행 동작 보존. 손절 틱·하루손실·시간
+> 설정은 Phase B 프론트(전략 폼 stop 파라미터 + RiskLimitBar 하루손실)로 노출 예정.
+
 ## 진행 현황 요약
 
 | Phase | 단계 | 완료 | 진행률 |

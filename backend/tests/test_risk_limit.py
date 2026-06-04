@@ -35,14 +35,14 @@ def _settings(**kw) -> Settings:
 def test_미설정시_기본값_폴백(tmp_path):
     conn = _db(tmp_path)
     limits = risk_limit_service.get_limits(conn, _settings(), "paper")
-    assert limits == {"max_orders": 100, "max_amount": 1_000_000}
+    assert limits == {"max_orders": 100, "max_amount": 1_000_000, "max_daily_loss": 0}
 
 
 def test_한도_설정_조회_왕복(tmp_path):
     conn = _db(tmp_path)
     risk_limit_service.set_limits(conn, "paper", 50, 5_000_000)
     limits = risk_limit_service.get_limits(conn, _settings(), "paper")
-    assert limits == {"max_orders": 50, "max_amount": 5_000_000}
+    assert limits == {"max_orders": 50, "max_amount": 5_000_000, "max_daily_loss": 0}
     # 설정한 모드만 영향 — live는 여전히 기본값
     assert risk_limit_service.get_limits(conn, _settings(), "live")["max_orders"] == 100
 
@@ -54,6 +54,7 @@ def test_한도_변경은_upsert(tmp_path):
     assert risk_limit_service.get_limits(conn, _settings(), "paper") == {
         "max_orders": 200,
         "max_amount": 9_000_000,
+        "max_daily_loss": 0,
     }
 
 
@@ -76,8 +77,10 @@ def test_status_한도와_사용량_함께(tmp_path):
         "mode": "paper",
         "max_orders": 30,
         "max_amount": 3_000_000,
+        "max_daily_loss": 0,
         "order_count": 1,
         "order_amount": 1000,
+        "realized_pnl": 0,
     }
 
 

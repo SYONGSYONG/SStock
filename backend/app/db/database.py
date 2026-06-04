@@ -91,9 +91,10 @@ CREATE TABLE IF NOT EXISTS capital_envelope (
 );
 
 CREATE TABLE IF NOT EXISTS risk_limit (
-  mode        TEXT NOT NULL PRIMARY KEY CHECK(mode IN ('paper','live')),
-  max_orders  INTEGER NOT NULL,
-  max_amount  INTEGER NOT NULL
+  mode           TEXT NOT NULL PRIMARY KEY CHECK(mode IN ('paper','live')),
+  max_orders     INTEGER NOT NULL,
+  max_amount     INTEGER NOT NULL,
+  max_daily_loss INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_signals_symbol ON signals(symbol);
@@ -195,6 +196,14 @@ def _ensure_mode_columns(conn: sqlite3.Connection) -> None:
             "ALTER TABLE audit_logs ADD COLUMN mode TEXT NOT NULL DEFAULT 'paper' "
             "CHECK(mode IN ('paper','live'))"
         )
+
+    # risk_limit: 하루 손실 한도 컬럼 추가(기본 0=비활성).
+    has_loss = any(
+        r[1] == "max_daily_loss"
+        for r in conn.execute("PRAGMA table_info(risk_limit)").fetchall()
+    )
+    if not has_loss:
+        conn.execute("ALTER TABLE risk_limit ADD COLUMN max_daily_loss INTEGER NOT NULL DEFAULT 0")
 
     # capital_envelope: mode 컬럼 추가 + PRIMARY KEY(symbol, mode)
     if not has_mode("capital_envelope"):

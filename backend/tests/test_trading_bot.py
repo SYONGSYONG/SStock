@@ -10,6 +10,7 @@ from app.services import (
     audit_service,
     budget_service,
     order_service,
+    risk_limit_service,
     signal_service,
     strategy_service,
 )
@@ -135,6 +136,55 @@ def test_거버너_미체결매수_중복방지(tmp_path):
     # 미체결 매수가 있으면 신규 매수 차단
     order_service.save_order(conn, "005930", "BUY", 1, 1000, "paper", status="requested")
     assert bot._governor_allows(conn, key, "BUY", [0.0] * 5, cfg) is False
+    conn.close()
+
+
+def test_거버너_하루손실_한도_매수차단(tmp_path):
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+    key = ("005930", "ma_cross")
+    cfg = {"params": {"bar_ticks": 1}}
+    # 당일 손실 실현: 10@1000 매수 → 10@900 매도(실현 약 -1000)
+    order_service.save_order(conn, "005930", "BUY", 10, 1000, "paper", status="filled")
+    order_service.save_order(conn, "005930", "SELL", 10, 900, "paper", status="filled")
+    # 한도 off → 매수 허용
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 5, cfg) is True
+    # 하루 손실 한도 500 → 손실 초과 → 매수 차단
+    risk_limit_service.set_limits(conn, "paper", 100, 1_000_000, 500)
+    assert bot._governor_allows(conn, key, "BUY", [0.0] * 5, cfg) is False
+    conn.close()
+
+
+async def test_손절_보호청산(tmp_path):
+    path, settings = _setup(tmp_path)
+    calls: list[str] = []
+
+    async def placer(symbol, side, qty, price):
+        calls.append(side)
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    async def syncer(symbol, order_no):
+        return []
+
+    bot = TradingBot(
+        conn_factory=lambda: connect(path),
+        settings=settings,
+        order_placer=placer,
+        order_syncer=syncer,
+    )
+    conn = connect(path)
+    budget_service.set_principal(conn, "005930", 10_000_000)
+    order_service.save_order(conn, "005930", "BUY", 10, 1000, "paper", status="filled")
+    key = ("005930", "ma_cross")
+    bot._entry_price[key] = 1000.0
+    bot._high_price[key] = 1000.0
+    # 손절 5틱(tick=1) → 손절선 995. 현재가 990 → 보호 청산
+    cfg = {"strategy": "ma_cross", "params": {"bar_ticks": 1, "stop_loss_ticks": 5}}
+    handled = await bot._check_stops(conn, key, "005930", 990.0, [0.0] * 5, cfg)
+    assert handled is True
+    assert calls == ["SELL"]
+    assert key not in bot._entry_price  # 청산 후 상태 정리
     conn.close()
 
 

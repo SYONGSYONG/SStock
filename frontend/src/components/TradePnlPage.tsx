@@ -6,7 +6,7 @@ interface TradePnlPageProps {
   mode: TradingMode;
   fetchTradePnl: (
     mode: TradingMode,
-    opts?: { start?: string; end?: string; sort?: "desc" | "asc" },
+    opts?: { start?: string; end?: string; symbol?: string; sort?: "desc" | "asc" },
   ) => Promise<TradePnlResult>;
 }
 
@@ -22,6 +22,9 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
   const [start, setStart] = useState(todayStr());
   const [end, setEnd] = useState(todayStr());
   const [sort, setSort] = useState<"desc" | "asc">("desc");
+  const [symbol, setSymbol] = useState(""); // "" = 전체
+  // 종목 드롭다운 옵션(전체 조회 결과에서 누적). 필터 중에도 목록을 유지한다.
+  const [symbolOptions, setSymbolOptions] = useState<{ code: string; name: string }[]>([]);
   const [result, setResult] = useState<TradePnlResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,19 +33,36 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
     setLoading(true);
     setError(null);
     try {
-      setResult(await fetchTradePnl(mode, { start, end, sort }));
+      const res = await fetchTradePnl(mode, {
+        start,
+        end,
+        sort,
+        symbol: symbol || undefined,
+      });
+      setResult(res);
+      // 종목 미선택(전체) 조회일 때만 드롭다운 목록을 갱신한다.
+      if (!symbol) {
+        const seen = new Map<string, string>();
+        for (const r of res.rows) if (!seen.has(r.symbol)) seen.set(r.symbol, r.name);
+        setSymbolOptions([...seen].map(([code, name]) => ({ code, name })));
+      }
     } catch {
       setError("조회 실패");
     } finally {
       setLoading(false);
     }
-  }, [mode, start, end, sort, fetchTradePnl]);
+  }, [mode, start, end, sort, symbol, fetchTradePnl]);
 
-  // 모드 전환 시 자동 재조회(모드별 격리)
+  // 모드 전환 시 종목 필터 초기화(모드별 격리)
+  useEffect(() => {
+    setSymbol("");
+  }, [mode]);
+
+  // 모드/종목 변경 시 자동 재조회(기간·정렬은 '조회' 버튼으로 적용)
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, symbol]);
 
   const rows = result?.rows ?? [];
   const summary = result?.summary;
@@ -70,6 +90,21 @@ export function TradePnlPage({ mode, fetchTradePnl }: TradePnlPageProps) {
         </label>
         <span className="tilde">~</span>
         <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} />
+        <label className="pnl-symbol">
+          종목
+          <select
+            aria-label="종목 선택"
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+          >
+            <option value="">전체</option>
+            {symbolOptions.map((o) => (
+              <option key={o.code} value={o.code}>
+                {o.name ? `${o.name} (${o.code})` : o.code}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="pnl-sort" role="group" aria-label="정렬">
           <button
             type="button"

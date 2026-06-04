@@ -1648,6 +1648,14 @@ body {
 .pnl-filter .tilde {
   color: var(--muted);
 }
+.pnl-symbol select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  max-width: 200px;
+}
 .pnl-sort {
   display: inline-flex;
   border: 1px solid var(--border);

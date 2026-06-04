@@ -60,6 +60,18 @@ describe("TradePnlPage", () => {
     expect(lastCall?.[1]).toMatchObject({ sort: "asc" });
   });
 
+  test("종목 선택 시 해당 종목코드로 재조회", async () => {
+    const fetchTradePnl = vi.fn().mockResolvedValue(RESULT);
+    render(<TradePnlPage mode="paper" fetchTradePnl={fetchTradePnl} />);
+    // 전체 조회 후 드롭다운에 종목이 채워짐
+    await waitFor(() => expect(fetchTradePnl).toHaveBeenCalledTimes(1));
+    await screen.findByText("삼성전자");
+
+    fireEvent.change(screen.getByLabelText("종목 선택"), { target: { value: "005930" } });
+    await waitFor(() => expect(fetchTradePnl).toHaveBeenCalledTimes(2));
+    expect(fetchTradePnl.mock.calls.at(-1)?.[1]).toMatchObject({ symbol: "005930" });
+  });
+
   test("데이터 없으면 안내 문구", async () => {
     const empty: TradePnlResult = {
       ...RESULT,

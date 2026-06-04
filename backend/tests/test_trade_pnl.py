@@ -100,6 +100,20 @@ def test_기간_필터_및_정렬(tmp_path):
     assert [r["trade_date"] for r in res_asc["rows"]] == ["2026-06-02", "2026-06-05"]
 
 
+def test_종목별_필터(tmp_path):
+    conn = _db(tmp_path)
+    _fill(conn, "005930", "BUY", 10, 1000, "2026-06-01 10:00:00")
+    _fill(conn, "005930", "SELL", 10, 1100, "2026-06-02 10:00:00")
+    _fill(conn, "000660", "BUY", 5, 2000, "2026-06-01 11:00:00")
+    _fill(conn, "000660", "SELL", 5, 2200, "2026-06-02 11:00:00")
+
+    res = trade_pnl_service.compute_trade_pnl(conn, mode="paper", symbol="000660")
+    assert len(res["rows"]) == 1
+    assert res["rows"][0]["symbol"] == "000660"
+    # 요약도 해당 종목만 반영
+    assert res["summary"]["sell"]["amount"] == 11000  # 2200*5
+
+
 def test_요약_매도매수합계(tmp_path):
     conn = _db(tmp_path)
     _fill(conn, "005930", "BUY", 10, 1000, "2026-06-01 10:00:00")

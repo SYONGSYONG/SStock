@@ -88,7 +88,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 400px 1fr;
+  grid-template-columns: 460px 1fr;
   gap: 18px;
   padding: 18px;
   align-items: start;
@@ -286,20 +286,26 @@ body {
   min-width: 0;
 }
 .strategy-params {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 10px;
 }
 .param-field {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1 1 64px;
   min-width: 0;
 }
 .param-field .param-label {
   font-size: 11px;
   color: var(--muted);
+  line-height: 1.25;
+}
+/* 전략 파라미터 그리드: 라벨이 1줄/2줄로 섞여도 입력칸이 가로로 정렬되도록 2줄 높이 확보 */
+.strategy-params .param-label {
+  min-height: 2.5em;
+  display: flex;
+  align-items: flex-end;
 }
 .param-field input {
   width: 100%;

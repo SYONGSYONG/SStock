@@ -18,6 +18,7 @@ import {
   getRecommend,
   getRiskLimits,
   getSignals,
+  getTradePnl,
   getStrategies,
   getThemes,
   listWatchlist,
@@ -50,6 +51,7 @@ const ChartModal = lazy(() =>
   import("./components/ChartModal").then((m) => ({ default: m.ChartModal })),
 );
 import { RecommendPage } from "./components/RecommendPage";
+import { TradePnlPage } from "./components/TradePnlPage";
 import { useLiveQuotes } from "./hooks/useLiveQuotes";
 import type {
   AccountBalance,
@@ -89,7 +91,7 @@ export function App() {
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [botError, setBotError] = useState<string | null>(null);
   const [budgetError, setBudgetError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"dashboard" | "recommend">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "recommend" | "trade_pnl">("dashboard");
   const { quotes, connected, mergeSnapshot } = useLiveQuotes(viewMode);
 
   // 보는 모드에 해당하는 봇 상태 선택
@@ -126,10 +128,10 @@ export function App() {
       getBotStatus("paper").then(setBotPaper).catch(() => {});
       getBotStatus("live").then(setBotLive).catch(() => {});
       // 나머지는 보는 모드로 폴링
-      getSignals(50).then(setSignals).catch(() => {});
+      getSignals(50, viewMode).then(setSignals).catch(() => {});
       getOrders(50, viewMode).then(setOrders).catch(() => {});
       getPositions(viewMode).then(setPositions).catch(() => {});
-      getAudit(100).then(setAudit).catch(() => {});
+      getAudit(100, viewMode).then(setAudit).catch(() => {});
       getBudgets(viewMode).then(setBudgets).catch(() => {});
       getRiskLimits(viewMode).then(setRiskLimit).catch(() => {});
       getAccountBalance(viewMode).then(setAccount).catch(() => {});
@@ -291,6 +293,12 @@ export function App() {
         >
           분야별 추천
         </button>
+        <button
+          className={tab === "trade_pnl" ? "tab active" : "tab"}
+          onClick={() => setTab("trade_pnl")}
+        >
+          기간별 손익
+        </button>
       </nav>
       {tab === "recommend" ? (
         <RecommendPage
@@ -301,6 +309,8 @@ export function App() {
           onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "recommend" })}
           watchedSymbols={new Set(items.map((it) => it.symbol))}
         />
+      ) : tab === "trade_pnl" ? (
+        <TradePnlPage mode={viewMode} fetchTradePnl={getTradePnl} />
       ) : (
       <main className="layout">
         <aside className="sidebar">

@@ -46,3 +46,16 @@ def test_감사로그_조회(tmp_path):
     logs = audit_service.list_logs(conn)
     assert len(logs) == 2
     assert logs[0]["category"] == "ORDER"
+
+
+def test_감사로그_모드별_분리(tmp_path):
+    conn = _db(tmp_path)
+    audit_service.log(conn, "BOT", "모의 봇 시작", "paper")
+    audit_service.log(conn, "MODE", "실전 봇 시작", "live")
+    paper = audit_service.list_logs(conn, mode="paper")
+    live = audit_service.list_logs(conn, mode="live")
+    assert [g["message"] for g in paper] == ["모의 봇 시작"]
+    assert [g["message"] for g in live] == ["실전 봇 시작"]
+    assert paper[0]["mode"] == "paper"
+    # mode 미지정이면 전체
+    assert len(audit_service.list_logs(conn)) == 2

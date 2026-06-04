@@ -43,10 +43,23 @@ def test_enabled_토글_및_삭제(tmp_path):
 
 def test_신호_저장_및_조회(tmp_path):
     conn = _db(tmp_path)
-    signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스")
-    signal_service.save_signal(conn, "000660", "rsi_ma", "SELL", 120000.0, "RSI 과매수")
+    signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스", "paper")
+    signal_service.save_signal(conn, "000660", "rsi_ma", "SELL", 120000.0, "RSI 과매수", "paper")
     rows = signal_service.list_signals(conn, limit=10)
     assert len(rows) == 2
     # 최신순(DESC)
     assert rows[0]["symbol"] == "000660"
     assert rows[1]["side"] == "BUY"
+
+
+def test_신호_모드별_분리(tmp_path):
+    conn = _db(tmp_path)
+    signal_service.save_signal(conn, "005930", "ma_cross", "BUY", 70000.0, "골든크로스", "paper")
+    signal_service.save_signal(conn, "000660", "rsi_ma", "SELL", 120000.0, "데드크로스", "live")
+    paper = signal_service.list_signals(conn, mode="paper")
+    live = signal_service.list_signals(conn, mode="live")
+    assert [r["symbol"] for r in paper] == ["005930"]
+    assert [r["symbol"] for r in live] == ["000660"]
+    assert paper[0]["mode"] == "paper"
+    # mode 미지정이면 전체
+    assert len(signal_service.list_signals(conn)) == 2

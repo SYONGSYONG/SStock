@@ -105,5 +105,5 @@ async def cancel(order_id: int, conn: sqlite3.Connection = Depends(get_db)) -> d
     )
     if result.ok:
         order_service.update_status(conn, order_id, "cancelled")
-        audit_service.log(conn, "ORDER", f"주문 #{order_id} 취소 ({row['symbol']})")
+        audit_service.log(conn, "ORDER", f"주문 #{order_id} 취소 ({row['symbol']})", row["mode"])
     return {"data": {"id": order_id, "cancelled": result.ok, "message": result.message}}

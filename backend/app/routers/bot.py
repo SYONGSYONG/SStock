@@ -83,7 +83,7 @@ async def start(
     await bot.start()
 
     if mode == "live":
-        audit_service.log(conn, "MODE", "실전(LIVE) 자동매매 봇 시작 — 확인됨")
+        audit_service.log(conn, "MODE", "실전(LIVE) 자동매매 봇 시작 — 확인됨", "live")
 
     return {
         "data": {

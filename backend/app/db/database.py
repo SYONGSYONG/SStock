@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS signals (
   side        TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
   price       REAL,
   reason      TEXT,
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
   created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   category    TEXT NOT NULL,
   message     TEXT NOT NULL,
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),
   created_at  TEXT NOT NULL DEFAULT (datetime('now', '+9 hours'))
 );
 
@@ -179,6 +181,20 @@ def _ensure_mode_columns(conn: sqlite3.Connection) -> None:
             DROP TABLE strategy_config;
             ALTER TABLE strategy_config_new RENAME TO strategy_config;
         """)
+
+    # signals: mode 컬럼 추가(기존 행은 'paper'). 단순 컬럼 추가로 충분(UNIQUE/PK 없음).
+    if not has_mode("signals"):
+        conn.execute(
+            "ALTER TABLE signals ADD COLUMN mode TEXT NOT NULL DEFAULT 'paper' "
+            "CHECK(mode IN ('paper','live'))"
+        )
+
+    # audit_logs: mode 컬럼 추가(기존 행은 'paper').
+    if not has_mode("audit_logs"):
+        conn.execute(
+            "ALTER TABLE audit_logs ADD COLUMN mode TEXT NOT NULL DEFAULT 'paper' "
+            "CHECK(mode IN ('paper','live'))"
+        )
 
     # capital_envelope: mode 컬럼 추가 + PRIMARY KEY(symbol, mode)
     if not has_mode("capital_envelope"):

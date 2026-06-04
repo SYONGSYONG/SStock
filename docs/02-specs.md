@@ -216,6 +216,7 @@ CREATE TABLE signals (
   side        TEXT NOT NULL CHECK(side IN ('BUY','SELL')),
   price       REAL,
   reason      TEXT,                      -- 신호 근거(지표값)
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),  -- 모드별 분리
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -238,6 +239,7 @@ CREATE TABLE audit_logs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   category    TEXT NOT NULL,             -- BOT|ORDER|SIGNAL|MODE|RISK|ERROR
   message     TEXT NOT NULL,
+  mode        TEXT NOT NULL DEFAULT 'paper' CHECK(mode IN ('paper','live')),  -- 모드별 분리
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

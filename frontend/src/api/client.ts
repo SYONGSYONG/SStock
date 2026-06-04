@@ -16,6 +16,7 @@ import type {
   RiskLimit,
   Signal,
   StockSearchResult,
+  TradePnlResult,
   StrategyConfig,
   StrategyName,
   ThemeInfo,
@@ -106,7 +107,8 @@ export const setStrategyEnabled = (id: number, enabled: boolean) =>
 export const deleteStrategy = (id: number) =>
   api<{ id: number; removed: boolean }>(`/api/strategies/${id}`, { method: "DELETE" });
 
-export const getSignals = (limit = 50) => api<Signal[]>(`/api/signals?limit=${limit}`);
+export const getSignals = (limit = 50, mode: TradingMode = "paper") =>
+  api<Signal[]>(withMode(`/api/signals?limit=${limit}`, mode));
 
 export const getBotStatus = (mode: TradingMode) =>
   api<BotStatus>(withMode("/api/bot/status", mode));
@@ -143,7 +145,8 @@ export const getChart = (
 export const getCompanyOverview = (symbol: string) =>
   api<CompanyOverview>(`/api/company/${symbol}/overview`);
 
-export const getAudit = (limit = 100) => api<AuditLog[]>(`/api/audit?limit=${limit}`);
+export const getAudit = (limit = 100, mode: TradingMode = "paper") =>
+  api<AuditLog[]>(withMode(`/api/audit?limit=${limit}`, mode));
 
 export const getBudgets = (mode: TradingMode) =>
   api<Budget[]>(withMode("/api/budgets", mode));
@@ -171,6 +174,18 @@ export const updateRiskLimits = (
     method: "PUT",
     body: JSON.stringify({ max_orders: maxOrders, max_amount: maxAmount }),
   });
+
+export const getTradePnl = (
+  mode: TradingMode,
+  opts?: { start?: string; end?: string; symbol?: string; sort?: "desc" | "asc" },
+) => {
+  const q = new URLSearchParams({ mode });
+  if (opts?.start) q.set("start", opts.start);
+  if (opts?.end) q.set("end", opts.end);
+  if (opts?.symbol) q.set("symbol", opts.symbol);
+  if (opts?.sort) q.set("sort", opts.sort);
+  return api<TradePnlResult>(`/api/trade-pnl?${q.toString()}`);
+};
 
 export const getThemes = () => api<ThemeInfo[]>("/api/recommend/themes");
 

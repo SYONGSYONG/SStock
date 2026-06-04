@@ -51,6 +51,7 @@ export interface Signal {
   side: "BUY" | "SELL";
   price: number | null;
   reason: string;
+  mode?: TradingMode;
   created_at: string;
 }
 
@@ -96,6 +97,7 @@ export interface AuditLog {
   id: number;
   category: string;
   message: string;
+  mode?: TradingMode;
   created_at: string;
 }
 
@@ -144,6 +146,47 @@ export interface RiskLimit {
   max_amount: number;
   order_count: number;
   order_amount: number;
+}
+
+export interface TradePnlRow {
+  trade_date: string;
+  symbol: string;
+  name: string;
+  sell_qty: number;
+  buy_unit_price: number;
+  sell_unit_price: number;
+  buy_amount: number;
+  sell_amount: number;
+  buy_fee: number;
+  sell_fee: number;
+  fee: number;
+  tax: number;
+  realized_pnl: number;
+  pnl_rate: number;
+}
+
+export interface TradePnlLeg {
+  qty: number;
+  amount: number;
+  fee: number;
+  tax: number;
+  settle: number;
+}
+
+export interface TradePnlSummary {
+  sell: TradePnlLeg;
+  buy: TradePnlLeg;
+  realized_pnl_total: number;
+  total_pnl_rate: number;
+}
+
+export interface TradePnlResult {
+  rows: TradePnlRow[];
+  summary: TradePnlSummary;
+  source: "local" | "kis";
+  estimated: boolean;
+  available: boolean;
+  period: { start: string | null; end: string | null };
 }
 
 export interface ThemeInfo {

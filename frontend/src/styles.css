@@ -1621,6 +1621,150 @@ body {
   background-color: #e0f2fe;
 }
 
+/* ── 기간별 매매손익 탭 ── */
+.trade-pnl {
+  padding: 16px 20px;
+}
+.pnl-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+}
+.pnl-filter label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.pnl-filter input[type="date"] {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.pnl-filter .tilde {
+  color: var(--muted);
+}
+.pnl-sort {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pnl-sort button {
+  border: none;
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.pnl-sort button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.pnl-search {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 18px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pnl-table-wrap {
+  overflow-x: auto;
+}
+.pnl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pnl-table th,
+.pnl-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pnl-table thead th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: left;
+  position: sticky;
+  top: 0;
+}
+.pnl-table .num {
+  text-align: right;
+}
+.pnl-table td.up,
+.pnl-summary .up {
+  color: var(--up);
+}
+.pnl-table td.down,
+.pnl-summary .down {
+  color: var(--down);
+}
+.pnl-table td.muted {
+  color: var(--muted);
+}
+.pnl-table .empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 28px;
+}
+.pnl-summary {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+.pnl-summary-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pnl-summary-table th,
+.pnl-summary-table td {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+}
+.pnl-summary-table thead th {
+  background: #f8fafc;
+  color: var(--muted);
+}
+.pnl-summary-table .num {
+  text-align: right;
+}
+.pnl-summary-table tbody th {
+  background: #f8fafc;
+  color: var(--text);
+}
+.pnl-total {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 8px 0;
+}
+.pnl-total > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pnl-total-label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.pnl-total strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── 일일 주문 한도 바(전략 패널 위) ── */
 .risk-limit .risk-edit-btn {
   padding: 4px 10px;

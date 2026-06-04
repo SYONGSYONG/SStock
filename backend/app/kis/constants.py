@@ -26,6 +26,9 @@ TR_IDS: dict[str, dict[str, str]] = {
     "inquire_psbl_order": {"live": "TTTC8908R", "paper": "VTTC8908R"},
     "inquire_balance": {"live": "TTTC8434R", "paper": "VTTC8434R"},
     "inquire_daily_ccld": {"live": "TTTC0081R", "paper": "VTTC0081R"},
+    # 기간별 매매손익 — 모의투자 미지원(V-접두 TR 없음) → live 전용.
+    "inquire_period_trade_profit": {"live": "TTTC8715R"},  # 종목별(매매손익현황)
+    "inquire_period_profit": {"live": "TTTC8708R"},  # 일별 합산(손익일별합산)
 }
 
 # 시세 조회 TR_ID — 시장 데이터는 모드와 무관하게 동일

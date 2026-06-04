@@ -229,7 +229,7 @@ class TradingBot:
             return
 
         saved = signal_service.save_signal(
-            conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason
+            conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason, self._mode
         )
         await self._broadcast({"type": "signal", "data": saved, "mode": self._mode})
 
@@ -249,7 +249,9 @@ class TradingBot:
             # 가드에서 막힌 주문은 KIS로 전송되지 않았으므로 '주문 내역(orders)'에 남기지
             # 않는다. 거절 사유는 감사 로그(RISK)에만 기록한다(진단용). 실제로 KIS에
             # 전송된 뒤 거부된 주문만 orders에 rejected로 남는다(아래 _place 경로).
-            audit_service.log(conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}")
+            audit_service.log(
+                conn, "RISK", f"{signal.symbol} {signal.side} 주문 거절: {exc.message}", self._mode
+            )
             return
 
         result = await self._place(signal.symbol, signal.side, qty, signal.price)
@@ -269,6 +271,7 @@ class TradingBot:
             conn,
             "ORDER",
             f"[{self._mode}] {signal.symbol} {signal.side} {qty}주 {status} ({result.message or ''})",
+            self._mode,
         )
         await self._broadcast({"type": "order", "data": order, "mode": self._mode})
         if result.ok:
@@ -286,7 +289,7 @@ class TradingBot:
     def _audit(self, category: str, message: str) -> None:
         conn = self._conn_factory()
         try:
-            audit_service.log(conn, category, message)
+            audit_service.log(conn, category, message, self._mode)
         finally:
             conn.close()
 

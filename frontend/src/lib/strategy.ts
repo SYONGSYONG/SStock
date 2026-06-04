@@ -44,6 +44,107 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
   },
 };
 
+/** ma_cross 상황별 프리셋(추천 파라미터 묶음).
+ *  전략 추가 폼에서 이동평균 크로스를 고른 뒤 프리셋을 선택하면 파라미터를 한 번에 채운다.
+ *  내부 전략은 ma_cross 그대로이며, 프리셋은 파라미터 템플릿일 뿐이다. */
+export interface MaCrossPreset {
+  key: string;
+  label: string;
+  purpose: string;
+  params: Record<string, number>;
+}
+
+export const MA_CROSS_PRESETS: MaCrossPreset[] = [
+  {
+    key: "강한상승",
+    label: "강한상승",
+    purpose: "안정적인 상승 추세 진입",
+    params: {
+      short: 10,
+      long: 40,
+      bar_ticks: 50,
+      confirm_bars: 2,
+      diff_buffer_ticks: 2,
+      trend_ma: 100,
+      use_long_slope: 1,
+      min_hold_bars: 8,
+      cooldown_bars: 15,
+      stop_loss_ticks: 12,
+      trailing_stop_ticks: 15,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 10,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+  {
+    key: "아주강한상승",
+    label: "아주강한상승",
+    purpose: "장초반 급등·폭등 대응",
+    params: {
+      short: 5,
+      long: 20,
+      bar_ticks: 30,
+      confirm_bars: 2,
+      diff_buffer_ticks: 2,
+      trend_ma: 0,
+      use_long_slope: 1,
+      min_hold_bars: 5,
+      cooldown_bars: 8,
+      stop_loss_ticks: 15,
+      trailing_stop_ticks: 20,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 15,
+      min_turnover: 0,
+      max_spread_ticks: 5,
+    },
+  },
+  {
+    key: "강한하강",
+    label: "강한하강",
+    purpose: "보유 종목 방어·매수 억제",
+    params: {
+      short: 8,
+      long: 32,
+      bar_ticks: 30,
+      confirm_bars: 2,
+      diff_buffer_ticks: 2,
+      trend_ma: 60,
+      use_long_slope: 1,
+      min_hold_bars: 0,
+      cooldown_bars: 20,
+      stop_loss_ticks: 6,
+      trailing_stop_ticks: 8,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 0,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+  {
+    key: "아주강한하강",
+    label: "아주강한하강",
+    purpose: "급락 대응·빠른 청산 우선",
+    params: {
+      short: 3,
+      long: 10,
+      bar_ticks: 15,
+      confirm_bars: 1,
+      diff_buffer_ticks: 1,
+      trend_ma: 40,
+      use_long_slope: 1,
+      min_hold_bars: 0,
+      cooldown_bars: 30,
+      stop_loss_ticks: 3,
+      trailing_stop_ticks: 5,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 0,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+];
+
 /** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
 export interface ParamField {
   key: string;

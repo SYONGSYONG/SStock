@@ -5,6 +5,7 @@ import {
   describeStrategy,
   explainParams,
   getStrategyHelp,
+  MA_CROSS_PRESETS,
   STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
   STRATEGY_LABEL,
@@ -228,6 +229,8 @@ export function StrategyPanel({
     "";
   // 기본 전략은 실전 권장(검토 문서)인 RSI + MA 필터를 먼저 띄운다.
   const [strategy, setStrategy] = useState<StrategyName>("rsi_ma");
+  // ma_cross 프리셋 선택("" = 직접 설정). 누르면 해당 파라미터를 폼에 채운다.
+  const [preset, setPreset] = useState("");
   // 선택 전략의 기본값으로 채워둔 편집 가능한 파라미터
   const [params, setParams] = useState<Record<string, number>>({
     ...STRATEGY_DEFAULTS.rsi_ma,
@@ -259,7 +262,16 @@ export function StrategyPanel({
   const changeStrategy = (next: StrategyName) => {
     setStrategy(next);
     setParams({ ...STRATEGY_DEFAULTS[next] });
+    setPreset(""); // 전략을 바꾸면 프리셋은 '직접 설정'으로 초기화
   };
+
+  // 프리셋 선택 시 해당 파라미터로 폼을 채운다("" = 직접 설정 → 기본값).
+  const changePreset = (key: string) => {
+    setPreset(key);
+    const p = MA_CROSS_PRESETS.find((x) => x.key === key);
+    setParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS.ma_cross });
+  };
+  const presetPurpose = MA_CROSS_PRESETS.find((x) => x.key === preset)?.purpose ?? "";
 
   const changeParam = (key: string, raw: string) => {
     setParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
@@ -279,7 +291,9 @@ export function StrategyPanel({
     onAdd({ symbol, strategy, params, enabled: false });
     onSetBudget(symbol, Math.floor(principalValue));
     setSymbol("");
-    setParams({ ...STRATEGY_DEFAULTS[strategy] });
+    // 같은 프리셋으로 다른 종목에 연속 등록할 수 있게 프리셋·파라미터는 유지한다.
+    const cur = MA_CROSS_PRESETS.find((x) => x.key === preset);
+    setParams(cur ? { ...cur.params } : { ...STRATEGY_DEFAULTS[strategy] });
     setPrincipal("");
   };
 
@@ -382,6 +396,27 @@ export function StrategyPanel({
             <span className="symbol-name">{nameOf(symbol)}</span>
           )}
         </div>
+
+        {strategy === "ma_cross" && (
+          <label className="param-field preset-field">
+            <span className="param-label">프리셋</span>
+            <select
+              aria-label="프리셋 선택"
+              value={preset}
+              onChange={(e) => changePreset(e.target.value)}
+            >
+              <option value="">(직접 설정)</option>
+              {MA_CROSS_PRESETS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <span className="param-default">
+              {presetPurpose || "상황별 추천 파라미터를 한 번에 채웁니다"}
+            </span>
+          </label>
+        )}
 
         <StrategyParamInputs strategy={strategy} params={params} onChange={changeParam} />
 

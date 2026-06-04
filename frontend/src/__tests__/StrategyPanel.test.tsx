@@ -361,6 +361,67 @@ describe("StrategyPanel", () => {
     expect(options[0]).toHaveTextContent("RSI + MA 필터");
   });
 
+  test("프리셋 선택은 이동평균 크로스에서만 보이고 4종을 제공한다", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    // 기본 RSI+MA에서는 프리셋이 없다
+    expect(screen.queryByLabelText("프리셋 선택")).toBeNull();
+    // 이동평균 크로스로 전환하면 프리셋이 나타난다
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
+    const presetSelect = screen.getByLabelText("프리셋 선택");
+    expect(presetSelect).toBeInTheDocument();
+    const opts = within(presetSelect).getAllByRole("option");
+    expect(opts.map((o) => o.textContent)).toEqual([
+      "(직접 설정)",
+      "강한상승",
+      "아주강한상승",
+      "강한하강",
+      "아주강한하강",
+    ]);
+  });
+
+  test("프리셋(강한상승)을 고르면 파라미터가 자동 입력된다", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
+    fireEvent.change(screen.getByLabelText("프리셋 선택"), { target: { value: "강한상승" } });
+    expect((screen.getByLabelText("단기") as HTMLInputElement).value).toBe("10");
+    expect((screen.getByLabelText("장기") as HTMLInputElement).value).toBe("40");
+    expect((screen.getByLabelText("쿨다운봉") as HTMLInputElement).value).toBe("15");
+    expect((screen.getByLabelText("손절틱(0=off)") as HTMLInputElement).value).toBe("12");
+    expect((screen.getByLabelText("최대스프레드틱(0=off)") as HTMLInputElement).value).toBe("3");
+  });
+
+  test("프리셋 적용 후 추가하면 ma_cross + 프리셋 파라미터로 등록", () => {
+    const onAdd = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={onAdd} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("전략 종목코드"), { target: { value: "005930" } });
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
+    fireEvent.change(screen.getByLabelText("프리셋 선택"), { target: { value: "아주강한하강" } });
+    fireEvent.change(screen.getByLabelText("자본 칸막이 원금"), { target: { value: "1000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: "005930",
+        strategy: "ma_cross",
+        enabled: false,
+        params: expect.objectContaining({
+          short: 3,
+          long: 10,
+          bar_ticks: 15,
+          trend_ma: 40,
+          cooldown_bars: 30,
+          stop_loss_ticks: 3,
+        }),
+      }),
+    );
+  });
+
   test("파라미터 입력이 기본값으로 채워져 있다(단기 10 / 장기 40)", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,

@@ -138,6 +138,26 @@ async def test_OFF전략_관찰신호만_기록(tmp_path):
     conn.close()
 
 
+def test_그림자_국면_전환시에만_로그(tmp_path):
+    """오토모드 1단계: 국면이 바뀔 때만 REGIME 감사 로그를 1건 남긴다(휘프소 억제)."""
+    path, settings = _setup(tmp_path)
+    bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
+    conn = connect(path)
+
+    rising = [1000.0 + i for i in range(2500)]   # 상승 국면
+    falling = [3500.0 - i for i in range(2500)]  # 하락 국면
+
+    bot._shadow_regime(conn, "005930", rising)   # 최초 감지 → 로그 1
+    bot._shadow_regime(conn, "005930", rising)   # 동일 국면 → 로그 없음
+    bot._shadow_regime(conn, "005930", falling)  # 전환 → 로그 2
+
+    regime_logs = [g for g in audit_service.list_logs(conn) if g["category"] == "REGIME"]
+    assert len(regime_logs) == 2
+    # 가장 최근 로그는 '전환' 문구
+    assert "전환" in regime_logs[0]["message"]
+    conn.close()
+
+
 def test_거버너_쿨다운_최소보유(tmp_path):
     path, settings = _setup(tmp_path)
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)

@@ -277,6 +277,42 @@ UI 폼에는 **추천값**을 미리 채워 보여준다.
 
 ---
 
+## 오토모드 — 1단계: 그림자 국면 분류기
+
+**목표**: 종목의 장세(regime)를 자동 판별해 **추천 프리셋을 기록만** 한다. 실제 프리셋 전환도,
+주문 변경도 하지 않는다(**위험 0**). 분류기 품질을 실데이터로 검증하고 신뢰를 쌓기 위한 단계다.
+
+5개 국면 = 프리셋 키와 동일: `강한상승` · `아주강한상승` · `횡보노이즈` · `강한하강` · `아주강한하강`.
+
+**입력·계산** (`classify_regime(closes, params)`, `backend/app/strategies/regime.py`):
+
+1. 종가 히스토리를 `regime_bar_ticks`로 틱봉화하고 **확정봉만** 사용한다(`closed_ticks`+`to_tick_bars`).
+2. 추세 MA(`regime_ma`)의 **기울기(틱)** = (최근 MA − `regime_slope_lookback`봉 전 MA) ÷ `tick_size`.
+3. **변동성(틱)** = 최근 `regime_vol_lookback`봉 (고가−저가) ÷ `tick_size`.
+4. 판정:
+   - 기울기 ≥ `regime_slope_ticks` → **상승**: 변동성 ≥ `regime_strong_vol_ticks`면 `아주강한상승`, 아니면 `강한상승`
+   - 기울기 ≤ −`regime_slope_ticks` → **하강**: 변동성 ≥ 기준이면 `아주강한하강`, 아니면 `강한하강`
+   - 그 사이 → `횡보노이즈`
+   - 확정봉이 `regime_ma + regime_slope_lookback + 1` 미만이면 `None`(미분류).
+
+| 파라미터(키) | 기본값 | 의미 |
+|----------|------:|------|
+| `regime_bar_ticks` | 50 | 국면 판별용 틱봉 크기 |
+| `regime_ma` | 40 | 추세 MA 기간(봉) |
+| `regime_slope_lookback` | 5 | 기울기 측정 봉 간격 |
+| `regime_slope_ticks` | 3 | 추세로 인정할 기울기(틱) |
+| `regime_vol_lookback` | 20 | 변동성 측정 봉 수 |
+| `regime_strong_vol_ticks` | 30 | '아주강한'으로 볼 변동성(틱) |
+
+**봇 동작**: `trading_bot.on_tick`이 **설정이 있는 종목**에 대해 국면을 분류하고, **직전 국면과 다를
+때만** `audit_logs`(category `REGIME`)에 1건 기록한다(휘프소 억제 = 전환 시에만 로그). 실주문·
+거버너·전략 평가와 **완전히 분리**되며, 봇이 정지(OFF)면 동작하지 않는다.
+
+> 1단계는 **판별·기록만** 한다. 임계값은 모듈 기본값이며 추후 UI 노출 예정(2단계: 사람 확인형
+> 추천, 3단계: 모의 한정 완전 오토 + 가드). 정확도는 모의·실데이터로 검증한다.
+
+---
+
 ## 지표 — SMA · Rolling SMA · RSI
 
 전략이 쓰는 지표는 모두 **확정 틱봉의 종가열** 위에서 계산한다(`indicators.py`).

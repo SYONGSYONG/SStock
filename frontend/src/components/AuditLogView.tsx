@@ -11,6 +11,7 @@ const CATEGORY_CLASS: Record<string, string> = {
   RISK: "cat-risk",
   MODE: "cat-mode",
   ERROR: "cat-error",
+  REGIME: "cat-regime",
 };
 
 export function AuditLogView({ logs }: AuditLogViewProps) {

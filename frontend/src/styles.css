@@ -1247,6 +1247,10 @@ body {
   background: #fecaca;
   color: #7f1d1d;
 }
+.cat-regime {
+  background: #cffafe;
+  color: #155e75;
+}
 
 /* ── 관찰 전용 신호 배지(OFF 전략이 기록한 로그) ── */
 .observe-badge {

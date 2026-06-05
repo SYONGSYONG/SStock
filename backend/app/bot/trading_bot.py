@@ -27,6 +27,7 @@ from app.strategies.market_rules import (
     stop_exit_reason,
     tick_size,
 )
+from app.strategies.regime import classify_regime, regime_label
 from app.strategies.registry import build_strategy
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,8 @@ class TradingBot:
         # 보호 청산용: 진입가 / 진입 후 최고가(손절·익절·트레일링 판정).
         self._entry_price: dict[tuple[str, str], float] = {}
         self._high_price: dict[tuple[str, str], float] = {}
+        # 오토모드 1단계(그림자): 종목별 직전 국면(전환 시에만 로그).
+        self._last_regime: dict[str, str] = {}
         self._running = False
         self._default_qty = default_qty
         self._sync_task: asyncio.Task[None] | None = None
@@ -140,6 +143,9 @@ class TradingBot:
                 for c in strategy_service.list_configs(conn, mode=self._mode)
                 if c["symbol"] == symbol
             ]
+            # 오토모드 1단계(그림자): 설정이 있는 종목의 국면을 분류해 전환 시에만 기록.
+            if configs:
+                self._shadow_regime(conn, symbol, hist)
             for cfg in configs:
                 key = (symbol, cfg["strategy"])
                 # OFF(비활성) 전략: 신호만 평가해 '관찰 로그'로 기록하고 주문은 내지 않는다.
@@ -395,6 +401,27 @@ class TradingBot:
             self._high_price.pop(key, None)
             return True
         return False
+
+    def _shadow_regime(self, conn: sqlite3.Connection, symbol: str, hist: list[float]) -> None:
+        """오토모드 1단계(그림자): 시장 국면을 분류해 직전과 다를 때만 추천 프리셋을 기록한다.
+
+        실주문·거버너·전략 평가와 완전히 분리된 '기록만' 동작이다(위험 0).
+        """
+        regime = classify_regime(hist)
+        if regime is None:
+            return
+        prev = self._last_regime.get(symbol)
+        if prev == regime:
+            return  # 국면 변화 없음 → 로그 안 함(휘프소 억제)
+        self._last_regime[symbol] = regime
+        if prev is None:
+            msg = f"[{self._mode}] {symbol} 시장 국면 감지: {regime_label(regime)} (추천 프리셋)"
+        else:
+            msg = (
+                f"[{self._mode}] {symbol} 시장 국면 전환: "
+                f"{regime_label(prev)} → {regime_label(regime)} (추천 프리셋)"
+            )
+        audit_service.log(conn, "REGIME", msg, self._mode)
 
     async def _observe_signal(
         self,

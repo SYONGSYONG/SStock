@@ -27,9 +27,7 @@ REGIME_LABEL: dict[str, str] = {
 }
 
 _REGIME_DEFAULTS: dict[str, float] = {
-    # [임시] 검증 편의를 위해 50→20으로 낮춤(워밍업 ~2,300틱 → ~920틱).
-    # 안정 운용 시에는 50으로 되돌린다(추후 UI 노출 = 2단계 임계값 설정).
-    "regime_bar_ticks": 20,       # 국면 판별용 틱봉 크기
+    "regime_bar_ticks": 50,       # 국면 판별용 틱봉 크기(안정 운용값)
     "regime_ma": 40,              # 추세 MA 기간(봉)
     "regime_slope_lookback": 5,   # 기울기 측정 봉 간격
     "regime_slope_ticks": 3,      # 추세로 인정할 기울기(틱)

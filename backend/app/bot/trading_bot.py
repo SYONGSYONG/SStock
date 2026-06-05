@@ -28,7 +28,12 @@ from app.strategies.market_rules import (
     stop_exit_reason,
     tick_size,
 )
-from app.strategies.regime import classify_regime, regime_label
+from app.strategies.regime import (
+    REGIME_CONFIRM,
+    classify_regime,
+    regime_bar_ticks,
+    regime_label,
+)
 from app.strategies.registry import build_strategy
 
 logger = logging.getLogger(__name__)
@@ -84,6 +89,10 @@ class TradingBot:
         self._high_price: dict[tuple[str, str], float] = {}
         # 오토모드 1단계(그림자): 종목별 직전 국면(전환 시에만 로그).
         self._last_regime: dict[str, str] = {}
+        # 국면 히스테리시스: 후보 국면(symbol→(국면, 연속봉수))과 마지막 카운트 봉 인덱스.
+        self._pending_regime: dict[str, tuple[str, int]] = {}
+        self._regime_bar: dict[str, int] = {}
+        self._regime_ticks: dict[str, int] = {}
         self._running = False
         self._default_qty = default_qty
         self._sync_task: asyncio.Task[None] | None = None
@@ -427,23 +436,44 @@ class TradingBot:
         return False
 
     def _shadow_regime(self, conn: sqlite3.Connection, symbol: str, hist: list[float]) -> None:
-        """오토모드 1단계(그림자): 시장 국면을 분류해 직전과 다를 때만 추천 프리셋을 기록한다.
+        """오토모드 1단계(그림자): 시장 국면을 분류해 '확정 전환' 시에만 추천 프리셋을 기록한다.
 
+        **히스테리시스**: 새 국면이 `REGIME_CONFIRM`개 확정봉 연속 유지될 때만 전환한다.
+        임계값 근처에서 매 봉 깜빡이는 플래핑을 무시해 국면·추천을 안정화한다.
         실주문·거버너·전략 평가와 완전히 분리된 '기록만' 동작이다(위험 0).
         """
         regime = classify_regime(hist)
         if regime is None:
             return
-        prev = self._last_regime.get(symbol)
-        if prev == regime:
-            return  # 국면 변화 없음 → 로그 안 함(휘프소 억제)
+        committed = self._last_regime.get(symbol)
+        if regime == committed:
+            self._pending_regime.pop(symbol, None)  # 현재 국면 유지 → 후보 리셋
+            return
+
+        # 봉 경계에서만 카운트(틱마다 증가 방지 = 진짜 히스테리시스).
+        # 히스토리 상한(_HISTORY_SIZE) 도달 후에도 단조 증가하도록 자체 카운터 사용.
+        n = self._regime_ticks.get(symbol, 0) + 1
+        self._regime_ticks[symbol] = n
+        bar = n // regime_bar_ticks()
+        if self._regime_bar.get(symbol) == bar:
+            return  # 같은 봉에서는 이미 카운트함
+        self._regime_bar[symbol] = bar
+
+        pend, count = self._pending_regime.get(symbol, (None, 0))
+        count = count + 1 if regime == pend else 1
+        self._pending_regime[symbol] = (regime, count)
+        if count < REGIME_CONFIRM:
+            return  # 아직 연속 확정 미달 → 전환 보류(플래핑 무시)
+
+        # 전환 확정
+        self._pending_regime.pop(symbol, None)
         self._last_regime[symbol] = regime
-        if prev is None:
+        if committed is None:
             msg = f"[{self._mode}] {symbol} 시장 국면 감지: {regime_label(regime)} (추천 프리셋)"
         else:
             msg = (
                 f"[{self._mode}] {symbol} 시장 국면 전환: "
-                f"{regime_label(prev)} → {regime_label(regime)} (추천 프리셋)"
+                f"{regime_label(committed)} → {regime_label(regime)} (추천 프리셋)"
             )
         audit_service.log(conn, "REGIME", msg, self._mode)
 

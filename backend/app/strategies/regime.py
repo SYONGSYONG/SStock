@@ -26,6 +26,9 @@ REGIME_LABEL: dict[str, str] = {
     REGIME_VERY_STRONG_DOWN: "아주강한하강",
 }
 
+# 히스테리시스: 새 국면이 N개 확정봉 연속 유지될 때만 전환(임계값 근처 플래핑 억제)
+REGIME_CONFIRM = 3
+
 _REGIME_DEFAULTS: dict[str, float] = {
     "regime_bar_ticks": 50,       # 국면 판별용 틱봉 크기(안정 운용값)
     "regime_ma": 40,              # 추세 MA 기간(봉)
@@ -83,3 +86,9 @@ def regime_label(regime: str | None) -> str:
     if regime is None:
         return ""
     return REGIME_LABEL.get(regime, regime)
+
+
+def regime_bar_ticks(params: dict[str, float] | None = None) -> int:
+    """국면 판별용 틱봉 크기(히스테리시스 봉 경계 계산용)."""
+    cfg = {**_REGIME_DEFAULTS, **(params or {})}
+    return int(cfg["regime_bar_ticks"]) or 1

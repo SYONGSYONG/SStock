@@ -138,23 +138,34 @@ async def test_OFF전략_관찰신호만_기록(tmp_path):
     conn.close()
 
 
-def test_그림자_국면_전환시에만_로그(tmp_path):
-    """오토모드 1단계: 국면이 바뀔 때만 REGIME 감사 로그를 1건 남긴다(휘프소 억제)."""
+def test_그림자_국면_히스테리시스(tmp_path, monkeypatch):
+    """국면은 REGIME_CONFIRM개 봉 연속 확정될 때만 전환 로그를 남긴다(플래핑은 무시)."""
+    from app.bot import trading_bot as tb
+
     path, settings = _setup(tmp_path)
     bot = TradingBot(conn_factory=lambda: connect(path), settings=settings)
     conn = connect(path)
 
-    rising = [1000.0 + i for i in range(2500)]   # 상승 국면
-    falling = [3500.0 - i for i in range(2500)]  # 하락 국면
+    # 매 호출=1봉, 확정 3회로 단순화
+    monkeypatch.setattr(tb, "regime_bar_ticks", lambda params=None: 1)
+    monkeypatch.setattr(tb, "REGIME_CONFIRM", 3)
 
-    bot._shadow_regime(conn, "005930", rising)   # 최초 감지 → 로그 1
-    bot._shadow_regime(conn, "005930", rising)   # 동일 국면 → 로그 없음
-    bot._shadow_regime(conn, "005930", falling)  # 전환 → 로그 2
+    seq = iter(
+        [
+            "강한하강", "횡보노이즈", "강한하강",  # 플래핑 → 확정 안 됨(로그 없음)
+            "강한상승", "강한상승", "강한상승",  # 3연속 → 최초 감지 로그
+            "강한하강", "강한하강", "강한하강",  # 3연속 → 전환 로그
+        ]
+    )
+    monkeypatch.setattr(tb, "classify_regime", lambda hist: next(seq))
 
-    regime_logs = [g for g in audit_service.list_logs(conn) if g["category"] == "REGIME"]
-    assert len(regime_logs) == 2
-    # 가장 최근 로그는 '전환' 문구
-    assert "전환" in regime_logs[0]["message"]
+    for _ in range(9):
+        bot._shadow_regime(conn, "005930", [0.0])
+
+    logs = [g for g in audit_service.list_logs(conn) if g["category"] == "REGIME"]
+    assert len(logs) == 2  # 플래핑 3건 무시 + 감지 1 + 전환 1
+    assert "전환" in logs[0]["message"]  # 최신(DESC)이 전환
+    assert "감지" in logs[1]["message"] and "강한상승" in logs[1]["message"]
     conn.close()
 
 

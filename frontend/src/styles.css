@@ -313,7 +313,7 @@ body {
 }
 .strategy-params {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px 10px;
 }
 .param-field {
@@ -537,14 +537,14 @@ body {
 .edit-modal:has(.strategy-compare) {
   width: 600px;
 }
-/* 전략 수정 모달: 파라미터(최대 16개)가 많아 가로로 넓히고 4열로 세로를 줄인다.
+/* 전략 수정 모달: 파라미터(최대 16개)가 많아 가로로 넓히고 5열로 세로를 줄인다.
    95vw 상한으로 화면 폭을 넘지 않게 한다(RSI+MA 폭 초과 방지). */
 .edit-modal:has(.strategy-params) {
-  width: 680px;
+  width: 820px;
   max-width: 95vw;
 }
 .edit-modal .strategy-params {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
 }
 .strategy-compare {
   width: 100%;

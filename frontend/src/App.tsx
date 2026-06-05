@@ -35,8 +35,7 @@ import {
   updateRiskLimits,
 } from "./api/client";
 import { ModeBanner } from "./components/ModeBanner";
-import { WatchList } from "./components/WatchList";
-import { QuoteTable } from "./components/QuoteTable";
+import { WatchQuotes } from "./components/WatchQuotes";
 import { MarketControl } from "./components/MarketControl";
 import { BotControl } from "./components/BotControl";
 import { RiskLimitBar } from "./components/RiskLimitBar";
@@ -362,23 +361,17 @@ export function App() {
           </div>
         </aside>
         <div className="content">
-          <section className="watch-quotes">
-            <WatchList
-              items={items}
-              strategySymbols={strategySymbols}
-              onAdd={handleAddWatch}
-              onRemove={handleRemoveWatch}
-              onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
-              search={searchStocks}
-              error={watchError}
-            />
-            <QuoteTable
-              items={items}
-              quotes={quotes}
-              strategySymbols={strategySymbols}
-              onPickSymbol={handlePickSymbol}
-            />
-          </section>
+          <WatchQuotes
+            items={items}
+            quotes={quotes}
+            strategySymbols={strategySymbols}
+            onAdd={handleAddWatch}
+            onRemove={handleRemoveWatch}
+            onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
+            onPickSymbol={handlePickSymbol}
+            search={searchStocks}
+            error={watchError}
+          />
           <PositionTable positions={positions} quotes={quotes} />
           <OrderLog orders={orders} />
           <SignalLog signals={signals} />

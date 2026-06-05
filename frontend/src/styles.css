@@ -836,18 +836,37 @@ body {
   gap: 18px;
 }
 
-/* 관심종목 + 실시간 시세를 나란히 배치 */
-.watch-quotes {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 18px;
-  align-items: start;
+/* 관심종목+실시간 시세 통합 표: 헤더 우측에 검색창 배치 */
+.watch-quotes-head {
+  flex-wrap: nowrap;
+  gap: 12px;
 }
-
-@media (max-width: 1400px) {
-  .watch-quotes {
-    grid-template-columns: 1fr;
-  }
+.watch-quotes-head h2 {
+  white-space: nowrap;
+}
+.watch-quotes-head .search-box {
+  margin: 0 0 0 auto;
+  width: min(320px, 60%);
+}
+/* 종목명 셀(클릭 → 차트): 테두리 없는 버튼 */
+.quote-name-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.quote-name-btn:hover .name {
+  text-decoration: underline;
+}
+/* 전략이동 버튼(좌측 열) */
+.strategy-move {
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 /* 계좌 잔고 요약 패널 */

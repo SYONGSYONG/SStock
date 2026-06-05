@@ -501,6 +501,17 @@ describe("StrategyPanel", () => {
     expect(options[0]).toHaveTextContent("RSI + MA 필터");
   });
 
+  test("파라미터 항목에 코드 변수명이 title(툴팁)로 노출된다", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    // 기본 RSI+MA: '추세 MA' 라벨 ↔ 변수명 ma_period
+    expect(screen.getByLabelText("추세 MA")).toHaveAttribute("title", "ma_period");
+    // 이동평균 크로스로 전환: '단기' ↔ short
+    fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
+    expect(screen.getByLabelText("단기")).toHaveAttribute("title", "short");
+  });
+
   test("RSI+MA는 5종 프리셋, 이동평균 크로스는 4종 프리셋을 제공한다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,

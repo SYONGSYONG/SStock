@@ -69,11 +69,15 @@ function StrategyParamInputs({
   return (
     <div className="strategy-params">
       {fields.map((f) => (
-        <label key={f.key} className="param-field">
-          <span className="param-label">{f.label}</span>
+        // title: 한글 라벨에 대응하는 코드 변수명을 마우스오버 툴팁으로 노출
+        <label key={f.key} className="param-field" title={f.key}>
+          <span className="param-label" title={f.key}>
+            {f.label}
+          </span>
           <input
             type="number"
             aria-label={f.label}
+            title={f.key}
             min={f.min}
             max={f.max}
             value={Number.isFinite(params[f.key]) ? params[f.key] : ""}

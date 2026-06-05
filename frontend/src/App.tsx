@@ -321,15 +321,7 @@ export function App() {
       ) : (
       <main className="layout">
         <aside className="sidebar">
-          <WatchList
-            items={items}
-            strategySymbols={strategySymbols}
-            onAdd={handleAddWatch}
-            onRemove={handleRemoveWatch}
-            onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
-            search={searchStocks}
-            error={watchError}
-          />
+          <AccountPanel balance={account} />
           <RiskLimitBar
             data={riskLimit}
             mode={viewMode}
@@ -370,13 +362,23 @@ export function App() {
           </div>
         </aside>
         <div className="content">
-          <AccountPanel balance={account} />
-          <QuoteTable
-            items={items}
-            quotes={quotes}
-            strategySymbols={strategySymbols}
-            onPickSymbol={handlePickSymbol}
-          />
+          <section className="watch-quotes">
+            <WatchList
+              items={items}
+              strategySymbols={strategySymbols}
+              onAdd={handleAddWatch}
+              onRemove={handleRemoveWatch}
+              onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
+              search={searchStocks}
+              error={watchError}
+            />
+            <QuoteTable
+              items={items}
+              quotes={quotes}
+              strategySymbols={strategySymbols}
+              onPickSymbol={handlePickSymbol}
+            />
+          </section>
           <PositionTable positions={positions} quotes={quotes} />
           <OrderLog orders={orders} />
           <SignalLog signals={signals} />

@@ -836,6 +836,20 @@ body {
   gap: 18px;
 }
 
+/* 관심종목 + 실시간 시세를 나란히 배치 */
+.watch-quotes {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1400px) {
+  .watch-quotes {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* 계좌 잔고 요약 패널 */
 .account-head {
   display: flex;

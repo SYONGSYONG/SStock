@@ -319,6 +319,27 @@ body {
   font-size: 10.5px;
   color: var(--muted);
 }
+/* 오토모드: 추천 프리셋 적용 제안 줄(전략 설명 아래) */
+.strategy-reco {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.strategy-reco .reco-tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #cffafe;
+  color: #155e75;
+}
+.strategy-reco .reco-apply {
+  font-weight: 700;
+}
+
 /* 전략 목록: 적용된 프리셋 배지(종목명 옆) */
 .preset-badge {
   display: inline-block;

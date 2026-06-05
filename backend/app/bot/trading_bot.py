@@ -91,6 +91,10 @@ class TradingBot:
     def running(self) -> bool:
         return self._running
 
+    def regimes(self) -> dict[str, str]:
+        """오토모드: 종목별 현재 시장 국면(마지막 분류 결과)의 복사본을 반환한다."""
+        return dict(self._last_regime)
+
     async def start(self) -> None:
         self._running = True
         if self._sync_task is None or self._sync_task.done():

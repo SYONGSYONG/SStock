@@ -28,6 +28,7 @@ from app.routers import (
     orders,
     quotes,
     recommend,
+    regime,
     risk_limits,
     signals,
     stocks,
@@ -154,6 +155,7 @@ def create_app() -> FastAPI:
     app.include_router(trade_pnl.router)
     app.include_router(orders.router)
     app.include_router(bot.router)
+    app.include_router(regime.router)
     app.include_router(audit.router)
     app.include_router(ws.router)
     return app

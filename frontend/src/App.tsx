@@ -16,6 +16,7 @@ import {
   getPositions,
   getQuote,
   getRecommend,
+  getRegimes,
   getRiskLimits,
   getSignals,
   getTradePnl,
@@ -82,6 +83,7 @@ export function App() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
+  const [regimes, setRegimes] = useState<Record<string, string>>({});
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [riskLimit, setRiskLimit] = useState<RiskLimit | null>(null);
   const [riskLimitError, setRiskLimitError] = useState<string | null>(null);
@@ -132,6 +134,7 @@ export function App() {
       getOrders(50, viewMode).then(setOrders).catch(() => {});
       getPositions(viewMode).then(setPositions).catch(() => {});
       getAudit(100, viewMode).then(setAudit).catch(() => {});
+      getRegimes(viewMode).then(setRegimes).catch(() => {});
       getBudgets(viewMode).then(setBudgets).catch(() => {});
       getRiskLimits(viewMode).then(setRiskLimit).catch(() => {});
       getAccountBalance(viewMode).then(setAccount).catch(() => {});
@@ -337,6 +340,7 @@ export function App() {
             <StrategyPanel
               configs={strategies}
               budgets={budgets}
+              regimes={regimes}
               items={items}
               presetSymbol={symbolPreset}
               onAdd={handleAddStrategy}

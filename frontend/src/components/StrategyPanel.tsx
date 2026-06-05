@@ -7,6 +7,7 @@ import {
   getStrategyHelp,
   matchPreset,
   presetsFor,
+  type StrategyPreset,
   STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
   STRATEGY_LABEL,
@@ -20,6 +21,8 @@ interface StrategyPanelProps {
   configs: StrategyConfig[];
   /** 종목별 자본 칸막이 현황(전략 항목 아래 가용/한도 표기용) */
   budgets: Budget[];
+  /** 오토모드: 종목별 현재 시장 국면({종목코드: 국면키}). 추천 프리셋 표시용. */
+  regimes?: Record<string, string>;
   /** 관심종목(종목코드→종목명 표시용) */
   items?: WatchItem[];
   /** 외부(실시간 시세 클릭)에서 종목코드를 채워넣을 때. n이 바뀌면 value로 설정. */
@@ -204,6 +207,7 @@ function AmountSteppers({
 export function StrategyPanel({
   configs,
   budgets,
+  regimes = {},
   items = [],
   presetSymbol,
   onAdd,
@@ -344,6 +348,23 @@ export function StrategyPanel({
       onAdd(body);
     }
     setEditing(null);
+  };
+
+  // 오토모드 추천 프리셋 적용(사람 확인형) — 현재 파라미터를 프리셋으로 덮어쓴다.
+  const applyRecommendedPreset = (c: StrategyConfig, preset: StrategyPreset) => {
+    const ok = window.confirm(
+      `${c.symbol} 전략에 추천 프리셋 '${preset.label}'을(를) 적용합니다.\n` +
+        `· ${preset.purpose}\n\n현재 파라미터를 덮어씁니다. 계속하시겠습니까?`,
+    );
+    if (!ok) return;
+    const body = {
+      symbol: c.symbol,
+      strategy: c.strategy,
+      params: { ...preset.params },
+      enabled: c.enabled,
+    };
+    if (onEditStrategy) onEditStrategy(c.id, body);
+    else onAdd(body);
   };
 
   const openEditBudget = (b: Budget) => {
@@ -511,6 +532,26 @@ export function StrategyPanel({
                 전략 수정
               </button>
             </div>
+            {(() => {
+              // 오토모드: 현재 국면에 맞는 추천 프리셋이 있고, 아직 그 프리셋이 아니면 적용 제안
+              const regime = regimes[c.symbol];
+              if (!regime) return null;
+              const rec = presetsFor(c.strategy).find((p) => p.key === regime);
+              if (!rec) return null;
+              if (matchPreset(c.strategy, c.params)?.key === rec.key) return null;
+              return (
+                <div className="strategy-reco" title={rec.purpose}>
+                  <span className="reco-tag">추천</span>
+                  <b>{rec.label}</b>
+                  <button
+                    className="link-action reco-apply"
+                    onClick={() => applyRecommendedPreset(c, rec)}
+                  >
+                    적용
+                  </button>
+                </div>
+              );
+            })()}
             {(() => {
               const b = budgetOf(c.symbol);
               if (!b) {

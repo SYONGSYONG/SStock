@@ -87,6 +87,48 @@ describe("StrategyPanel", () => {
     expect(within(item).getByText("횡보/노이즈")).toBeInTheDocument();
   });
 
+  test("오토모드: 현재 국면에 맞는 추천 프리셋과 적용 버튼을 보여준다", () => {
+    const onEditStrategy = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "강한상승" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} onEditStrategy={onEditStrategy} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText("강한상승")).toBeInTheDocument();
+    fireEvent.click(within(item).getByRole("button", { name: "적용" }));
+    const ma = MA_CROSS_PRESETS.find((p) => p.key === "강한상승")!;
+    expect(onEditStrategy).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ symbol: "005930", strategy: "ma_cross", enabled: true, params: ma.params }),
+    );
+  });
+
+  test("오토모드: 이미 추천 프리셋과 일치하면 적용 제안을 숨긴다", () => {
+    const ma = MA_CROSS_PRESETS.find((p) => p.key === "강한상승")!;
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { ...ma.params }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "강한상승" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).queryByRole("button", { name: "적용" })).toBeNull();
+  });
+
+  test("오토모드: 해당 전략에 없는 국면이면 추천을 표시하지 않는다(ma_cross+횡보)", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "횡보노이즈" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).queryByRole("button", { name: "적용" })).toBeNull();
+  });
+
   test("전략 목록에 종목번호와 종목명을 함께 표기", () => {
     const configs: StrategyConfig[] = [
       { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20 }, enabled: true, max_qty: null, max_amount: null },

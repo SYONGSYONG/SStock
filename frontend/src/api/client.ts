@@ -122,6 +122,10 @@ export const startBot = (confirmLive = false, mode: TradingMode = "paper") =>
 export const stopBot = (mode: TradingMode) =>
   api<{ running: boolean }>(withMode("/api/bot/stop", mode), { method: "POST" });
 
+/** 오토모드: 종목별 현재 시장 국면(추천 프리셋용). { 종목코드: 국면키 } */
+export const getRegimes = (mode: TradingMode) =>
+  api<Record<string, string>>(withMode("/api/regime", mode));
+
 export const getOrders = (limit = 50, mode: TradingMode) =>
   api<Order[]>(withMode(`/api/orders?limit=${limit}`, mode));
 

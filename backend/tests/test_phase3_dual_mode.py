@@ -175,6 +175,26 @@ class TestMarketDataServiceModeHandling:
         assert feed._on_tick_handler is dummy_handler
 
 
+async def test_시세_상태로그_전환시에만(monkeypatch):
+    """반복되는 재연결 실패는 첫 1건만 기록하고, up↔down 전환 시에만 로그한다(폭주 방지)."""
+    from app.bot.market_data import MarketDataService
+    from app.config import Settings
+
+    feed = MarketDataService(settings=Settings(_env_file=None, trading_mode="paper"), mode="paper")
+    logged: list[str] = []
+    monkeypatch.setattr(feed, "_audit", lambda msg: logged.append(msg))
+
+    for _ in range(5):  # 연속 오류 5번 → 첫 1건만
+        await feed._on_status("error", "boom")
+    assert len(logged) == 1
+    await feed._on_status("connected", "7종목")  # 전환(up) → 1건
+    assert len(logged) == 2
+    await feed._on_status("connected", "7종목")  # 동일 상태 → 추가 없음
+    assert len(logged) == 2
+    await feed._on_status("disconnected", "")  # 전환(down) → 1건
+    assert len(logged) == 3
+
+
 class TestRealtimeClientMode:
     """KisRealtimeClient: 모드별 도메인/인증."""
 

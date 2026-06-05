@@ -36,6 +36,8 @@ class MarketDataService:
         self._task: asyncio.Task[None] | None = None
         self._symbols: list[str] = []
         self._on_tick_handler = on_tick_handler
+        # 시세 연결 상태("up"/"down") — 전환 시에만 로그(로그 폭주 방지)
+        self._last_status: str | None = None
 
     @property
     def running(self) -> bool:
@@ -56,13 +58,21 @@ class MarketDataService:
         logger.info("MarketDataService[%s] 시작: %s", self._mode, self._symbols)
 
     async def _on_status(self, event: str, detail: str) -> None:
-        """시세 연결 상태 변화를 감사 로그(MARKET)로 가시화한다(끊김/재연결 추적용)."""
-        if event == "connected":
+        """시세 연결 상태 '전환'만 감사 로그(MARKET)로 남긴다.
+
+        연속된 같은 상태(예: 30초마다 반복되는 재연결 실패)는 첫 1건만 기록해 로그 폭주를
+        막는다. up(연결됨) ↔ down(끊김/오류) 전환 시에만 기록한다.
+        """
+        state = "up" if event == "connected" else "down"
+        if state == self._last_status:
+            return  # 동일 상태 지속 → 로그 생략
+        self._last_status = state
+        if state == "up":
             self._audit(f"시세 연결됨 ({detail})")
         elif event == "disconnected":
             self._audit("시세 연결 끊김 — 재연결 시도")
-        elif event == "error":
-            self._audit(f"시세 연결 오류 — 재연결: {detail[:80]}")
+        else:
+            self._audit(f"시세 연결 실패 — 재연결 반복 중: {detail[:80]}")
 
     def _audit(self, message: str) -> None:
         """감사 로그 기록(실패해도 시세를 막지 않게 광범위 포착)."""

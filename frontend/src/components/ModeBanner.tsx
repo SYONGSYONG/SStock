@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { TradingMode } from "../types";
 
 interface ModeBannerProps {
@@ -6,6 +7,8 @@ interface ModeBannerProps {
   paperBotRunning: boolean;
   liveBotRunning: boolean;
   connected: boolean;
+  /** 우측 봇 상태 pill 왼쪽에 들어갈 컨트롤(자동매매 봇/시세 수집 컴팩트 버튼) */
+  controls?: ReactNode;
 }
 
 export function ModeBanner({
@@ -14,6 +17,7 @@ export function ModeBanner({
   paperBotRunning,
   liveBotRunning,
   connected,
+  controls,
 }: ModeBannerProps) {
   const isLive = viewMode === "live";
 
@@ -37,6 +41,7 @@ export function ModeBanner({
         </button>
       </div>
       <span className="spacer" />
+      {controls && <div className="banner-controls">{controls}</div>}
       <span className={`pill ${paperBotRunning ? "on" : "off"}`}>
         모의 봇 {paperBotRunning ? "●" : "○"}
       </span>

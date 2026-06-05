@@ -6,9 +6,11 @@ interface BotControlProps {
   onStart: (confirmLive: boolean) => void;
   onStop: () => void;
   error?: string | null;
+  /** 상단 배너용 컴팩트(라벨 + 버튼만) 렌더 */
+  compact?: boolean;
 }
 
-export function BotControl({ running, mode, onStart, onStop, error }: BotControlProps) {
+export function BotControl({ running, mode, onStart, onStop, error, compact }: BotControlProps) {
   const isLive = mode === "live";
 
   const handleStart = () => {
@@ -24,6 +26,23 @@ export function BotControl({ running, mode, onStart, onStop, error }: BotControl
       onStart(false);
     }
   };
+
+  if (compact) {
+    return (
+      <div className="banner-control" title={error ?? undefined}>
+        <span className="banner-control-label">자동매매 봇</span>
+        {running ? (
+          <button className="btn-stop btn-sm" onClick={onStop}>
+            정지
+          </button>
+        ) : (
+          <button className="btn-start btn-sm" onClick={handleStart}>
+            {isLive ? "시작(실전)" : "시작"}
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <section className="panel">

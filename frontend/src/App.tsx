@@ -285,6 +285,25 @@ export function App() {
         paperBotRunning={botPaper.running}
         liveBotRunning={botLive.running}
         connected={connected}
+        controls={
+          <>
+            <BotControl
+              compact
+              running={bot.running}
+              mode={bot.mode}
+              onStart={handleBotStart}
+              onStop={handleBotStop}
+              error={botError}
+            />
+            <MarketControl
+              compact
+              running={market.running}
+              clients={market.dashboard_clients}
+              onStart={handleMarketStart}
+              onStop={handleMarketStop}
+            />
+          </>
+        }
       />
       <nav className="tabs" aria-label="화면 전환">
         <button
@@ -319,7 +338,8 @@ export function App() {
         <TradePnlPage mode={viewMode} fetchTradePnl={getTradePnl} />
       ) : (
       <main className="layout">
-        <aside className="sidebar">
+        {/* 계좌잔고 : 오늘 주문한도 = 2:1 */}
+        <div className="row row-2-1">
           <AccountPanel balance={account} />
           <RiskLimitBar
             data={riskLimit}
@@ -327,6 +347,11 @@ export function App() {
             onUpdate={handleSetRiskLimit}
             error={riskLimitError}
           />
+        </div>
+        {/* 보유 포지션(전체 폭) */}
+        <PositionTable positions={positions} quotes={quotes} />
+        {/* 전략 : 실시간 시세 = 1:1 */}
+        <div className="row row-1-1">
           <section className="panel rules-panel">
             <StrategyPanel
               configs={strategies}
@@ -344,23 +369,6 @@ export function App() {
               budgetError={budgetError}
             />
           </section>
-          <div className="control-row">
-            <BotControl
-              running={bot.running}
-              mode={bot.mode}
-              onStart={handleBotStart}
-              onStop={handleBotStop}
-              error={botError}
-            />
-            <MarketControl
-              running={market.running}
-              clients={market.dashboard_clients}
-              onStart={handleMarketStart}
-              onStop={handleMarketStop}
-            />
-          </div>
-        </aside>
-        <div className="content">
           <WatchQuotes
             items={items}
             quotes={quotes}
@@ -372,11 +380,14 @@ export function App() {
             search={searchStocks}
             error={watchError}
           />
-          <PositionTable positions={positions} quotes={quotes} />
+        </div>
+        {/* 주문내역 : 매매신호 = 1:1 */}
+        <div className="row row-1-1">
           <OrderLog orders={orders} />
           <SignalLog signals={signals} />
-          <AuditLogView logs={audit} />
         </div>
+        {/* 시스템 로그(전체 폭) */}
+        <AuditLogView logs={audit} />
       </main>
       )}
       {chartTarget && (

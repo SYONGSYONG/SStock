@@ -39,4 +39,12 @@ describe("BotControl", () => {
     fireEvent.click(screen.getByText("봇 정지"));
     expect(onStop).toHaveBeenCalled();
   });
+
+  test("compact 모드: 라벨 + 시작 버튼(모의)", () => {
+    const onStart = vi.fn();
+    render(<BotControl compact running={false} mode="paper" onStart={onStart} onStop={() => {}} />);
+    expect(screen.getByText("자동매매 봇")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("시작"));
+    expect(onStart).toHaveBeenCalledWith(false);
+  });
 });

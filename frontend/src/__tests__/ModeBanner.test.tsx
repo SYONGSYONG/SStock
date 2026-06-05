@@ -50,6 +50,20 @@ describe("ModeBanner", () => {
     expect(onSwitch).toHaveBeenCalledWith("live");
   });
 
+  test("controls 슬롯(봇/시세 컨트롤)을 렌더한다", () => {
+    render(
+      <ModeBanner
+        viewMode="paper"
+        onSwitchMode={() => {}}
+        paperBotRunning={false}
+        liveBotRunning={false}
+        connected={false}
+        controls={<span>봇/시세 컨트롤</span>}
+      />,
+    );
+    expect(screen.getByText("봇/시세 컨트롤")).toBeInTheDocument();
+  });
+
   test("양쪽 봇 상태를 동시에 표시", () => {
     render(
       <ModeBanner

@@ -118,7 +118,7 @@ describe("StrategyPanel", () => {
     expect(within(item).queryByRole("button", { name: "적용" })).toBeNull();
   });
 
-  test("오토모드: 해당 전략에 없는 국면이면 추천을 표시하지 않는다(ma_cross+횡보)", () => {
+  test("오토모드(A): ma_cross가 약한 횡보/하강 국면이면 RSI+MA 권장 안내(적용 버튼 없음)", () => {
     const configs: StrategyConfig[] = [
       { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: false, max_qty: null, max_amount: null },
     ];
@@ -126,7 +126,22 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "횡보노이즈" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText("RSI + MA 필터")).toBeInTheDocument();
+    expect(within(item).getByText("권장")).toBeInTheDocument();
+    // 정책 A: 전략 자동 전환 없음 → 프리셋 적용 버튼은 없다
     expect(within(item).queryByRole("button", { name: "적용" })).toBeNull();
+  });
+
+  test("오토모드(A): ma_cross도 상승 국면에선 ma_cross 프리셋을 추천(권장 안내 없음)", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "아주강한상승" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByRole("button", { name: "적용" })).toBeInTheDocument();
+    expect(within(item).queryByText("권장")).toBeNull();
   });
 
   test("전략 목록에 종목번호와 종목명을 함께 표기", () => {

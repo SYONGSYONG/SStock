@@ -339,6 +339,14 @@ body {
 .strategy-reco .reco-apply {
   font-weight: 700;
 }
+.strategy-reco-hint .reco-tag {
+  background: #fef3c7;
+  color: #92400e;
+}
+.strategy-reco .reco-note {
+  color: var(--muted);
+  font-size: 11px;
+}
 
 /* 전략 목록: 적용된 프리셋 배지(종목명 옆) */
 .preset-badge {

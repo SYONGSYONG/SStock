@@ -533,9 +533,23 @@ export function StrategyPanel({
               </button>
             </div>
             {(() => {
-              // 오토모드: 현재 국면에 맞는 추천 프리셋이 있고, 아직 그 프리셋이 아니면 적용 제안
               const regime = regimes[c.symbol];
               if (!regime) return null;
+              const isUpRegime = regime === "강한상승" || regime === "아주강한상승";
+              // 정책 A: 기본 추천 전략은 RSI+MA. ma_cross가 약한 횡보·하강 국면에선
+              // RSI+MA 전환을 권장만 한다(전환은 '전략 수정'에서 사용자가 직접).
+              if (c.strategy === "ma_cross" && !isUpRegime) {
+                return (
+                  <div
+                    className="strategy-reco strategy-reco-hint"
+                    title="추세추종에 불리한 국면 — RSI+MA 필터 권장"
+                  >
+                    <span className="reco-tag">권장</span>이 국면엔 <b>RSI + MA 필터</b>{" "}
+                    <span className="reco-note">(전략 수정에서 변경)</span>
+                  </div>
+                );
+              }
+              // 국면에 맞는 프리셋 추천(현재 파라미터가 아직 그 프리셋이 아니면 적용 제안)
               const rec = presetsFor(c.strategy).find((p) => p.key === regime);
               if (!rec) return null;
               if (matchPreset(c.strategy, c.params)?.key === rec.key) return null;

@@ -350,37 +350,36 @@ export function App() {
         </div>
         {/* 보유 포지션(전체 폭) */}
         <PositionTable positions={positions} quotes={quotes} />
-        {/* 전략 : 실시간 시세 = 1:1 */}
-        <div className="row row-1-1">
-          <section className="panel rules-panel">
-            <StrategyPanel
-              configs={strategies}
-              budgets={budgets}
-              regimes={regimes}
-              items={items}
-              presetSymbol={symbolPreset}
-              onAdd={handleAddStrategy}
-              onSetBudget={handleSetBudget}
-              onToggle={handleToggleStrategy}
-              onRemove={handleRemoveStrategy}
-              onEditStrategy={handleEditStrategy}
-              orderableCash={account?.orderable_cash ?? null}
-              error={strategyError}
-              budgetError={budgetError}
-            />
-          </section>
-          <WatchQuotes
+        {/* 실시간 시세(전체 폭) */}
+        <WatchQuotes
+          items={items}
+          quotes={quotes}
+          strategySymbols={strategySymbols}
+          onAdd={handleAddWatch}
+          onRemove={handleRemoveWatch}
+          onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
+          onPickSymbol={handlePickSymbol}
+          search={searchStocks}
+          error={watchError}
+        />
+        {/* 전략(전체 폭 · 내부에서 추가 폼 좌 / 등록 전략 우) */}
+        <section className="panel rules-panel">
+          <StrategyPanel
+            configs={strategies}
+            budgets={budgets}
+            regimes={regimes}
             items={items}
-            quotes={quotes}
-            strategySymbols={strategySymbols}
-            onAdd={handleAddWatch}
-            onRemove={handleRemoveWatch}
-            onSelect={(symbol, name) => setChartTarget({ symbol, name, source: "dashboard" })}
-            onPickSymbol={handlePickSymbol}
-            search={searchStocks}
-            error={watchError}
+            presetSymbol={symbolPreset}
+            onAdd={handleAddStrategy}
+            onSetBudget={handleSetBudget}
+            onToggle={handleToggleStrategy}
+            onRemove={handleRemoveStrategy}
+            onEditStrategy={handleEditStrategy}
+            orderableCash={account?.orderable_cash ?? null}
+            error={strategyError}
+            budgetError={budgetError}
           />
-        </div>
+        </section>
         {/* 주문내역 : 매매신호 = 1:1 */}
         <div className="row row-1-1">
           <OrderLog orders={orders} />

@@ -290,6 +290,29 @@ body {
   border-top: 1px solid var(--border);
 }
 
+/* 전략 패널 본문: 추가 폼(좌) / 등록된 전략 목록(우) 2열 */
+.strategy-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.strategy-body > .strategy-list {
+  border-left: 1px solid var(--border);
+  padding-left: 24px;
+}
+@media (max-width: 1100px) {
+  .strategy-body {
+    grid-template-columns: 1fr;
+  }
+  .strategy-body > .strategy-list {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+}
+
 /* 전략 목록: 2단 레이아웃(종목+토글/삭제 / 전략 설명) */
 /* ── 전략 추가 폼(파라미터 편집) ── */
 .strategy-form {

@@ -423,6 +423,8 @@ export function StrategyPanel({
           <option value="ma_cross">이동평균 크로스</option>
         </select>
       </div>
+      <div className="strategy-body">
+        <div className="strategy-add-col">
       <form className="strategy-form" onSubmit={submit}>
         <div className="strategy-symbol-row">
           <input
@@ -502,6 +504,7 @@ export function StrategyPanel({
         </button>
       </form>
       {error && <p className="error">{error}</p>}
+        </div>
       <ul className="strategy-list">
         {configs.map((c) => (
           <li key={c.id} className="strategy-item">
@@ -617,6 +620,7 @@ export function StrategyPanel({
         ))}
         {configs.length === 0 && <li className="empty">등록된 전략이 없습니다</li>}
       </ul>
+      </div>
 
       {editing && (
         <Modal

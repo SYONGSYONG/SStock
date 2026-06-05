@@ -172,6 +172,46 @@ describe("StrategyPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  test("수정 모달도 이동평균 크로스면 프리셋으로 파라미터를 채울 수 있다", () => {
+    const onEditStrategy = vi.fn();
+    const configs: StrategyConfig[] = [
+      { id: 7, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { short: 5, long: 20, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} onEditStrategy={onEditStrategy} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
+    const dialog = screen.getByRole("dialog");
+    // ma_cross이므로 프리셋 선택이 보인다
+    const presetSelect = within(dialog).getByLabelText("수정 프리셋 선택");
+    fireEvent.change(presetSelect, { target: { value: "강한하강" } });
+    // 강한하강 프리셋 값으로 채워진다
+    expect((within(dialog).getByLabelText("단기") as HTMLInputElement).value).toBe("8");
+    expect((within(dialog).getByLabelText("장기") as HTMLInputElement).value).toBe("32");
+    expect((within(dialog).getByLabelText("추세MA(0=off)") as HTMLInputElement).value).toBe("60");
+
+    fireEvent.click(within(dialog).getByText("저장"));
+    expect(onEditStrategy).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        strategy: "ma_cross",
+        params: expect.objectContaining({ short: 8, long: 32, trend_ma: 60, cooldown_bars: 20 }),
+      }),
+    );
+  });
+
+  test("수정 모달에서 RSI+MA면 프리셋 선택이 없다", () => {
+    const configs: StrategyConfig[] = [
+      { id: 8, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { rsi_period: 21, low: 30, high: 75, ma_period: 80, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByLabelText("수정 프리셋 선택")).toBeNull();
+  });
+
   test("수정 모달에서 다른 전략으로 교체하면 onEditStrategy로 새 전략을 전달", () => {
     const onEditStrategy = vi.fn();
     const configs: StrategyConfig[] = [

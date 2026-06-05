@@ -242,6 +242,8 @@ export function StrategyPanel({
   const [editing, setEditing] = useState<StrategyConfig | null>(null);
   const [editStrategy, setEditStrategy] = useState<StrategyName>("ma_cross");
   const [editParams, setEditParams] = useState<Record<string, number>>({});
+  // 수정 모달의 ma_cross 프리셋 선택("" = 직접 설정)
+  const [editPreset, setEditPreset] = useState("");
   // 자본 칸막이(원금) 수정 모달
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [editPrincipal, setEditPrincipal] = useState("");
@@ -301,13 +303,23 @@ export function StrategyPanel({
     setEditing(c);
     setEditStrategy(c.strategy);
     setEditParams({ ...c.params });
+    setEditPreset(""); // 기존 파라미터가 어느 프리셋인지 알 수 없으므로 '직접 설정'
   };
 
   // 수정 모달에서 전략 종류를 바꾸면 그 전략의 기본 파라미터로 채운다.
   const changeEditStrategy = (next: StrategyName) => {
     setEditStrategy(next);
     setEditParams({ ...STRATEGY_DEFAULTS[next] });
+    setEditPreset("");
   };
+
+  // 수정 모달 프리셋 선택 시 해당 파라미터로 채운다("" = 직접 설정 → 기본값).
+  const changeEditPreset = (key: string) => {
+    setEditPreset(key);
+    const p = MA_CROSS_PRESETS.find((x) => x.key === key);
+    setEditParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS.ma_cross });
+  };
+  const editPresetPurpose = MA_CROSS_PRESETS.find((x) => x.key === editPreset)?.purpose ?? "";
 
   const changeEditParam = (key: string, raw: string) => {
     setEditParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
@@ -539,6 +551,26 @@ export function StrategyPanel({
               {STRATEGY_LABEL[editing.strategy]} → {STRATEGY_LABEL[editStrategy]}로 교체됩니다
               (파라미터는 기본값으로 초기화).
             </p>
+          )}
+          {editStrategy === "ma_cross" && (
+            <label className="param-field preset-field">
+              <span className="param-label">프리셋</span>
+              <select
+                aria-label="수정 프리셋 선택"
+                value={editPreset}
+                onChange={(e) => changeEditPreset(e.target.value)}
+              >
+                <option value="">(직접 설정)</option>
+                {MA_CROSS_PRESETS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <span className="param-default">
+                {editPresetPurpose || "프리셋을 고르면 파라미터가 채워집니다(이후 수정 가능)"}
+              </span>
+            </label>
           )}
           <StrategyParamInputs
             strategy={editStrategy}

@@ -65,6 +65,71 @@ def test_구독해지_메시지():
     assert msg["header"]["tr_type"] == "2"
 
 
+async def test_시세_무한재연결_정지전까지(monkeypatch):
+    """연결이 계속 실패해도 5회 제한 없이 정지(stop) 전까지 무한 재시도한다."""
+    from app.kis import realtime as rt
+
+    client = rt.KisRealtimeClient(_settings(), mode="paper")
+
+    async def fake_key():
+        return "K"
+
+    monkeypatch.setattr(client._auth, "get_approval_key", fake_key)
+
+    attempts = {"n": 0}
+    statuses: list[str] = []
+
+    class BoomCtx:
+        async def __aenter__(self):
+            raise ConnectionError("boom")
+
+        async def __aexit__(self, *a):
+            return False
+
+    def fake_connect(url):
+        attempts["n"] += 1
+        if attempts["n"] >= 7:  # 옛 max_retries=5를 넘어서도 계속 재시도함을 증명
+            client.stop()
+        return BoomCtx()
+
+    async def fast_sleep(_s):
+        return None
+
+    monkeypatch.setattr(rt.websockets, "connect", fake_connect)
+    monkeypatch.setattr(rt.asyncio, "sleep", fast_sleep)
+
+    async def on_status(ev, _detail):
+        statuses.append(ev)
+
+    async def on_tick(_t):
+        pass
+
+    await client.run(["005930"], on_tick, on_status=on_status)
+
+    assert attempts["n"] == 7  # 5회 제한 없이 7회까지 재시도 후 정지로 종료
+    assert "error" in statuses
+
+
+async def test_emit_status_콜백_호출_및_오류무시():
+    """상태 콜백을 호출하고, 콜백 오류는 삼켜 시세 루프를 막지 않는다."""
+    from app.kis.realtime import KisRealtimeClient
+
+    got: list[tuple[str, str]] = []
+
+    async def ok(ev, detail):
+        got.append((ev, detail))
+
+    await KisRealtimeClient._emit_status(ok, "connected", "1종목")
+    assert got == [("connected", "1종목")]
+
+    async def boom(_ev, _detail):
+        raise RuntimeError("콜백 오류")
+
+    # 콜백 오류·None 모두 예외 없이 통과
+    await KisRealtimeClient._emit_status(boom, "error", "x")
+    await KisRealtimeClient._emit_status(None, "error", "x")
+
+
 @respx.mock
 async def test_approval_key_발급():
     settings = _settings()

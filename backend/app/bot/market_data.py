@@ -50,8 +50,33 @@ class MarketDataService:
             return
         self._symbols = list(symbols)
         self._client = KisRealtimeClient(self._settings, mode=self._mode)
-        self._task = asyncio.create_task(self._client.run(self._symbols, self._on_tick))
+        self._task = asyncio.create_task(
+            self._client.run(self._symbols, self._on_tick, on_status=self._on_status)
+        )
         logger.info("MarketDataService[%s] 시작: %s", self._mode, self._symbols)
+
+    async def _on_status(self, event: str, detail: str) -> None:
+        """시세 연결 상태 변화를 감사 로그(MARKET)로 가시화한다(끊김/재연결 추적용)."""
+        if event == "connected":
+            self._audit(f"시세 연결됨 ({detail})")
+        elif event == "disconnected":
+            self._audit("시세 연결 끊김 — 재연결 시도")
+        elif event == "error":
+            self._audit(f"시세 연결 오류 — 재연결: {detail[:80]}")
+
+    def _audit(self, message: str) -> None:
+        """감사 로그 기록(실패해도 시세를 막지 않게 광범위 포착)."""
+        from app.db.database import connect
+        from app.services import audit_service
+
+        try:
+            conn = connect(self._settings.database_path)
+            try:
+                audit_service.log(conn, "MARKET", message, self._mode)
+            finally:
+                conn.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("시세 감사 로그 실패(무시): %s", exc)
 
     async def refresh(self, symbols: list[str]) -> None:
         """현재 관심종목 목록으로 실시간 구독을 다시 맞춘다."""

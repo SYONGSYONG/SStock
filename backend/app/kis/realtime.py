@@ -46,6 +46,8 @@ _IDX_BIDP1 = 13  # 매수호가1(최우선 매수호가)
 _MIN_OB_FIELDS = 23  # 3 + 10 + 10
 
 TickHandler = Callable[[dict[str, Any]], Awaitable[None]]
+# (event, detail) → 시세 연결 상태 변화 콜백(가시화용)
+StatusHandler = Callable[[str, str], Awaitable[None]]
 
 
 def parse_tick(raw: str) -> dict[str, Any] | None:
@@ -136,15 +138,25 @@ class KisRealtimeClient:
         creds = self._settings.kis_for(self._mode)
         return f"{creds.ws_base}{_WS_PATH}"
 
-    async def run(self, symbols: list[str], on_tick: TickHandler, max_retries: int = 5) -> None:
-        """연결→구독→수신 루프. 끊기면 재연결(지수 백오프)."""
+    async def run(
+        self,
+        symbols: list[str],
+        on_tick: TickHandler,
+        on_status: StatusHandler | None = None,
+    ) -> None:
+        """연결→구독→수신 루프. **정지(`stop`) 전까지 무한 재연결**한다(지수 백오프).
+
+        과거 `max_retries=5` 제한으로 5회 실패 후 시세가 영구 정지하던 결함을 제거했다.
+        연결이 너무 빨리 끊기면 백오프를 키우고(폭주 방지), 오래 유지되면 리셋한다.
+        on_status: ('connected'|'disconnected'|'error', detail) 콜백(가시화용, 선택).
+        """
         self._symbols = set(symbols)
-        retries = 0
-        while not self._stop.is_set() and retries < max_retries:
+        backoff = 1
+        while not self._stop.is_set():
+            started = asyncio.get_event_loop().time()
             try:
                 approval_key = await self._auth.get_approval_key()
                 async with websockets.connect(self.url) as ws:
-                    retries = 0
                     for symbol in sorted(self._symbols):
                         # 체결가 + 호가(스프레드용) 둘 다 구독
                         await ws.send(
@@ -157,11 +169,32 @@ class KisRealtimeClient:
                                 )
                             )
                         )
+                    await self._emit_status(on_status, "connected", f"{len(self._symbols)}종목")
                     await self._receive_loop(ws, on_tick)
+                # 수신 루프가 정상 종료 = 서버가 연결을 닫음 → 재연결
+                if not self._stop.is_set():
+                    await self._emit_status(on_status, "disconnected", "연결 종료")
             except Exception as exc:  # noqa: BLE001 - 재연결을 위해 광범위 포착
-                retries += 1
-                logger.warning("KIS 웹소켓[%s] 연결 오류(%d/%d): %s", self._mode, retries, max_retries, exc)
-                await asyncio.sleep(min(2**retries, 30))
+                if self._stop.is_set():
+                    break
+                logger.warning("KIS 웹소켓[%s] 연결 오류: %s", self._mode, exc)
+                await self._emit_status(on_status, "error", str(exc))
+            if self._stop.is_set():
+                break
+            # 연결이 5초 미만으로 끊기면 백오프 증가(재연결 폭주 방지), 오래 유지됐으면 리셋
+            elapsed = asyncio.get_event_loop().time() - started
+            backoff = min(backoff * 2, 30) if elapsed < 5 else 1
+            await asyncio.sleep(backoff)
+
+    @staticmethod
+    async def _emit_status(handler: StatusHandler | None, event: str, detail: str) -> None:
+        """상태 콜백을 안전하게 호출한다(콜백 오류가 시세 루프를 막지 않게)."""
+        if handler is None:
+            return
+        try:
+            await handler(event, detail)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("시세 상태 콜백 오류(무시): %s", exc)
 
     async def _receive_loop(self, ws: Any, on_tick: TickHandler) -> None:
         async for raw in ws:

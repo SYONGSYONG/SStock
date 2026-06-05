@@ -12,6 +12,7 @@ const CATEGORY_CLASS: Record<string, string> = {
   MODE: "cat-mode",
   ERROR: "cat-error",
   REGIME: "cat-regime",
+  MARKET: "cat-market",
 };
 
 export function AuditLogView({ logs }: AuditLogViewProps) {

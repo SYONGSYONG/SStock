@@ -1280,6 +1280,10 @@ body {
   background: #cffafe;
   color: #155e75;
 }
+.cat-market {
+  background: #e0e7ff;
+  color: #3730a3;
+}
 
 /* ── 관찰 전용 신호 배지(OFF 전략이 기록한 로그) ── */
 .observe-badge {

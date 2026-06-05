@@ -24,6 +24,7 @@ from app.strategies.market_rules import (
     in_entry_block_window,
     recent_range_ticks,
     recent_turnover,
+    snap_to_tick,
     stop_exit_reason,
     tick_size,
 )
@@ -296,6 +297,19 @@ class TradingBot:
         bt = int(cfg.get("params", {}).get("bar_ticks", 50)) or 1
         return len(hist) // bt
 
+    def _bot_avg_cost(self, conn: sqlite3.Connection, symbol: str) -> float | None:
+        """봇 보유분의 평균 진입원가(주문 이력 기준). 보유 0이면 None.
+
+        재시작으로 메모리 진입가가 사라졌을 때 보호청산 기준가를 복원하는 데 쓴다.
+        """
+        from app.services import budget_service
+
+        state = budget_service.compute_symbol_state(conn, symbol, mode=self._mode)
+        qty = state["holding_qty"]
+        if qty <= 0:
+            return None
+        return state["holding_cost"] / qty
+
     def _has_open_buy(self, conn: sqlite3.Connection, symbol: str) -> bool:
         """미체결 매수 주문(requested/partial)이 있으면 True(신규 매수 중복 방지)."""
         row = conn.execute(
@@ -380,15 +394,21 @@ class TradingBot:
         """보유 중 보호 청산(손절/익절/트레일링)을 검사·집행한다. 청산했으면 True.
 
         거버너(최소보유/쿨다운)를 무시하고 즉시 매도한다(보호 목적).
+        재시작 등으로 진입가 상태가 없으면 봇 보유원가에서 복원한다(보호청산 지속).
         """
-        entry = self._entry_price.get(key)
-        if entry is None:
-            return False
         if bot_sellable_qty(conn, symbol, self._mode) <= 0:
             # 더 이상 봇 보유가 없으면 상태 정리
             self._entry_price.pop(key, None)
             self._high_price.pop(key, None)
             return False
+        entry = self._entry_price.get(key)
+        if entry is None:
+            # 진입가 상태 없음(재시작 등) → 봇 보유원가에서 복원해 손절·트레일링을 잇는다.
+            entry = self._bot_avg_cost(conn, symbol)
+            if entry is None:
+                return False
+            self._entry_price[key] = entry
+            self._high_price[key] = max(entry, price)
         high = max(self._high_price.get(key, entry), price)
         self._high_price[key] = high
         reason = stop_exit_reason(entry, high, price, cfg.get("params", {}))
@@ -473,8 +493,11 @@ class TradingBot:
             logger.debug("매도 신호 무시(매도가능 0): %s %s", self._mode, signal.symbol)
             return None
 
+        # 주문가는 호가단위(tick) 배수로 정렬한다('호가단위 오류' 거절 방지).
+        order_price = snap_to_tick(signal.price)
+
         saved = signal_service.save_signal(
-            conn, signal.symbol, signal.strategy, signal.side, signal.price, signal.reason, self._mode
+            conn, signal.symbol, signal.strategy, signal.side, order_price, signal.reason, self._mode
         )
         await self._broadcast({"type": "signal", "data": saved, "mode": self._mode})
 
@@ -483,7 +506,7 @@ class TradingBot:
             symbol=signal.symbol,
             side=signal.side,
             qty=qty,
-            price=signal.price,
+            price=order_price,
             max_qty=cfg.get("max_qty"),
             max_amount=cfg.get("max_amount"),
         )
@@ -499,14 +522,14 @@ class TradingBot:
             )
             return None
 
-        result = await self._place(signal.symbol, signal.side, qty, signal.price)
+        result = await self._place(signal.symbol, signal.side, qty, order_price)
         status = "requested" if result.ok else "rejected"
         order = order_service.save_order(
             conn,
             signal.symbol,
             signal.side,
             qty,
-            signal.price,
+            order_price,
             self._mode,
             status=status,
             signal_id=saved["id"],

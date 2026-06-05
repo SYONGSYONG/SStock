@@ -9,6 +9,7 @@ from app.strategies.market_rules import (
     in_entry_block_window,
     recent_range_ticks,
     recent_turnover,
+    snap_to_tick,
     stop_exit_reason,
 )
 from app.strategies.market_rules import tick_size
@@ -26,6 +27,18 @@ def test_틱사이즈_가격대별():
     assert tick_size(70000) == 100
     assert tick_size(300000) == 500
     assert tick_size(600000) == 1000
+
+
+def test_snap_to_tick_호가단위_정렬():
+    # 삼성 가격대(호가단위 500): 330,750 → 331,000(가장 가까운 배수)
+    assert snap_to_tick(330750) == 331000
+    assert snap_to_tick(328000) == 328000  # 이미 배수면 그대로
+    # 다른 가격대
+    assert snap_to_tick(15123) == 15120  # 5,000~20,000 → 10원 단위
+    assert snap_to_tick(1234) == 1234     # <2,000 → 1원 단위
+    # None/0은 그대로(시장가 등)
+    assert snap_to_tick(None) is None
+    assert snap_to_tick(0) == 0
 
 
 def test_ma_cross_confirm_bars():

@@ -33,6 +33,18 @@ def tick_size(price: float) -> int:
     return 1000
 
 
+def snap_to_tick(price: float | None) -> float | None:
+    """가격을 호가단위(tick_size) 배수로 반올림한다(KRX 호가단위 위반 거절 방지).
+
+    예: 330,750(삼성 가격대 호가단위 500) → 331,000. price가 None/0 이하이면 그대로 반환
+    (시장가 등). 반환은 정수 원 단위.
+    """
+    if price is None or price <= 0:
+        return price
+    ts = tick_size(price)
+    return float(round(price / ts) * ts)
+
+
 def stop_exit_reason(
     entry_price: float, high_price: float, cur_price: float, params: dict
 ) -> str | None:

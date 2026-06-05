@@ -286,6 +286,67 @@ async def test_손절_보호청산(tmp_path):
     conn.close()
 
 
+async def test_손절_보호청산_재시작후_진입가복원(tmp_path):
+    """재시작으로 메모리 진입가가 없어도 봇 보유원가에서 복원해 손절이 동작한다."""
+    path, settings = _setup(tmp_path)
+    calls: list[str] = []
+
+    async def placer(symbol, side, qty, price):
+        calls.append(side)
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    async def syncer(symbol, order_no):
+        return []
+
+    bot = TradingBot(
+        conn_factory=lambda: connect(path),
+        settings=settings,
+        order_placer=placer,
+        order_syncer=syncer,
+    )
+    conn = connect(path)
+    budget_service.set_principal(conn, "005930", 10_000_000)
+    # 봇이 1,000원에 10주 보유(주문 이력). 메모리 진입가 상태는 '없음'(재시작 가정).
+    order_service.save_order(conn, "005930", "BUY", 10, 1000, "paper", status="filled")
+    key = ("005930", "rsi_ma")
+    assert key not in bot._entry_price  # 진입가 상태 없음
+    # 손절 5틱(tick=1) → 손절선 995. 현재가 990 → 보유원가(1,000)에서 복원해 손절
+    cfg = {"strategy": "rsi_ma", "params": {"bar_ticks": 1, "stop_loss_ticks": 5}}
+    handled = await bot._check_stops(conn, key, "005930", 990.0, [0.0] * 5, cfg)
+    assert handled is True
+    assert calls == ["SELL"]
+    conn.close()
+
+
+async def test_주문가_호가단위_정렬(tmp_path):
+    """봇이 주문가를 호가단위 배수로 정렬해 전송한다('호가단위 오류' 거절 방지)."""
+    from app.strategies.base import Signal
+
+    path, settings = _setup(tmp_path)
+    prices: list[float] = []
+
+    async def placer(symbol, side, qty, price):
+        prices.append(price)
+        return OrderResult(ok=True, kis_order_no="X", message="ok")
+
+    async def syncer(symbol, order_no):
+        return []
+
+    bot = TradingBot(
+        conn_factory=lambda: connect(path),
+        settings=settings,
+        order_placer=placer,
+        order_syncer=syncer,
+    )
+    conn = connect(path)
+    budget_service.set_principal(conn, "005930", 100_000_000)
+    # 신호가 330,750(호가단위 500 비배수) → 331,000으로 정렬해 주문
+    sig = Signal(symbol="005930", strategy="rsi_ma", side="BUY", price=330750.0, reason="t")
+    await bot._handle_signal(conn, sig, {"params": {}, "max_qty": 1})
+    assert prices == [331000.0]
+    conn.close()
+
+
 async def test_같은방향_중복신호_억제(tmp_path):
     # 확정봉이 그대로인 채 미완성 틱만 추가되면 같은 BUY 신호가 다시 떠도,
     # 봇은 직전과 같은 방향 신호를 억제해 주문을 1건만 낸다(휘프소 폭증 방지).

@@ -274,6 +274,22 @@ export function presetsFor(strategy: string): StrategyPreset[] {
   return STRATEGY_PRESETS[strategy] ?? [];
 }
 
+/** 저장된 파라미터가 어떤 프리셋과 **정확히 일치**하는지 판별한다.
+ *  프리셋이 정의한 모든 파라미터 값이 그대로면 그 프리셋을 반환, 아니면 null.
+ *  (프리셋 적용 후 값을 직접 수정하면 일치하지 않으므로 null = '직접 설정'.) */
+export function matchPreset(
+  strategy: string,
+  params: Record<string, number>,
+): StrategyPreset | null {
+  for (const preset of presetsFor(strategy)) {
+    const allEqual = Object.entries(preset.params).every(
+      ([key, value]) => params[key] === value,
+    );
+    if (allEqual) return preset;
+  }
+  return null;
+}
+
 /** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
 export interface ParamField {
   key: string;

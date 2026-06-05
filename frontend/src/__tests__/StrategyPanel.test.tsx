@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { StrategyPanel } from "../components/StrategyPanel";
-import { describeStrategy } from "../lib/strategy";
+import { describeStrategy, MA_CROSS_PRESETS, RSI_MA_PRESETS } from "../lib/strategy";
 import type { Budget, StrategyConfig, WatchItem } from "../types";
 
 afterEach(() => {
@@ -56,6 +56,35 @@ describe("StrategyPanel", () => {
     expect((screen.getByLabelText("전략 종목코드") as HTMLInputElement).value).toBe("");
     rerender(<StrategyPanel presetSymbol={{ value: "000660", n: 1 }} {...common} />);
     expect((screen.getByLabelText("전략 종목코드") as HTMLInputElement).value).toBe("000660");
+  });
+
+  test("프리셋과 정확히 일치하는 전략은 종목 옆에 프리셋 배지를 표시", () => {
+    const maStrong = MA_CROSS_PRESETS.find((p) => p.key === "강한상승")!;
+    const configs: StrategyConfig[] = [
+      // 프리셋 그대로 등록된 전략 → 배지 표시
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { ...maStrong.params }, enabled: false, max_qty: null, max_amount: null },
+      // 프리셋 일부를 수정한 전략 → 배지 없음(직접 설정으로 간주)
+      { id: 2, symbol: "000660", name: "SK하이닉스", strategy: "ma_cross", params: { ...maStrong.params, short: 7 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item1 = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item1).getByText("강한상승")).toBeInTheDocument();
+    const item2 = screen.getByText("000660").closest("li") as HTMLElement;
+    expect(within(item2).queryByText("강한상승")).toBeNull();
+  });
+
+  test("RSI+MA 프리셋도 정확히 일치하면 배지를 표시", () => {
+    const rsiBox = RSI_MA_PRESETS.find((p) => p.key === "횡보노이즈")!;
+    const configs: StrategyConfig[] = [
+      { id: 3, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { ...rsiBox.params }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText("횡보/노이즈")).toBeInTheDocument();
   });
 
   test("전략 목록에 종목번호와 종목명을 함께 표기", () => {

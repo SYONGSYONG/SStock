@@ -5,6 +5,7 @@ import {
   describeStrategy,
   explainParams,
   getStrategyHelp,
+  matchPreset,
   presetsFor,
   STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
@@ -480,6 +481,14 @@ export function StrategyPanel({
             <div className="strategy-head">
               <span className="code">{c.symbol}</span>
               <span className="name">{c.name ?? ""}</span>
+              {(() => {
+                const preset = matchPreset(c.strategy, c.params);
+                return preset ? (
+                  <span className="preset-badge" title={preset.purpose}>
+                    {preset.label}
+                  </span>
+                ) : null;
+              })()}
               <span className="spacer" />
               <label className="switch" title={c.enabled ? "전략 ON" : "전략 OFF"}>
                 <input

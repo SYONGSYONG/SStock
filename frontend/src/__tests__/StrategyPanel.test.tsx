@@ -200,16 +200,30 @@ describe("StrategyPanel", () => {
     );
   });
 
-  test("수정 모달에서 RSI+MA면 프리셋 선택이 없다", () => {
+  test("수정 모달도 RSI+MA면 프리셋(5종)으로 파라미터를 채울 수 있다", () => {
+    const onEditStrategy = vi.fn();
     const configs: StrategyConfig[] = [
-      { id: 8, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { rsi_period: 21, low: 30, high: 75, ma_period: 80, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+      { id: 8, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { rsi_period: 14, low: 30, high: 70, ma_period: 50, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
     ];
     render(
-      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+      <StrategyPanel budgets={[]} configs={configs} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} onEditStrategy={onEditStrategy} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "전략 수정" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).queryByLabelText("수정 프리셋 선택")).toBeNull();
+    const presetSelect = within(dialog).getByLabelText("수정 프리셋 선택");
+    expect(within(presetSelect).getAllByRole("option")).toHaveLength(6); // 직접 설정 + 5종
+    fireEvent.change(presetSelect, { target: { value: "아주강한하강" } });
+    expect((within(dialog).getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("10");
+    expect((within(dialog).getByLabelText("쿨다운봉") as HTMLInputElement).value).toBe("40");
+
+    fireEvent.click(within(dialog).getByText("저장"));
+    expect(onEditStrategy).toHaveBeenCalledWith(
+      8,
+      expect.objectContaining({
+        strategy: "rsi_ma",
+        params: expect.objectContaining({ rsi_period: 10, low: 20, high: 60, cooldown_bars: 40 }),
+      }),
+    );
   });
 
   test("수정 모달에서 다른 전략으로 교체하면 onEditStrategy로 새 전략을 전달", () => {
@@ -401,24 +415,41 @@ describe("StrategyPanel", () => {
     expect(options[0]).toHaveTextContent("RSI + MA 필터");
   });
 
-  test("프리셋 선택은 이동평균 크로스에서만 보이고 4종을 제공한다", () => {
+  test("RSI+MA는 5종 프리셋, 이동평균 크로스는 4종 프리셋을 제공한다", () => {
     render(
       <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
-    // 기본 RSI+MA에서는 프리셋이 없다
-    expect(screen.queryByLabelText("프리셋 선택")).toBeNull();
-    // 이동평균 크로스로 전환하면 프리셋이 나타난다
+    // 기본 RSI+MA: 5종(횡보/노이즈 포함)
+    const rsiPreset = screen.getByLabelText("프리셋 선택");
+    expect(within(rsiPreset).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "(직접 설정)",
+      "강한상승",
+      "아주강한상승",
+      "횡보/노이즈",
+      "강한하강",
+      "아주강한하강",
+    ]);
+    // 이동평균 크로스로 전환: 4종
     fireEvent.change(screen.getByLabelText("전략 선택"), { target: { value: "ma_cross" } });
-    const presetSelect = screen.getByLabelText("프리셋 선택");
-    expect(presetSelect).toBeInTheDocument();
-    const opts = within(presetSelect).getAllByRole("option");
-    expect(opts.map((o) => o.textContent)).toEqual([
+    const maPreset = screen.getByLabelText("프리셋 선택");
+    expect(within(maPreset).getAllByRole("option").map((o) => o.textContent)).toEqual([
       "(직접 설정)",
       "강한상승",
       "아주강한상승",
       "강한하강",
       "아주강한하강",
     ]);
+  });
+
+  test("프리셋(RSI+MA 횡보/노이즈)을 고르면 파라미터가 자동 입력된다", () => {
+    render(
+      <StrategyPanel budgets={[]} configs={[]} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("프리셋 선택"), { target: { value: "횡보노이즈" } });
+    expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("21");
+    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("80");
+    expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("70");
+    expect((screen.getByLabelText("익절틱(0=off)") as HTMLInputElement).value).toBe("12");
   });
 
   test("프리셋(강한상승)을 고르면 파라미터가 자동 입력된다", () => {

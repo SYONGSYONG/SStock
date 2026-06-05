@@ -5,7 +5,7 @@ import {
   describeStrategy,
   explainParams,
   getStrategyHelp,
-  MA_CROSS_PRESETS,
+  presetsFor,
   STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
   STRATEGY_LABEL,
@@ -270,10 +270,10 @@ export function StrategyPanel({
   // 프리셋 선택 시 해당 파라미터로 폼을 채운다("" = 직접 설정 → 기본값).
   const changePreset = (key: string) => {
     setPreset(key);
-    const p = MA_CROSS_PRESETS.find((x) => x.key === key);
-    setParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS.ma_cross });
+    const p = presetsFor(strategy).find((x) => x.key === key);
+    setParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS[strategy] });
   };
-  const presetPurpose = MA_CROSS_PRESETS.find((x) => x.key === preset)?.purpose ?? "";
+  const presetPurpose = presetsFor(strategy).find((x) => x.key === preset)?.purpose ?? "";
 
   const changeParam = (key: string, raw: string) => {
     setParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
@@ -294,7 +294,7 @@ export function StrategyPanel({
     onSetBudget(symbol, Math.floor(principalValue));
     setSymbol("");
     // 같은 프리셋으로 다른 종목에 연속 등록할 수 있게 프리셋·파라미터는 유지한다.
-    const cur = MA_CROSS_PRESETS.find((x) => x.key === preset);
+    const cur = presetsFor(strategy).find((x) => x.key === preset);
     setParams(cur ? { ...cur.params } : { ...STRATEGY_DEFAULTS[strategy] });
     setPrincipal("");
   };
@@ -316,10 +316,10 @@ export function StrategyPanel({
   // 수정 모달 프리셋 선택 시 해당 파라미터로 채운다("" = 직접 설정 → 기본값).
   const changeEditPreset = (key: string) => {
     setEditPreset(key);
-    const p = MA_CROSS_PRESETS.find((x) => x.key === key);
-    setEditParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS.ma_cross });
+    const p = presetsFor(editStrategy).find((x) => x.key === key);
+    setEditParams(p ? { ...p.params } : { ...STRATEGY_DEFAULTS[editStrategy] });
   };
-  const editPresetPurpose = MA_CROSS_PRESETS.find((x) => x.key === editPreset)?.purpose ?? "";
+  const editPresetPurpose = presetsFor(editStrategy).find((x) => x.key === editPreset)?.purpose ?? "";
 
   const changeEditParam = (key: string, raw: string) => {
     setEditParams((prev) => ({ ...prev, [key]: toNumber(raw) }));
@@ -409,7 +409,7 @@ export function StrategyPanel({
           )}
         </div>
 
-        {strategy === "ma_cross" && (
+        {presetsFor(strategy).length > 0 && (
           <label className="param-field preset-field">
             <span className="param-label">프리셋</span>
             <select
@@ -418,7 +418,7 @@ export function StrategyPanel({
               onChange={(e) => changePreset(e.target.value)}
             >
               <option value="">(직접 설정)</option>
-              {MA_CROSS_PRESETS.map((p) => (
+              {presetsFor(strategy).map((p) => (
                 <option key={p.key} value={p.key}>
                   {p.label}
                 </option>
@@ -552,7 +552,7 @@ export function StrategyPanel({
               (파라미터는 기본값으로 초기화).
             </p>
           )}
-          {editStrategy === "ma_cross" && (
+          {presetsFor(editStrategy).length > 0 && (
             <label className="param-field preset-field">
               <span className="param-label">프리셋</span>
               <select
@@ -561,7 +561,7 @@ export function StrategyPanel({
                 onChange={(e) => changeEditPreset(e.target.value)}
               >
                 <option value="">(직접 설정)</option>
-                {MA_CROSS_PRESETS.map((p) => (
+                {presetsFor(editStrategy).map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.label}
                   </option>

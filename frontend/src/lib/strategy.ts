@@ -44,17 +44,17 @@ export const STRATEGY_DEFAULTS: Record<string, Record<string, number>> = {
   },
 };
 
-/** ma_cross 상황별 프리셋(추천 파라미터 묶음).
- *  전략 추가 폼에서 이동평균 크로스를 고른 뒤 프리셋을 선택하면 파라미터를 한 번에 채운다.
- *  내부 전략은 ma_cross 그대로이며, 프리셋은 파라미터 템플릿일 뿐이다. */
-export interface MaCrossPreset {
+/** 전략 상황별 프리셋(추천 파라미터 묶음).
+ *  전략 추가/수정 폼에서 전략을 고른 뒤 프리셋을 선택하면 파라미터를 한 번에 채운다.
+ *  내부 전략 종류는 그대로이며, 프리셋은 파라미터 템플릿일 뿐이다. */
+export interface StrategyPreset {
   key: string;
   label: string;
   purpose: string;
   params: Record<string, number>;
 }
 
-export const MA_CROSS_PRESETS: MaCrossPreset[] = [
+export const MA_CROSS_PRESETS: StrategyPreset[] = [
   {
     key: "강한상승",
     label: "강한상승",
@@ -144,6 +144,135 @@ export const MA_CROSS_PRESETS: MaCrossPreset[] = [
     },
   },
 ];
+
+export const RSI_MA_PRESETS: StrategyPreset[] = [
+  {
+    key: "강한상승",
+    label: "강한상승",
+    purpose: "안정적인 상승 추세 진입",
+    params: {
+      rsi_period: 14,
+      low: 35,
+      high: 75,
+      ma_period: 50,
+      bar_ticks: 40,
+      confirm_bars: 2,
+      ma_buffer_ticks: 2,
+      max_distance_ticks: 8,
+      min_hold_bars: 6,
+      cooldown_bars: 10,
+      stop_loss_ticks: 12,
+      trailing_stop_ticks: 15,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 10,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+  {
+    key: "아주강한상승",
+    label: "아주강한상승",
+    purpose: "장초반 급등·폭등 대응",
+    params: {
+      rsi_period: 10,
+      low: 40,
+      high: 80,
+      ma_period: 30,
+      bar_ticks: 25,
+      confirm_bars: 2,
+      ma_buffer_ticks: 2,
+      max_distance_ticks: 12,
+      min_hold_bars: 4,
+      cooldown_bars: 8,
+      stop_loss_ticks: 15,
+      trailing_stop_ticks: 20,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 15,
+      min_turnover: 0,
+      max_spread_ticks: 5,
+    },
+  },
+  {
+    key: "횡보노이즈",
+    label: "횡보/노이즈",
+    purpose: "박스권·노이즈 구간 둔감 운용",
+    params: {
+      rsi_period: 21,
+      low: 28,
+      high: 70,
+      ma_period: 80,
+      bar_ticks: 70,
+      confirm_bars: 3,
+      ma_buffer_ticks: 3,
+      max_distance_ticks: 5,
+      min_hold_bars: 10,
+      cooldown_bars: 20,
+      stop_loss_ticks: 8,
+      trailing_stop_ticks: 10,
+      take_profit_ticks: 12,
+      min_volatility_ticks: 8,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+  {
+    key: "강한하강",
+    label: "강한하강",
+    purpose: "보유 종목 방어·매수 억제",
+    params: {
+      rsi_period: 14,
+      low: 25,
+      high: 65,
+      ma_period: 60,
+      bar_ticks: 40,
+      confirm_bars: 2,
+      ma_buffer_ticks: 3,
+      max_distance_ticks: 3,
+      min_hold_bars: 0,
+      cooldown_bars: 30,
+      stop_loss_ticks: 5,
+      trailing_stop_ticks: 6,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 0,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+  {
+    key: "아주강한하강",
+    label: "아주강한하강",
+    purpose: "급락 대응·빠른 청산 우선",
+    params: {
+      rsi_period: 10,
+      low: 20,
+      high: 60,
+      ma_period: 40,
+      bar_ticks: 25,
+      confirm_bars: 1,
+      ma_buffer_ticks: 2,
+      max_distance_ticks: 0,
+      min_hold_bars: 0,
+      cooldown_bars: 40,
+      stop_loss_ticks: 3,
+      trailing_stop_ticks: 4,
+      take_profit_ticks: 0,
+      min_volatility_ticks: 0,
+      min_turnover: 0,
+      max_spread_ticks: 3,
+    },
+  },
+];
+
+/** 전략별 프리셋 묶음(단일 진실 공급원). */
+export const STRATEGY_PRESETS: Record<string, StrategyPreset[]> = {
+  ma_cross: MA_CROSS_PRESETS,
+  rsi_ma: RSI_MA_PRESETS,
+};
+
+/** 전략 식별자 → 해당 프리셋 목록(없으면 빈 배열). */
+export function presetsFor(strategy: string): StrategyPreset[] {
+  return STRATEGY_PRESETS[strategy] ?? [];
+}
 
 /** 편집 가능한 파라미터 필드 정의(입력 라벨·범위). */
 export interface ParamField {

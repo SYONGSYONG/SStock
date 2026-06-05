@@ -7,6 +7,8 @@ import {
   getStrategyHelp,
   matchPreset,
   presetsFor,
+  regimeLabel,
+  isUpRegime,
   type StrategyPreset,
   STRATEGY_COMPARISON,
   STRATEGY_DEFAULTS,
@@ -538,29 +540,48 @@ export function StrategyPanel({
             </div>
             {(() => {
               const regime = regimes[c.symbol];
-              if (!regime) return null;
-              const isUpRegime = regime === "강한상승" || regime === "아주강한상승";
-              // 정책 A: 기본 추천 전략은 RSI+MA. ma_cross가 약한 횡보·하강 국면에선
-              // RSI+MA 전환을 권장만 한다(전환은 '전략 수정'에서 사용자가 직접).
-              if (c.strategy === "ma_cross" && !isUpRegime) {
+              // (1) 미분류 — 워밍업 중이거나 시세 미수신
+              if (!regime) {
+                return (
+                  <div className="strategy-reco strategy-reco-pending">
+                    <span className="reco-tag">국면</span> 파악 중…
+                  </div>
+                );
+              }
+              const label = regimeLabel(regime);
+              // (2) 정책 A: ma_cross가 약한 횡보·하강 국면 → RSI+MA 전환 권장(수동)
+              if (c.strategy === "ma_cross" && !isUpRegime(regime)) {
                 return (
                   <div
                     className="strategy-reco strategy-reco-hint"
                     title="추세추종에 불리한 국면 — RSI+MA 필터 권장"
                   >
-                    <span className="reco-tag">권장</span>이 국면엔 <b>RSI + MA 필터</b>{" "}
+                    <span className="reco-tag">권장</span>국면 {label} — <b>RSI + MA 필터</b>{" "}
                     <span className="reco-note">(전략 수정에서 변경)</span>
                   </div>
                 );
               }
-              // 국면에 맞는 프리셋 추천(현재 파라미터가 아직 그 프리셋이 아니면 적용 제안)
               const rec = presetsFor(c.strategy).find((p) => p.key === regime);
-              if (!rec) return null;
-              if (matchPreset(c.strategy, c.params)?.key === rec.key) return null;
+              // (3) 해당 전략에 그 국면 프리셋이 없음 → 국면만 표시
+              if (!rec) {
+                return (
+                  <div className="strategy-reco strategy-reco-pending">
+                    <span className="reco-tag">국면</span> {label}
+                  </div>
+                );
+              }
+              // (4) 현재 프리셋과 일치 → 정상 동작 확인(적용 버튼 없음)
+              if (matchPreset(c.strategy, c.params)?.key === rec.key) {
+                return (
+                  <div className="strategy-reco strategy-reco-match" title={rec.purpose}>
+                    <span className="reco-tag">국면</span> {label} · 현재 프리셋과 일치 ✓
+                  </div>
+                );
+              }
+              // (5) 불일치 → 추천 + 적용
               return (
                 <div className="strategy-reco" title={rec.purpose}>
-                  <span className="reco-tag">추천</span>
-                  <b>{rec.label}</b>
+                  <span className="reco-tag">추천</span>국면 {label} → <b>{rec.label}</b>
                   <button
                     className="link-action reco-apply"
                     onClick={() => applyRecommendedPreset(c, rec)}

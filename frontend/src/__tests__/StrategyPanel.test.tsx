@@ -106,7 +106,7 @@ describe("StrategyPanel", () => {
     );
   });
 
-  test("오토모드: 이미 추천 프리셋과 일치하면 적용 제안을 숨긴다", () => {
+  test("오토모드: 국면이 현재 프리셋과 일치하면 '일치 ✓' 표시(적용 버튼 없음)", () => {
     const ma = MA_CROSS_PRESETS.find((p) => p.key === "강한상승")!;
     const configs: StrategyConfig[] = [
       { id: 1, symbol: "005930", name: "삼성전자", strategy: "ma_cross", params: { ...ma.params }, enabled: false, max_qty: null, max_amount: null },
@@ -115,7 +115,32 @@ describe("StrategyPanel", () => {
       <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "강한상승" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
     );
     const item = screen.getByText("005930").closest("li") as HTMLElement;
+    // 일치할 때도 줄을 표시(정상 동작 확인) — 단, 적용 버튼은 없다
+    expect(within(item).getByText(/현재 프리셋과 일치/)).toBeInTheDocument();
     expect(within(item).queryByRole("button", { name: "적용" })).toBeNull();
+  });
+
+  test("오토모드: 국면 미분류면 '파악 중' 표시", () => {
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { rsi_period: 21, low: 28, high: 70, ma_period: 80, bar_ticks: 70 }, enabled: false, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{}} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText(/파악 중/)).toBeInTheDocument();
+  });
+
+  test("오토모드: RSI+MA가 국면 프리셋과 일치하면 '일치 ✓' 표시", () => {
+    const box = RSI_MA_PRESETS.find((p) => p.key === "횡보노이즈")!;
+    const configs: StrategyConfig[] = [
+      { id: 1, symbol: "005930", name: "삼성전자", strategy: "rsi_ma", params: { ...box.params }, enabled: true, max_qty: null, max_amount: null },
+    ];
+    render(
+      <StrategyPanel budgets={[]} configs={configs} regimes={{ "005930": "횡보노이즈" }} onAdd={() => {}} onToggle={() => {}} onRemove={() => {}} onSetBudget={() => {}} />,
+    );
+    const item = screen.getByText("005930").closest("li") as HTMLElement;
+    expect(within(item).getByText(/횡보\/노이즈 · 현재 프리셋과 일치/)).toBeInTheDocument();
   });
 
   test("오토모드(A): ma_cross가 약한 횡보/하강 국면이면 RSI+MA 권장 안내(적용 버튼 없음)", () => {

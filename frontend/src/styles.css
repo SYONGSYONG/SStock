@@ -343,6 +343,23 @@ body {
   background: #fef3c7;
   color: #92400e;
 }
+/* 국면 미분류(파악 중) / 일치 — 정보성(회색) */
+.strategy-reco-pending,
+.strategy-reco-match {
+  color: var(--muted);
+}
+.strategy-reco-pending .reco-tag,
+.strategy-reco-match .reco-tag {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.strategy-reco-match {
+  color: #166534;
+}
+.strategy-reco-match .reco-tag {
+  background: #dcfce7;
+  color: #166534;
+}
 .strategy-reco .reco-note {
   color: var(--muted);
   font-size: 11px;

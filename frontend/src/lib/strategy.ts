@@ -274,6 +274,26 @@ export function presetsFor(strategy: string): StrategyPreset[] {
   return STRATEGY_PRESETS[strategy] ?? [];
 }
 
+/** 시장 국면 키 → 표시 라벨(백엔드 regime.py와 동일). 횡보만 슬래시 표기. */
+export const REGIME_LABELS: Record<string, string> = {
+  강한상승: "강한상승",
+  아주강한상승: "아주강한상승",
+  횡보노이즈: "횡보/노이즈",
+  강한하강: "강한하강",
+  아주강한하강: "아주강한하강",
+};
+
+/** 국면 키 → 표시 라벨(없으면 키 그대로). */
+export function regimeLabel(key: string | undefined): string {
+  if (!key) return "";
+  return REGIME_LABELS[key] ?? key;
+}
+
+/** 강세(매수 우호) 국면 여부 — ma_cross 적합 구간 판별용. */
+export function isUpRegime(key: string | undefined): boolean {
+  return key === "강한상승" || key === "아주강한상승";
+}
+
 /** 저장된 파라미터가 어떤 프리셋과 **정확히 일치**하는지 판별한다.
  *  프리셋이 정의한 모든 파라미터 값이 그대로면 그 프리셋을 반환, 아니면 null.
  *  (프리셋 적용 후 값을 직접 수정하면 일치하지 않으므로 null = '직접 설정'.) */

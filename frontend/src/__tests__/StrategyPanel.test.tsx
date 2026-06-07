@@ -778,6 +778,31 @@ describe("StrategyPanel 성과 인지형 추천", () => {
     expect(screen.getByText(/-3\.20% \(10건\)/)).toBeInTheDocument();
   });
 
+  test("성과 부진 + 국면 추천 프리셋이 다르면 '적용' 버튼으로 1클릭 적용", () => {
+    const onEditStrategy = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <StrategyPanel
+        configs={cfg}
+        perf={[perfRow({ sum_return: -3.2, trades: 10 })]}
+        regimes={{ "005930": "강한상승" }}
+        onEditStrategy={onEditStrategy}
+        {...common}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /강한상승 적용/ }));
+    expect(onEditStrategy).toHaveBeenCalledTimes(1);
+    expect(onEditStrategy.mock.calls[0][1].params).toMatchObject(RSI_MA_PRESETS[0].params);
+  });
+
+  test("성과 부진 + 국면 미분류면 '전략 수정' 링크를 표시", () => {
+    render(<StrategyPanel configs={cfg} perf={[perfRow({ sum_return: -3.2, trades: 10 })]} regimes={{}} {...common} />);
+    // 성과 줄(perf-bad) 안의 전략 수정 버튼이 존재
+    const badLine = document.querySelector(".strategy-perf-line.perf-bad");
+    expect(badLine).not.toBeNull();
+    expect(within(badLine as HTMLElement).getByRole("button", { name: "전략 수정" })).toBeInTheDocument();
+  });
+
   test("가상 성과가 양호(누적 양수·표본 충분)이면 '양호'를 표시", () => {
     render(<StrategyPanel configs={cfg} perf={[perfRow({ sum_return: 6, trades: 8 })]} {...common} />);
     expect(screen.getByText(/양호/)).toBeInTheDocument();

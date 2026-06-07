@@ -2181,3 +2181,6 @@ body {
 .strategy-perf-line .reco-tag {
   margin-right: 4px;
 }
+.strategy-perf-line .link-action {
+  margin-left: 8px;
+}

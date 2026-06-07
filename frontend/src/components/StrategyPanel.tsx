@@ -613,12 +613,33 @@ export function StrategyPanel({
                 );
               }
               if (pr.sum_return < 0) {
+                // 적용 동선: 국면 추천 프리셋이 있고 현재와 다르면 1클릭 적용,
+                // 없으면(파악 중·종류 전환 등) '전략 수정'으로 직접 변경.
+                const regime = regimes[c.symbol];
+                let rec: StrategyPreset | null = null;
+                if (regime && !(c.strategy === "ma_cross" && !isUpRegime(regime))) {
+                  const found = presetsFor(c.strategy).find((p) => p.key === regime);
+                  if (found && matchPreset(c.strategy, c.params)?.key !== found.key) rec = found;
+                }
                 return (
                   <div
                     className="strategy-perf-line perf-bad"
                     title="가상 성과 부진 — 프리셋 점검 권장(신호 기반, 실제 체결과 다를 수 있음)"
                   >
                     <span className="reco-tag">성과</span> 부진 · 누적 <b className="down">{cum}</b>
+                    {rec ? (
+                      <button
+                        className="link-action reco-apply"
+                        onClick={() => applyRecommendedPreset(c, rec!)}
+                        title={`추천 국면 프리셋 '${rec.label}' 적용`}
+                      >
+                        → {rec.label} 적용
+                      </button>
+                    ) : (
+                      <button className="link-action perf-fix" onClick={() => openEdit(c)}>
+                        전략 수정
+                      </button>
+                    )}
                   </div>
                 );
               }

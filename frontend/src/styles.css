@@ -2076,3 +2076,58 @@ body {
 .risk-save:hover {
   filter: brightness(1.05);
 }
+
+/* ── 전략 성과(섀도우) 보드 ── */
+.strategy-perf-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.strategy-perf-head h2 {
+  margin: 0;
+}
+.strategy-perf-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.perf-table th,
+.perf-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.perf-table thead th {
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 600;
+  text-align: left;
+}
+.perf-table th.num,
+.perf-table td.num {
+  text-align: right;
+}
+.perf-symbol-name {
+  font-weight: 600;
+}
+.perf-symbol-code {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.perf-preset-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  vertical-align: middle;
+}

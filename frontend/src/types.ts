@@ -57,6 +57,25 @@ export interface Signal {
   created_at: string;
 }
 
+/** 섀도우 성과 보드: (종목,전략)별 신호 기반 가상 성과(완결 거래 = BUY→SELL 페어). */
+export interface StrategyPerfRow {
+  symbol: string;
+  name: string;
+  strategy: StrategyName;
+  /** 완결 거래 수(청산까지 끝난 페어) */
+  trades: number;
+  /** 이익(수익률>0) 거래 수 */
+  wins: number;
+  /** 승률(%) */
+  win_rate: number;
+  /** 누적 수익률(%) = 완결 거래 수익률 합 */
+  sum_return: number;
+  /** 평균 수익률(%) */
+  avg_return: number;
+  /** 미청산 보유 단위 수(0 또는 1) */
+  open_position: number;
+}
+
 export interface BotStatus {
   running: boolean;
   market_running: boolean;

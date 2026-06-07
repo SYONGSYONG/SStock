@@ -19,6 +19,7 @@ import type {
   TradePnlResult,
   StrategyConfig,
   StrategyName,
+  StrategyPerfRow,
   ThemeInfo,
   TradingMode,
   WatchItem,
@@ -109,6 +110,10 @@ export const deleteStrategy = (id: number) =>
 
 export const getSignals = (limit = 50, mode: TradingMode = "paper") =>
   api<Signal[]>(withMode(`/api/signals?limit=${limit}`, mode));
+
+/** 섀도우 성과 보드: (종목,전략)별 신호 기반 가상 성과 행 목록. */
+export const getStrategyPerformance = (mode: TradingMode = "paper") =>
+  api<{ rows: StrategyPerfRow[] }>(withMode("/api/strategy-performance", mode));
 
 export const getBotStatus = (mode: TradingMode) =>
   api<BotStatus>(withMode("/api/bot/status", mode));

@@ -33,6 +33,7 @@ from app.routers import (
     signals,
     stocks,
     strategies,
+    strategy_perf,
     trade_pnl,
     watchlist,
     ws,
@@ -149,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(recommend.router)
     app.include_router(market.router)
     app.include_router(strategies.router)
+    app.include_router(strategy_perf.router)
     app.include_router(signals.router)
     app.include_router(budgets.router)
     app.include_router(risk_limits.router)

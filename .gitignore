@@ -42,6 +42,8 @@ _tmp/
 
 # ===== Playwright / 테스트 스크린샷 =====
 **/.playwright-mcp/
+# 테스트/데모 캡처 보관 폴더(앞으로 테스트 이미지는 이곳에)
+docs/testImages/
 sstock-*.png
 recommend-*.png
 company-*.png

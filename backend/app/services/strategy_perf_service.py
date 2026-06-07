@@ -60,22 +60,33 @@ def simulate_signal_pnl(signals: list[dict[str, Any]]) -> dict[str, Any]:
         "sum_return": round(sum_return, 2),
         "avg_return": round(sum_return / trades, 2) if trades else 0.0,
         "open_position": 1 if entry is not None else 0,
+        # 미청산 진입가(프론트가 현재가와 결합해 미실현 % 계산). 청산 완료면 None.
+        "open_entry": entry,
     }
 
 
 def compute_strategy_performance(
-    conn: sqlite3.Connection, mode: str = "paper"
+    conn: sqlite3.Connection, mode: str = "paper", start: str | None = None
 ) -> dict[str, Any]:
     """모드별 (종목,전략) 가상 성과 보드를 계산한다.
 
     신호를 (종목,전략)별로 묶어 시간순 시뮬레이션하고, 완결 거래수·수익률을 집계한다.
+    start('YYYY-MM-DD', KST) 지정 시 created_at >= start 신호만 사용한다(기간 필터 — 기간
+    시작 전 진입분은 제외돼 그 기간에 발생한 거래만 평가). 미지정이면 전체 기간.
     행 정렬: 누적 수익률 내림차순(성과 좋은 전략이 위), 동률은 (종목,전략) 사전순.
     """
-    signals = conn.execute(
-        "SELECT symbol, strategy, side, price, created_at FROM signals "
-        "WHERE mode = ? ORDER BY created_at, id",
-        (mode,),
-    ).fetchall()
+    if start:
+        signals = conn.execute(
+            "SELECT symbol, strategy, side, price, created_at FROM signals "
+            "WHERE mode = ? AND created_at >= ? ORDER BY created_at, id",
+            (mode, start),
+        ).fetchall()
+    else:
+        signals = conn.execute(
+            "SELECT symbol, strategy, side, price, created_at FROM signals "
+            "WHERE mode = ? ORDER BY created_at, id",
+            (mode,),
+        ).fetchall()
 
     # (종목,전략)별 신호 시퀀스(이미 시간순)
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}

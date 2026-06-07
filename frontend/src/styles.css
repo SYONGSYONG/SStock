@@ -2131,3 +2131,39 @@ body {
   font-size: 11px;
   vertical-align: middle;
 }
+/* 기간 필터(전체/오늘/최근 N일) */
+.perf-period {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 4px;
+}
+.perf-period-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.perf-period-btn:hover {
+  border-color: var(--accent);
+}
+.perf-period-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+/* 표본 부족: 칩 + 수익률 셀 흐림 */
+.perf-lowsample {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.perf-table td.perf-dim {
+  opacity: 0.45;
+}

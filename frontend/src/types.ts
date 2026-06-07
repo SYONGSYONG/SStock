@@ -74,6 +74,8 @@ export interface StrategyPerfRow {
   avg_return: number;
   /** 미청산 보유 단위 수(0 또는 1) */
   open_position: number;
+  /** 미청산 포지션의 진입가(현재가와 결합해 미실현 % 계산). 청산 완료면 null */
+  open_entry: number | null;
 }
 
 export interface BotStatus {

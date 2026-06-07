@@ -41,7 +41,11 @@ import { MarketControl } from "./components/MarketControl";
 import { BotControl } from "./components/BotControl";
 import { RiskLimitBar } from "./components/RiskLimitBar";
 import { StrategyPanel } from "./components/StrategyPanel";
-import { StrategyPerformance } from "./components/StrategyPerformance";
+import {
+  StrategyPerformance,
+  perfPeriodStart,
+  type PerfPeriod,
+} from "./components/StrategyPerformance";
 import { SignalLog } from "./components/SignalLog";
 import { PositionTable } from "./components/PositionTable";
 import { OrderLog } from "./components/OrderLog";
@@ -83,6 +87,7 @@ export function App() {
   const [symbolPreset, setSymbolPreset] = useState<{ value: string; n: number }>({ value: "", n: 0 });
   const [signals, setSignals] = useState<Signal[]>([]);
   const [perf, setPerf] = useState<StrategyPerfRow[]>([]);
+  const [perfPeriod, setPerfPeriod] = useState<PerfPeriod>("all");
   const [orders, setOrders] = useState<Order[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [audit, setAudit] = useState<AuditLog[]>([]);
@@ -134,7 +139,9 @@ export function App() {
       getBotStatus("live").then(setBotLive).catch(() => {});
       // 나머지는 보는 모드로 폴링
       getSignals(50, viewMode).then(setSignals).catch(() => {});
-      getStrategyPerformance(viewMode).then((d) => setPerf(d.rows)).catch(() => {});
+      getStrategyPerformance(viewMode, perfPeriodStart(perfPeriod))
+        .then((d) => setPerf(d.rows))
+        .catch(() => {});
       getOrders(50, viewMode).then(setOrders).catch(() => {});
       getPositions(viewMode).then(setPositions).catch(() => {});
       getAudit(100, viewMode).then(setAudit).catch(() => {});
@@ -154,7 +161,7 @@ export function App() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [viewMode, tab, chartOpen]);
+  }, [viewMode, tab, chartOpen, perfPeriod]);
 
   const handleAddWatch = async (symbol: string, name?: string) => {
     setWatchError(null);
@@ -386,7 +393,13 @@ export function App() {
           />
         </section>
         {/* 전략 성과(섀도우) — 신호 기반 가상 성과 보드(전체 폭) */}
-        <StrategyPerformance rows={perf} configs={strategies} />
+        <StrategyPerformance
+          rows={perf}
+          configs={strategies}
+          quotes={quotes}
+          period={perfPeriod}
+          onPeriodChange={setPerfPeriod}
+        />
         {/* 주문내역 : 매매신호 = 1:1 */}
         <div className="row row-1-1">
           <OrderLog orders={orders} />

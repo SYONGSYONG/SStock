@@ -111,9 +111,12 @@ export const deleteStrategy = (id: number) =>
 export const getSignals = (limit = 50, mode: TradingMode = "paper") =>
   api<Signal[]>(withMode(`/api/signals?limit=${limit}`, mode));
 
-/** 섀도우 성과 보드: (종목,전략)별 신호 기반 가상 성과 행 목록. */
-export const getStrategyPerformance = (mode: TradingMode = "paper") =>
-  api<{ rows: StrategyPerfRow[] }>(withMode("/api/strategy-performance", mode));
+/** 섀도우 성과 보드: (종목,전략)별 신호 기반 가상 성과 행 목록.
+ *  start('YYYY-MM-DD', KST) 지정 시 기간 필터(해당 일자 이후 신호만 집계). */
+export const getStrategyPerformance = (mode: TradingMode = "paper", start?: string) => {
+  const base = withMode("/api/strategy-performance", mode);
+  return api<{ rows: StrategyPerfRow[] }>(start ? `${base}&start=${start}` : base);
+};
 
 export const getBotStatus = (mode: TradingMode) =>
   api<BotStatus>(withMode("/api/bot/status", mode));

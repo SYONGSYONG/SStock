@@ -64,6 +64,35 @@ def test_보유중_BUY는_무시하고_미보유_SELL도_무시(tmp_path):
     assert r["trades"] == 1
     assert r["sum_return"] == 10.0
     assert r["open_position"] == 1
+    assert r["open_entry"] == 2000.0  # 마지막 미청산 진입가
+
+
+def test_미청산_없으면_open_entry_None(tmp_path):
+    conn = _db(tmp_path)
+    _sig(conn, "005930", "rsi_ma", "BUY", 1000, "2026-06-01 10:00:00")
+    _sig(conn, "005930", "rsi_ma", "SELL", 1100, "2026-06-01 11:00:00")
+    r = perf.compute_strategy_performance(conn, mode="paper")["rows"][0]
+    assert r["open_position"] == 0
+    assert r["open_entry"] is None
+
+
+def test_기간_필터_start(tmp_path):
+    conn = _db(tmp_path)
+    # 06-01 완결(+10%), 06-05 완결(+20%)
+    _sig(conn, "005930", "rsi_ma", "BUY", 1000, "2026-06-01 10:00:00")
+    _sig(conn, "005930", "rsi_ma", "SELL", 1100, "2026-06-01 11:00:00")
+    _sig(conn, "005930", "rsi_ma", "BUY", 1000, "2026-06-05 10:00:00")
+    _sig(conn, "005930", "rsi_ma", "SELL", 1200, "2026-06-05 11:00:00")
+
+    # 전체: 완결2, 누적+30%
+    full = perf.compute_strategy_performance(conn, mode="paper")["rows"][0]
+    assert full["trades"] == 2
+    assert full["sum_return"] == 30.0
+
+    # start=06-05: 06-05 거래만 → 완결1, 누적+20%
+    recent = perf.compute_strategy_performance(conn, mode="paper", start="2026-06-05")["rows"][0]
+    assert recent["trades"] == 1
+    assert recent["sum_return"] == 20.0
 
 
 def test_ON_OFF_전략_모두_집계(tmp_path):

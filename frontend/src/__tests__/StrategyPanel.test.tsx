@@ -762,3 +762,40 @@ describe("StrategyPanel", () => {
     expect(onSetBudget).not.toHaveBeenCalled();
   });
 });
+
+describe("StrategyPanel 성과 인지형 추천", () => {
+  const cfg: StrategyConfig[] = [
+    { id: 1, symbol: "005930", strategy: "rsi_ma", params: { rsi_period: 14, low: 30, high: 70, ma_period: 50, bar_ticks: 50 }, enabled: true, max_qty: null, max_amount: null },
+  ];
+  function perfRow(over: Partial<import("../types").StrategyPerfRow> = {}): import("../types").StrategyPerfRow {
+    return { symbol: "005930", name: "삼성전자", strategy: "rsi_ma", trades: 8, wins: 5, win_rate: 62.5, sum_return: 6, avg_return: 0.75, open_position: 0, open_entry: null, ...over };
+  }
+  const common = { budgets: [] as Budget[], onAdd: () => {}, onToggle: () => {}, onRemove: () => {}, onSetBudget: () => {} };
+
+  test("가상 성과가 부진(누적 음수·표본 충분)이면 '부진'을 표시", () => {
+    render(<StrategyPanel configs={cfg} perf={[perfRow({ sum_return: -3.2, trades: 10 })]} {...common} />);
+    expect(screen.getByText(/부진/)).toBeInTheDocument();
+    expect(screen.getByText(/-3\.20% \(10건\)/)).toBeInTheDocument();
+  });
+
+  test("가상 성과가 양호(누적 양수·표본 충분)이면 '양호'를 표시", () => {
+    render(<StrategyPanel configs={cfg} perf={[perfRow({ sum_return: 6, trades: 8 })]} {...common} />);
+    expect(screen.getByText(/양호/)).toBeInTheDocument();
+    expect(screen.getByText(/\+6\.00% \(8건\)/)).toBeInTheDocument();
+  });
+
+  test("표본이 적으면 '표본 부족'으로 표시", () => {
+    render(<StrategyPanel configs={cfg} perf={[perfRow({ sum_return: 12, trades: 2 })]} {...common} />);
+    expect(screen.getByText(/표본 부족/)).toBeInTheDocument();
+  });
+
+  test("완결 거래가 0이면 성과 줄을 표시하지 않는다", () => {
+    render(<StrategyPanel configs={cfg} perf={[perfRow({ trades: 0, sum_return: 0 })]} {...common} />);
+    expect(screen.queryByText(/성과/)).not.toBeInTheDocument();
+  });
+
+  test("perf가 없으면 성과 줄을 표시하지 않는다", () => {
+    render(<StrategyPanel configs={cfg} {...common} />);
+    expect(screen.queryByText(/성과/)).not.toBeInTheDocument();
+  });
+});

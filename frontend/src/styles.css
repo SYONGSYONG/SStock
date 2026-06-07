@@ -2167,3 +2167,17 @@ body {
 .perf-table td.perf-dim {
   opacity: 0.45;
 }
+/* 전략 카드의 성과 인지형 추천 줄 */
+.strategy-perf-line {
+  font-size: 12px;
+  margin-top: 3px;
+}
+.strategy-perf-line.perf-bad {
+  color: var(--down);
+}
+.strategy-perf-line.perf-good {
+  color: var(--up);
+}
+.strategy-perf-line .reco-tag {
+  margin-right: 4px;
+}

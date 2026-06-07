@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Budget, StrategyConfig, StrategyName, WatchItem } from "../types";
+import type { Budget, StrategyConfig, StrategyName, StrategyPerfRow, WatchItem } from "../types";
 import { fmt } from "../lib/format";
+import { MIN_RELIABLE_TRADES } from "./StrategyPerformance";
 import {
   describeStrategy,
   explainParams,
@@ -25,6 +26,8 @@ interface StrategyPanelProps {
   budgets: Budget[];
   /** 오토모드: 종목별 현재 시장 국면({종목코드: 국면키}). 추천 프리셋 표시용. */
   regimes?: Record<string, string>;
+  /** 섀도우 성과 보드 행(성과 인지형 추천 — 카드에 가상 성과 부진/양호 표시). */
+  perf?: StrategyPerfRow[];
   /** 관심종목(종목코드→종목명 표시용) */
   items?: WatchItem[];
   /** 외부(실시간 시세 클릭)에서 종목코드를 채워넣을 때. n이 바뀌면 value로 설정. */
@@ -214,6 +217,7 @@ export function StrategyPanel({
   configs,
   budgets,
   regimes = {},
+  perf = [],
   items = [],
   presetSymbol,
   onAdd,
@@ -591,6 +595,43 @@ export function StrategyPanel({
                   >
                     적용
                   </button>
+                </div>
+              );
+            })()}
+            {(() => {
+              // 성과 인지형 추천: 이 (종목,전략)의 가상 성과를 추천 줄 아래에 함께 보여
+              // 적용 판단을 돕는다. 신호 기반 가상치이며 실제 체결 손익과 다를 수 있다.
+              const pr = perf.find((r) => r.symbol === c.symbol && r.strategy === c.strategy);
+              if (!pr || pr.trades === 0) return null;
+              const sign = pr.sum_return > 0 ? "+" : "";
+              const cum = `${sign}${pr.sum_return.toFixed(2)}% (${pr.trades}건)`;
+              if (pr.trades < MIN_RELIABLE_TRADES) {
+                return (
+                  <div className="strategy-perf-line muted" title="완결 거래가 적어 신뢰도 낮음(가상)">
+                    <span className="reco-tag">성과</span> 표본 부족 · 누적 {cum}
+                  </div>
+                );
+              }
+              if (pr.sum_return < 0) {
+                return (
+                  <div
+                    className="strategy-perf-line perf-bad"
+                    title="가상 성과 부진 — 프리셋 점검 권장(신호 기반, 실제 체결과 다를 수 있음)"
+                  >
+                    <span className="reco-tag">성과</span> 부진 · 누적 <b className="down">{cum}</b>
+                  </div>
+                );
+              }
+              if (pr.sum_return > 0) {
+                return (
+                  <div className="strategy-perf-line perf-good" title="가상 성과 양호(신호 기준)">
+                    <span className="reco-tag">성과</span> 양호 · 누적 <b className="up">{cum}</b>
+                  </div>
+                );
+              }
+              return (
+                <div className="strategy-perf-line muted">
+                  <span className="reco-tag">성과</span> 보합 · 누적 {cum}
                 </div>
               );
             })()}

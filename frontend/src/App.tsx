@@ -380,6 +380,7 @@ export function App() {
             configs={strategies}
             budgets={budgets}
             regimes={regimes}
+            perf={perf}
             items={items}
             presetSymbol={symbolPreset}
             onAdd={handleAddStrategy}

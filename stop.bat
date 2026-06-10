@@ -4,7 +4,7 @@ setlocal EnableExtensions
 rem ----------------------------------------------------------------
 rem Stop SStock backend + frontend dev servers.
 rem Delegates to scripts\stop-server.ps1 which kills by listening port
-rem AND by repo-directory processes (catches Vite fallback ports, orphans).
+rem (read from repo-root .env) AND by repo-directory processes (catches orphans).
 rem ----------------------------------------------------------------
 
 set "BASE=%~dp0"

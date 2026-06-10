@@ -1,4 +1,5 @@
 @echo off
+setlocal
 rem 프론트 포트는 저장소 루트 .env 단일 출처(vite.config.ts도 같은 .env를 읽음).
 set "FRONTEND_PORT=8001"
 if exist "%~dp0.env" (

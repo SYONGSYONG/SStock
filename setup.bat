@@ -35,5 +35,7 @@ if errorlevel 1 ( echo [ERROR] Frontend install failed & pause & exit /b 1 )
 echo.
 echo [SStock] Setup complete.
 echo   1) Create backend\.env from backend\.env.example (KIS app key/secret + account no)
-echo   2) Run start.bat to launch backend + frontend
+echo   2) (Optional) Create .env from .env.example to change ports / enable LAN access
+echo      (defaults: backend 8000, frontend 8001, local-only)
+echo   3) Run start.bat to launch backend + frontend
 pause

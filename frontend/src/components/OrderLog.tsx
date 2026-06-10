@@ -1,5 +1,5 @@
 import type { Order } from "../types";
-import { fmt } from "../lib/format";
+import { fmt, fmtDatetime } from "../lib/format";
 
 interface OrderLogProps {
   orders: Order[];
@@ -20,7 +20,7 @@ export function OrderLog({ orders }: OrderLogProps) {
       <table className="quote-table">
         <thead>
           <tr>
-            <th>시각</th>
+            <th>일시</th>
             <th>종목</th>
             <th>구분</th>
             <th className="num">수량</th>
@@ -31,7 +31,7 @@ export function OrderLog({ orders }: OrderLogProps) {
         <tbody>
           {orders.map((o) => (
             <tr key={o.id}>
-              <td className="muted">{o.created_at?.slice(11, 19) ?? "-"}</td>
+              <td className="muted">{fmtDatetime(o.created_at)}</td>
               <td>
                 <span className="code">{o.symbol}</span>{" "}
                 <span className="name">{o.name ?? ""}</span>

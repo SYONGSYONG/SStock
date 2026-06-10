@@ -43,4 +43,51 @@ describe("SignalLog", () => {
     render(<SignalLog signals={sample} />);
     expect(screen.queryByText("관찰")).toBeNull();
   });
+
+  test("날짜+시각을 MM-DD HH:MM:SS 형태로 표시", () => {
+    render(<SignalLog signals={sample} />);
+    expect(screen.getByText("06-03 09:05:00")).toBeInTheDocument();
+  });
+
+  test("서로 다른 날짜의 신호들도 각각 날짜를 표시", () => {
+    const multiday: Signal[] = [
+      {
+        id: 1,
+        symbol: "005930",
+        strategy: "ma_cross",
+        side: "BUY",
+        price: 70000,
+        reason: "골든크로스",
+        created_at: "2026-06-03 09:05:00",
+      },
+      {
+        id: 2,
+        symbol: "000660",
+        strategy: "rsi_ma",
+        side: "SELL",
+        price: 80000,
+        reason: "RSI 과매도",
+        created_at: "2026-06-04 14:30:15",
+      },
+    ];
+    render(<SignalLog signals={multiday} />);
+    expect(screen.getByText("06-03 09:05:00")).toBeInTheDocument();
+    expect(screen.getByText("06-04 14:30:15")).toBeInTheDocument();
+  });
+
+  test("created_at이 null이면 '-' 표시", () => {
+    const nullDateSignal: Signal[] = [
+      {
+        id: 1,
+        symbol: "005930",
+        strategy: "ma_cross",
+        side: "BUY",
+        price: 70000,
+        reason: "골든크로스",
+        created_at: "",
+      },
+    ];
+    render(<SignalLog signals={nullDateSignal} />);
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
 });

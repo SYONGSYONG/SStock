@@ -1,5 +1,5 @@
 import type { Signal } from "../types";
-import { fmt } from "../lib/format";
+import { fmt, fmtDatetime } from "../lib/format";
 import { strategyLabel } from "../lib/strategy";
 
 interface SignalLogProps {
@@ -14,7 +14,7 @@ export function SignalLog({ signals }: SignalLogProps) {
       <table className="quote-table">
         <thead>
           <tr>
-            <th>시각</th>
+            <th>일시</th>
             <th>종목</th>
             <th>전략</th>
             <th>구분</th>
@@ -25,7 +25,7 @@ export function SignalLog({ signals }: SignalLogProps) {
         <tbody>
           {signals.map((s) => (
             <tr key={s.id}>
-              <td className="muted">{s.created_at?.slice(11, 19) ?? "-"}</td>
+              <td className="muted">{fmtDatetime(s.created_at)}</td>
               <td>
                 <span className="code">{s.symbol}</span>{" "}
                 <span className="name">{s.name ?? ""}</span>

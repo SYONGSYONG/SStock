@@ -75,9 +75,7 @@ class Settings(BaseSettings):
     # 테스트는 conftest에서 0으로 끈다.
     kis_min_call_interval_sec: float | None = None
 
-    # 서버
-    host: str = "127.0.0.1"
-    port: int = 8000
+    # 서버 호스트/포트는 저장소 루트 .env(BACKEND_HOST/BACKEND_PORT)로 이전 — 기동 스크립트가 읽는다.
 
     # 안전 가드 — risk_limit 테이블에 모드별 행이 없을 때 쓰는 기본값.
     # 대시보드에서 런타임에 변경하면 risk_limit에 저장되어 이 기본값보다 우선한다.

@@ -1,5 +1,6 @@
 # SStock dev server start helper
-# - Launches backend (uvicorn :8000) + frontend (Vite :5173) as hidden processes
+# - Launches backend (uvicorn) + frontend (Vite) as hidden processes
+#   (ports read from repo-root .env: BACKEND_PORT / FRONTEND_PORT)
 #   with logs under logs/, then waits and reports which ports came up.
 # - Uses Start-Process -FilePath (native arg/quote handling) to avoid the
 #   cmd /c double-quote pitfall when the interpreter path is quoted.
@@ -14,6 +15,17 @@ $frontend = Join-Path $root 'frontend'
 $log = Join-Path $root 'logs'
 $py = Join-Path $backend '.venv\Scripts\python.exe'
 
+# Ports come from repo-root .env (single source). Fall back to defaults if absent.
+$cfg = @{ BACKEND_HOST = '127.0.0.1'; BACKEND_PORT = '8000'; FRONTEND_PORT = '8001' }
+$envFile = Join-Path $root '.env'
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*#' ) { continue }
+        if ($line -match '^\s*([A-Za-z_]+)\s*=\s*(.+?)\s*$') { $cfg[$matches[1]] = $matches[2] }
+    }
+}
+$bHost = $cfg['BACKEND_HOST']; $bPort = $cfg['BACKEND_PORT']; $fPort = $cfg['FRONTEND_PORT']
+
 if (-not (Test-Path $py)) {
     Write-Host "[ERROR] Backend venv not found: $py"
     Write-Host "        Run setup.bat first."
@@ -25,12 +37,12 @@ if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
 }
 New-Item -ItemType Directory -Force -Path $log | Out-Null
 
-Write-Host "[START] Backend  - http://127.0.0.1:8000 (uvicorn)"
-Write-Host "[START] Frontend - http://localhost:5173 (vite)"
+Write-Host "[START] Backend  - http://${bHost}:${bPort} (uvicorn)"
+Write-Host "[START] Frontend - http://localhost:${fPort} (vite)"
 Write-Host ""
 
 Start-Process -FilePath $py `
-    -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000' `
+    -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', $bHost, '--port', $bPort `
     -WorkingDirectory $backend -WindowStyle Hidden `
     -RedirectStandardOutput (Join-Path $log 'backend.log') `
     -RedirectStandardError (Join-Path $log 'backend.err')
@@ -50,17 +62,17 @@ function Test-Port([int]$p) {
 $backendOk = $false
 $frontendOk = $false
 for ($i = 0; $i -lt 30; $i++) {
-    if (-not $backendOk) { $backendOk = Test-Port 8000 }
-    if (-not $frontendOk) { $frontendOk = Test-Port 5173 }
+    if (-not $backendOk) { $backendOk = Test-Port ([int]$bPort) }
+    if (-not $frontendOk) { $frontendOk = Test-Port ([int]$fPort) }
     if ($backendOk -and $frontendOk) { break }
     Start-Sleep -Seconds 1
 }
 
 Write-Host "----------------------------------------"
-if ($backendOk) { Write-Host "[OK]   Backend : http://127.0.0.1:8000" }
-else { Write-Host "[FAIL] Backend : port 8000 not detected (see logs\backend.err)" }
-if ($frontendOk) { Write-Host "[OK]   Frontend: http://localhost:5173" }
-else { Write-Host "[FAIL] Frontend: port 5173 not detected (see logs\frontend.log)" }
+if ($backendOk) { Write-Host "[OK]   Backend : http://${bHost}:${bPort}" }
+else { Write-Host "[FAIL] Backend : port ${bPort} not detected (see logs\backend.err)" }
+if ($frontendOk) { Write-Host "[OK]   Frontend: http://localhost:${fPort}" }
+else { Write-Host "[FAIL] Frontend: port ${fPort} not detected (see logs\frontend.log)" }
 Write-Host "----------------------------------------"
 Write-Host "Logs: $log"
 Write-Host "Stop: stop.bat"

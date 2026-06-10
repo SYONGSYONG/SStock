@@ -304,12 +304,30 @@ DATABASE_PATH=./data/sstock.db
 | 스크립트 | 역할 |
 |---------|------|
 | `setup.bat` | 백엔드 venv + `pip install -e .[dev]`, 프론트 `npm install` (최초 1회) |
-| `start.bat` | `scripts/start-server.ps1` 위임 — 백엔드(uvicorn :8000)+프론트(vite :5173)를 숨김 실행, `logs/`에 기록, **포트 감지**로 OK/FAIL 보고 |
+| `start.bat` | `scripts/start-server.ps1` 위임 — 백엔드(uvicorn :8000)+프론트(vite :8001)를 숨김 실행, `logs/`에 기록, **포트 감지**로 OK/FAIL 보고 |
 | `stop.bat` | `scripts/stop-server.ps1` 위임 — **포트 + 저장소 폴더 기준**으로 종료(폴백 포트·고아 프로세스까지). `net session` 권한 경고 |
 | `start_backend.bat` / `start_frontend.bat` | 개별 가시 창 실행(라이브 로그 확인용) |
 
 설계 원칙(Reference `bat` 문서 기준):
 - 배치/PS1 메시지는 **영문**(CMD CP949 깨짐 방지), PS1은 **ASCII**(PowerShell 5.1 BOM 이슈 방지).
-- 종료는 포트만 보지 않고 **저장소 디렉터리에서 실행된 python/node**를 함께 정리 — Vite 폴백 포트(5174 등)와 자식 프로세스 누락 방지.
-- Vite는 `strictPort: true`로 **5173 고정**(폴백으로 인한 종료 누락 원천 차단).
+- 종료는 포트만 보지 않고 **저장소 디렉터리에서 실행된 python/node**를 함께 정리 — 자식 프로세스 누락 방지.
+- Vite는 `strictPort: true`로 **포트 고정**(폴백으로 인한 종료 누락 원천 차단).
 - 배치는 `%~dp0` 기반 자기 위치 인식(클론 경로 무관).
+
+### 포트/호스트 설정 — 저장소 루트 `.env` 단일 출처
+
+서버·클라이언트 포트와 호스트는 **저장소 루트 `.env` 한 곳**에서 정의하고, 기동 스크립트
+(`start_backend.bat`/`start_frontend.bat`/`scripts/start-server.ps1`/`stop-server.ps1`)와
+`frontend/vite.config.ts`가 모두 이 파일을 읽는다. 포트를 바꾸려면 **`.env` 한 곳만** 고친다
+(템플릿은 `.env.example`, 실제 값 `.env`는 git 제외). 미설정 시 아래 기본값으로 동작한다.
+
+| 키 | 기본값 | 의미 |
+|----|-------|------|
+| `BACKEND_HOST` | `127.0.0.1` | 백엔드 바인딩 호스트(보통 루프백 유지 — 프론트가 프록시로 전달) |
+| `BACKEND_PORT` | `8000` | 백엔드 포트. `vite.config.ts`의 `/api`·`/ws` 프록시 대상도 이 값을 따라감 |
+| `FRONTEND_HOST` | `127.0.0.1` | `true`면 `0.0.0.0` 바인딩(같은 네트워크 다른 PC에서 접속 허용), `127.0.0.1`이면 로컬만 |
+| `FRONTEND_PORT` | `8001` | 프론트(vite) = 브라우저 접속 포트 |
+
+- **다른 PC 접속**: `FRONTEND_HOST=true`로 두고 다른 PC에서 `http://<이 PC LAN IP>:FRONTEND_PORT`로 접속(방화벽 인바운드 허용 필요). 백엔드는 프록시로 호스트 내부 전달되므로 `127.0.0.1` 유지로 충분하다.
+- **보안**: 봇 제어 대시보드라 LAN 노출 시 같은 네트워크 누구나 접근 가능(현재 인증 없음). 신뢰망에서만 열고 인터넷 직접 노출 금지.
+- `backend/.env`의 `HOST`/`PORT`는 더 이상 기동에 쓰이지 않는다(루트 `.env`가 우선). `config.py` 기본값과 동일해 영향 없음.

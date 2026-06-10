@@ -1,5 +1,5 @@
 # SStock dev server stop helper
-# - Stops backend (uvicorn :8000) + frontend (Vite :5173, incl. fallback 5174+)
+# - Stops backend (uvicorn) + frontend (Vite) (ports from repo-root .env)
 # - Kills by listening port AND by python/node processes launched from this repo
 #   directory, so fallback ports and orphaned processes are reliably cleaned up.
 #
@@ -10,7 +10,17 @@ $ErrorActionPreference = 'SilentlyContinue'
 
 # scripts/ -> repo root
 $root = Split-Path -Parent $PSScriptRoot
-$ports = @(8000) + (5173..5180)
+
+# Ports come from repo-root .env (single source). Fall back to defaults if absent.
+$cfg = @{ BACKEND_PORT = '8000'; FRONTEND_PORT = '8001' }
+$envFile = Join-Path $root '.env'
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*#') { continue }
+        if ($line -match '^\s*([A-Za-z_]+)\s*=\s*(.+?)\s*$') { $cfg[$matches[1]] = $matches[2] }
+    }
+}
+$ports = @([int]$cfg['BACKEND_PORT'], [int]$cfg['FRONTEND_PORT'])
 $killed = New-Object System.Collections.Generic.HashSet[int]
 
 function Stop-Pid([int]$procId) {

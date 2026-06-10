@@ -7,7 +7,8 @@ from typing import Any
 
 from app.db.database import kst_now_str
 
-# 카테고리: BOT | ORDER | SIGNAL | MODE | ERROR | RISK
+# 카테고리: BOT | ORDER | MARKET | MODE | REGIME | STRATEGY
+# (STRATEGY = 전략 설정 변경 이력 — 자동·수동 구분용, docs/11-strategy.md 참고)
 Category = str
 
 

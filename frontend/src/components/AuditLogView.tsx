@@ -13,6 +13,7 @@ const CATEGORY_CLASS: Record<string, string> = {
   ERROR: "cat-error",
   REGIME: "cat-regime",
   MARKET: "cat-market",
+  STRATEGY: "cat-strategy",
 };
 
 export function AuditLogView({ logs }: AuditLogViewProps) {

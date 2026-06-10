@@ -8,6 +8,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("RSI+MA 프리셋 반응성 범위", () => {
+  // 신호가 너무 늦게/안 나오는 것을 막기 위해 모든 프리셋의 ma_period·bar_ticks를
+  // 민감 범위로 제한한다. ma_period×bar_ticks가 봇 히스토리 상한(6000틱)에 근접하면
+  // 신호가 거의/전혀 발생하지 않으므로, 보수적 상한을 둔다.
+  test("모든 RSI+MA 프리셋의 ma_period는 20~40 범위다", () => {
+    for (const preset of RSI_MA_PRESETS) {
+      expect(preset.params.ma_period).toBeGreaterThanOrEqual(20);
+      expect(preset.params.ma_period).toBeLessThanOrEqual(40);
+    }
+  });
+
+  test("모든 RSI+MA 프리셋의 bar_ticks는 25~50 범위다", () => {
+    for (const preset of RSI_MA_PRESETS) {
+      expect(preset.params.bar_ticks).toBeGreaterThanOrEqual(25);
+      expect(preset.params.bar_ticks).toBeLessThanOrEqual(50);
+    }
+  });
+
+  test("필요 틱(=(ma_period+confirm_bars+1)×bar_ticks)이 히스토리 상한 6000보다 충분히 작다", () => {
+    for (const preset of RSI_MA_PRESETS) {
+      const p = preset.params;
+      const needTicks = (p.ma_period + p.confirm_bars + 1) * p.bar_ticks;
+      expect(needTicks).toBeLessThan(3000);
+    }
+  });
+});
+
 describe("describeStrategy", () => {
   test("이동평균 크로스는 틱봉/단기/장기로 표기", () => {
     expect(describeStrategy("ma_cross", { short: 5, long: 20, bar_ticks: 50 })).toBe(
@@ -569,7 +596,7 @@ describe("StrategyPanel", () => {
     );
     fireEvent.change(screen.getByLabelText("프리셋 선택"), { target: { value: "횡보노이즈" } });
     expect((screen.getByLabelText("RSI 기간") as HTMLInputElement).value).toBe("21");
-    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("80");
+    expect((screen.getByLabelText("추세 MA") as HTMLInputElement).value).toBe("40");
     expect((screen.getByLabelText("과매수") as HTMLInputElement).value).toBe("70");
     expect((screen.getByLabelText("익절틱(0=off)") as HTMLInputElement).value).toBe("12");
   });

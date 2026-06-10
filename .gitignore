@@ -50,6 +50,9 @@ company-*.png
 minute-chart*.png
 chart-*.png
 
+# ===== 로컬 참고 자료(세션 간 기능 명세 등) — git 제외, 로컬 보관용 =====
+OutReference/
+
 # ===== 실행 로그 =====
 logs/
 *.log

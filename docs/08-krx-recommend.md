@@ -309,7 +309,7 @@ python -m uvicorn app.main:app --reload
 
 **요청:**
 ```bash
-curl http://localhost:8000/api/recommend/semiconductor
+curl http://localhost:8010/api/recommend/semiconductor
 ```
 
 **응답 (KRX 시세 포함):**

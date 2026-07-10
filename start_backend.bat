@@ -2,7 +2,7 @@
 setlocal
 rem 포트는 저장소 루트 .env 단일 출처에서 읽는다(미설정 시 기본값).
 set "BACKEND_HOST=127.0.0.1"
-set "BACKEND_PORT=8000"
+set "BACKEND_PORT=8010"
 if exist "%~dp0.env" (
   for /f "usebackq eol=# tokens=1,2 delims==" %%a in ("%~dp0.env") do (
     if /i "%%a"=="BACKEND_HOST" set "BACKEND_HOST=%%b"

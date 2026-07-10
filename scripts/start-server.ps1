@@ -16,7 +16,7 @@ $log = Join-Path $root 'logs'
 $py = Join-Path $backend '.venv\Scripts\python.exe'
 
 # Ports come from repo-root .env (single source). Fall back to defaults if absent.
-$cfg = @{ BACKEND_HOST = '127.0.0.1'; BACKEND_PORT = '8000'; FRONTEND_PORT = '8001' }
+$cfg = @{ BACKEND_HOST = '127.0.0.1'; BACKEND_PORT = '8010'; FRONTEND_PORT = '8001' }
 $envFile = Join-Path $root '.env'
 if (Test-Path $envFile) {
     foreach ($line in Get-Content $envFile) {

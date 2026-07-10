@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, repoRoot, ""); // prefix="" → 루트 .env의 모든 키 로드(시크릿 없음)
 
   const backendHost = env.BACKEND_HOST || "127.0.0.1";
-  const backendPort = env.BACKEND_PORT || "8000";
+  const backendPort = env.BACKEND_PORT || "8010";
   const frontendPort = Number(env.FRONTEND_PORT || "8001");
   // FRONTEND_HOST=true → 0.0.0.0(LAN 노출). 그 외 문자열(127.0.0.1 등)은 그대로 바인딩.
   const frontendHost: string | boolean =

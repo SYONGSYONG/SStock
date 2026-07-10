@@ -12,7 +12,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $root = Split-Path -Parent $PSScriptRoot
 
 # Ports come from repo-root .env (single source). Fall back to defaults if absent.
-$cfg = @{ BACKEND_PORT = '8000'; FRONTEND_PORT = '8001' }
+$cfg = @{ BACKEND_PORT = '8010'; FRONTEND_PORT = '8001' }
 $envFile = Join-Path $root '.env'
 if (Test-Path $envFile) {
     foreach ($line in Get-Content $envFile) {

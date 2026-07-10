@@ -253,9 +253,8 @@ KIS_ACCOUNT_PRODUCT=01   # 계좌상품코드 2자리 (모의/실전 공용)
 KIS_TOKEN_PREWARM=true   # 기동 시 토큰 프리워밍(첫 시세/잔고 호출 지연↓). 테스트는 conftest가 off
 KIS_MIN_CALL_INTERVAL_SEC=  # KIS 호출 간 최소 간격(초). 비우면 모드별 기본(paper 0.45/live 0.06). 테스트는 0
 
-# 서버
-HOST=127.0.0.1
-PORT=8000
+# 서버 호스트/포트는 저장소 루트 .env(BACKEND_HOST/BACKEND_PORT)로 이전됨.
+# (기본 BACKEND_PORT=8010 — 형제 프로젝트 TossStock의 8000과 충돌 회피)
 
 # 안전 가드 (DB의 risk_limit 행이 없을 때 쓰는 기본값. 대시보드에서 런타임 변경 가능)
 DAILY_MAX_ORDERS=100     # 일일 최대 주문 횟수(기본값)
@@ -304,7 +303,7 @@ DATABASE_PATH=./data/sstock.db
 | 스크립트 | 역할 |
 |---------|------|
 | `setup.bat` | 백엔드 venv + `pip install -e .[dev]`, 프론트 `npm install` (최초 1회) |
-| `start.bat` | `scripts/start-server.ps1` 위임 — 백엔드(uvicorn :8000)+프론트(vite :8001)를 숨김 실행, `logs/`에 기록, **포트 감지**로 OK/FAIL 보고 |
+| `start.bat` | `scripts/start-server.ps1` 위임 — 백엔드(uvicorn :8010)+프론트(vite :8001)를 숨김 실행, `logs/`에 기록, **포트 감지**로 OK/FAIL 보고 |
 | `stop.bat` | `scripts/stop-server.ps1` 위임 — **포트 + 저장소 폴더 기준**으로 종료(폴백 포트·고아 프로세스까지). `net session` 권한 경고 |
 | `start_backend.bat` / `start_frontend.bat` | 개별 가시 창 실행(라이브 로그 확인용) |
 
@@ -324,7 +323,7 @@ DATABASE_PATH=./data/sstock.db
 | 키 | 기본값 | 의미 |
 |----|-------|------|
 | `BACKEND_HOST` | `127.0.0.1` | 백엔드 바인딩 호스트(보통 루프백 유지 — 프론트가 프록시로 전달) |
-| `BACKEND_PORT` | `8000` | 백엔드 포트. `vite.config.ts`의 `/api`·`/ws` 프록시 대상도 이 값을 따라감 |
+| `BACKEND_PORT` | `8010` | 백엔드 포트(형제 프로젝트 TossStock의 8000과 충돌 회피). `vite.config.ts`의 `/api`·`/ws` 프록시 대상도 이 값을 따라감 |
 | `FRONTEND_HOST` | `127.0.0.1` | `true`면 `0.0.0.0` 바인딩(같은 네트워크 다른 PC에서 접속 허용), `127.0.0.1`이면 로컬만 |
 | `FRONTEND_PORT` | `8001` | 프론트(vite) = 브라우저 접속 포트 |
 

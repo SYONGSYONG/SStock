@@ -55,7 +55,7 @@
 | 5 | 프론트: 관심종목·실시간 시세표 | Vitest 5건 통과 + `vite build` 성공 | ✅ |
 
 > 검증: 백엔드 `pytest` 22건 + 프론트 `vitest` 5건 전부 통과. TestClient로 watchlist CRUD + `/api/quotes/005930` 실서버 200 + `/ws/quotes` 연결 등록(0→1→0) 확인. `vite build` 성공(200KB/63KB gzip).
-> React 대시보드: 모드 배너 + 관심종목 CRUD + 실시간 시세표(REST 스냅샷 + WS 병합) + 시세수집 시작/정지. Vite 프록시로 `/api`·`/ws` → 백엔드 :8000.
+> React 대시보드: 모드 배너 + 관심종목 CRUD + 실시간 시세표(REST 스냅샷 + WS 병합) + 시세수집 시작/정지. Vite 프록시로 `/api`·`/ws` → 백엔드 :8010.
 > 차트(분봉)·호가창은 후속 보강. 봇/시세수집은 안전상 기본 OFF(`/api/market/start`로 수동 시작).
 
 ---
